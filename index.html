@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pacific Craftworks — CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* LOGIN SCREEN */
+  #login-screen { position:fixed; inset:0; background:var(--bg,#ECEAE3); display:flex; align-items:center; justify-content:center; z-index:9999; }
+  #login-screen.hidden { display:none; }
+  .login-card { background:white; border-radius:16px; padding:40px; width:380px; max-width:95vw; box-shadow:0 8px 40px rgba(0,0,0,0.12); }
+  .login-logo { display:flex; align-items:center; gap:10px; margin-bottom:28px; }
+  .login-logo-mark { width:36px; height:36px; background:#1C2B4A; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .login-logo-text { font-size:15px; font-weight:700; color:#1C2B4A; }
+  .login-logo-text span { color:#8A8880; font-weight:400; }
+  .login-title { font-size:22px; font-weight:800; color:#1A1A18; margin-bottom:6px; }
+  .login-sub { font-size:13px; color:#8A8880; margin-bottom:28px; }
+  .login-field { margin-bottom:16px; }
+  .login-label { font-size:11px; font-weight:600; color:#8A8880; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:6px; display:block; }
+  .login-input { width:100%; padding:10px 14px; border:1.5px solid #E0DDD5; border-radius:8px; font-size:14px; font-family:inherit; outline:none; transition:border 0.15s; }
+  .login-input:focus { border-color:#1C2B4A; box-shadow:0 0 0 3px rgba(28,43,74,0.08); }
+  .login-btn { width:100%; padding:12px; background:#1C2B4A; color:white; border:none; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; margin-top:4px; transition:background 0.15s; }
+  .login-btn:hover { background:#253560; }
+  .login-btn:disabled { background:#C8C4BB; cursor:not-allowed; }
+  .login-error { background:#FDF2F2; border:1px solid #F5C5C5; color:#D44; border-radius:7px; padding:10px 12px; font-size:12px; font-weight:500; margin-top:12px; display:none; }
+  .login-error.show { display:block; }
+  /* LOADING OVERLAY */
+  #loading-overlay { position:fixed; inset:0; background:white; display:flex; align-items:center; justify-content:center; z-index:9998; flex-direction:column; gap:12px; }
+  #loading-overlay.hidden { display:none; }
+  .spinner { width:32px; height:32px; border:3px solid #E0DDD5; border-top-color:#1C2B4A; border-radius:50%; animation:spin 0.7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-text { font-size:13px; color:#8A8880; font-weight:500; }
+</style>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ECEAE3;
+    --surface: #F4F2EB;
+    --white: #FFFFFF;
+    --border: #E0DDD5;
+    --border-strong: #C8C4BB;
+    --text: #1A1A18;
+    --text-2: #4A4A44;
+    --muted: #8A8880;
+    --brand: #1C2B4A;
+    --brand-light: #2D4169;
+    --brand-hover: #253560;
+    --lead: #D44;
+    --lead-bg: #FDF2F2;
+    --lead-border: #F5C5C5;
+    --collect: #C47D00;
+    --collect-bg: #FDF8EE;
+    --collect-border: #EDD89A;
+    --production: #2563EB;
+    --production-bg: #EEF3FD;
+    --production-border: #B8D0F8;
+    --shipped: #7C3AED;
+    --shipped-bg: #F4F0FD;
+    --shipped-border: #CEBFF8;
+    --done: #16A34A;
+    --done-bg: #F0FAF3;
+    --done-border: #A8DFB8;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+    --shadow: 0 1px 4px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 20px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+    --radius: 10px;
+    --radius-sm: 7px;
+    --radius-lg: 14px;
+  }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; -webkit-font-smoothing: antialiased; }
+
+  /* NAV */
+  nav { background: var(--brand); color: white; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  nav .logo { font-size: 14px; font-weight: 700; letter-spacing: 0.2px; display:flex; align-items:center; gap:10px; }
+  nav .logo-mark { width:28px; height:28px; background:rgba(255,255,255,0.12); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  nav .logo span { color: rgba(255,255,255,0.5); font-weight:400; }
+  nav .nav-right { display: flex; align-items: center; gap: 8px; }
+  nav .nav-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 6px 14px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; }
+  nav .nav-btn:hover { background: rgba(255,255,255,0.18); }
+  nav .nav-btn.primary { background: white; color: var(--brand); border-color: white; }
+  nav .nav-btn.primary:hover { background: #F0EEE8; }
+
+  /* TABS */
+  .tabs { background: var(--white); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; gap: 0; overflow-x: auto; }
+  .tab { padding: 13px 16px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
+  .tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+  .tab:hover:not(.active) { color: var(--text-2); }
+
+  /* PIPELINE BOARD */
+  .board { display: flex; gap: 12px; padding: 16px 24px 24px; overflow-x: auto; align-items: flex-start; }
+  .column { flex: 0 0 255px; }
+  .column-header { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-radius: var(--radius) var(--radius) 0 0; }
+  .column-header .col-title { font-size: 11px; font-weight: 700; letter-spacing: 0.3px; display: flex; align-items: center; gap: 6px; text-transform: uppercase; }
+  .column-header .col-count { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+  .column-body { background: rgba(0,0,0,0.025); border-radius: 0 0 var(--radius) var(--radius); padding: 8px; min-height: 80px; display: flex; flex-direction: column; gap: 7px; border: 1px solid rgba(0,0,0,0.06); border-top: none; }
+
+  /* STAGE COLORS */
+  .col-collect .column-header { background: var(--collect-bg); }
+  .col-collect .col-title { color: var(--collect); }
+  .col-collect .col-count { background: var(--collect); color: white; }
+  .col-production .column-header { background: var(--production-bg); }
+  .col-production .col-title { color: var(--production); }
+  .col-production .col-count { background: var(--production); color: white; }
+  .col-shipped .column-header { background: var(--shipped-bg); }
+  .col-shipped .col-title { color: var(--shipped); }
+  .col-shipped .col-count { background: var(--shipped); color: white; }
+  .col-done .column-header { background: var(--done-bg); }
+  .col-done .col-title { color: var(--done); }
+  .col-done .col-count { background: var(--done); color: white; }
+
+  /* CUSTOMER CARD */
+  .customer-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; cursor: pointer; box-shadow: var(--shadow-sm); transition: all 0.15s; }
+  .customer-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); border-color: var(--border-strong); }
+  .card-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .card-company { font-size: 11px; color: var(--muted); margin-bottom: 7px; }
+  .card-orders { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
+  .order-chip { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 99px; }
+  .order-chip.kitchen { background: #E8F0FE; color: #1A56DB; }
+  .order-chip.bathroom { background: #EDE9FE; color: #6D28D9; }
+  .order-chip.vanity { background: #FCE7F3; color: #9D174D; }
+  .order-chip.remodel { background: #FEF3C7; color: #92400E; }
+  .card-footer { display: flex; justify-content: space-between; align-items: center; }
+  .card-count { font-size: 11px; color: var(--muted); }
+  .card-alert { font-size: 10px; color: var(--lead); font-weight: 600; }
+
+  /* ADD CARD */
+  .add-card { border: 1.5px dashed var(--border); border-radius: var(--radius-sm); padding: 9px; text-align: center; cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 500; transition: all 0.15s; }
+  .add-card:hover { border-color: var(--brand); color: var(--brand); background: rgba(28,43,74,0.03); }
+
+  /* SLIDE PANEL */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 200; backdrop-filter: blur(2px); }
+  .overlay.open { display: block; }
+  .panel { position: fixed; right: 0; top: 0; bottom: 0; width: 500px; max-width: 100vw; background: var(--white); box-shadow: -8px 0 40px rgba(0,0,0,0.12); z-index: 201; transform: translateX(100%); transition: transform 0.25s ease; overflow-y: auto; }
+  .panel.open { transform: translateX(0); }
+  .panel-header { padding: 20px 20px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--white); z-index: 10; }
+  .panel-header .ph-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .panel-header .customer-name { font-size: 17px; font-weight: 700; }
+  .panel-header .customer-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .close-btn { background: var(--bg); border: 1px solid var(--border); width: 28px; height: 28px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+  .close-btn:hover { background: var(--border); color: var(--text); }
+  .panel-tabs { display: flex; gap: 0; margin-top: 12px; }
+  .panel-tab { padding: 5px 14px; font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+  .panel-tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+  .panel-body { padding: 16px 20px; }
+
+  /* ORDERS IN PANEL */
+  .order-list { display: flex; flex-direction: column; gap: 9px; }
+  .order-item { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--white); }
+  .order-item-header { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.1s; }
+  .order-item-header:hover { background: var(--surface); }
+  .order-item-title { font-size: 13px; font-weight: 600; }
+  .order-item-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .order-item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .stage-badge { font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
+  .badge-lead { background: var(--lead-bg); color: var(--lead); }
+  .badge-collect { background: var(--collect-bg); color: var(--collect); }
+  .badge-production { background: var(--production-bg); color: var(--production); }
+  .badge-shipped { background: var(--shipped-bg); color: var(--shipped); }
+  .badge-done { background: var(--done-bg); color: var(--done); }
+  .progress-bar { height: 3px; background: var(--border); border-radius: 99px; overflow: hidden; width: 72px; }
+  .progress-fill { height: 100%; border-radius: 99px; }
+
+  /* ORDER DETAIL */
+  .order-detail { padding: 14px; border-top: 1px solid var(--border); background: var(--surface); display: none; }
+  .order-detail.open { display: block; }
+  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 8px; margin-top: 14px; }
+  .section-title:first-child { margin-top: 0; }
+  .checklist { display: flex; flex-direction: column; gap: 4px; }
+  .check-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.1s; }
+  .check-item:hover { border-color: var(--border-strong); }
+  .check-item.checked { background: var(--done-bg); border-color: var(--done-border); }
+  .check-item .check-box { width: 15px; height: 15px; border: 1.5px solid var(--border-strong); border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .check-item.checked .check-box { background: var(--done); border-color: var(--done); }
+  .check-item .check-label { font-size: 12px; color: var(--text); }
+  .check-item.checked .check-label { color: var(--muted); text-decoration: line-through; }
+  .check-tick { color: white; font-size: 9px; display: none; }
+  .check-item.checked .check-tick { display: block; }
+  .checklist-group { margin-bottom: 10px; }
+  .group-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 2px; margin-bottom: 5px; }
+  .checklist-progress { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px 12px; background: var(--white); border-radius: var(--radius-sm); border: 1px solid var(--border); }
+  .cp-label { font-size: 12px; font-weight: 600; flex: 1; }
+  .cp-count { font-size: 12px; font-weight: 700; color: var(--brand); }
+  .cp-bar { flex: 1; height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .cp-fill { height: 100%; border-radius: 99px; background: var(--done); transition: width 0.3s; }
+
+  /* BUTTONS */
+  .action-bar { padding: 12px 0 0; display: flex; gap: 8px; }
+  .btn { padding: 8px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
+  .btn-primary { background: var(--brand); color: white; }
+  .btn-primary:hover { background: var(--brand-hover); }
+  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .btn-outline { background: var(--white); color: var(--text-2); border: 1px solid var(--border); }
+  .btn-outline:hover { background: var(--surface); border-color: var(--border-strong); }
+  .btn-danger { background: var(--lead-bg); color: var(--lead); border: 1px solid var(--lead-border); }
+
+  .alert-box { padding: 9px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; margin-top: 10px; }
+  .alert-warning { background: var(--collect-bg); border: 1px solid var(--collect-border); color: var(--collect); }
+  .alert-success { background: var(--done-bg); border: 1px solid var(--done-border); color: var(--done); }
+  .alert-block { background: var(--lead-bg); border: 1px solid var(--lead-border); color: var(--lead); }
+
+  /* INFO GRID */
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .info-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .info-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+  .info-value { font-size: 13px; font-weight: 600; color: var(--text); margin-top: 3px; }
+
+  /* TIMELINE */
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .timeline-item { display: flex; gap: 12px; position: relative; padding-bottom: 16px; }
+  .timeline-item:last-child { padding-bottom: 0; }
+  .tl-left { display: flex; flex-direction: column; align-items: center; }
+  .tl-dot { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .tl-dot.done { background: var(--done); color: white; }
+  .tl-dot.active { background: var(--production); color: white; }
+  .tl-dot.pending { background: var(--border); color: var(--muted); }
+  .tl-line { width: 2px; flex: 1; background: var(--border); margin-top: 2px; }
+  .tl-line.done { background: var(--done); }
+  .tl-content { padding-top: 3px; flex: 1; }
+  .tl-title { font-size: 13px; font-weight: 600; }
+  .tl-title.pending { color: var(--muted); font-weight: 500; }
+  .tl-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 300; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--white); border-radius: var(--radius-lg); padding: 24px; width: 420px; max-width: 95vw; box-shadow: var(--shadow-md); }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 5px; display: block; text-transform: uppercase; letter-spacing: 0.4px; }
+  .form-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; outline: none; transition: border 0.15s; font-family: inherit; }
+  .form-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(28,43,74,0.08); }
+  .form-select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; outline: none; background: var(--white); cursor: pointer; font-family: inherit; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+
+  /* TOOLBAR */
+  .toolbar { padding: 12px 24px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .search-input { flex: 1; max-width: 280px; padding: 8px 12px 8px 34px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%238A8880' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z'/%3E%3C/svg%3E") no-repeat 10px center; outline: none; font-family: inherit; }
+  .search-input:focus { border-color: var(--brand); }
+  .filter-btn { padding: 7px 13px; border: 1px solid var(--border); background: var(--white); border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.12s; }
+  .filter-btn:hover { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
+  .filter-btn.active { background: var(--brand); color: white; border-color: var(--brand); font-weight: 600; }
+
+  /* VIEWS */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* TABLE */
+  .table-wrap { padding: 0 24px 24px; }
+  table { width: 100%; border-collapse: collapse; background: var(--white); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--border); }
+  thead tr { background: var(--surface); border-bottom: 1px solid var(--border); }
+  th { padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface); }
+  td { padding: 11px 16px; font-size: 13px; }
+  td .name { font-weight: 600; }
+  td .company { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .order-count { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: var(--brand); color: white; border-radius: 99px; font-size: 10px; font-weight: 700; }
+
+  /* PRODUCTION */
+  .prod-grid { padding: 0 24px 24px; display: flex; flex-direction: column; gap: 10px; }
+  .prod-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-sm); }
+  .prod-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .prod-card-title { font-size: 14px; font-weight: 700; }
+  .prod-card-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .prod-stages { display: flex; margin-bottom: 14px; border-radius: 6px; overflow: hidden; background: var(--surface); }
+  .prod-stage { flex: 1; text-align: center; padding: 7px 4px; font-size: 10px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; }
+  .prod-stage.done { color: var(--done); border-bottom-color: var(--done); background: var(--done-bg); }
+  .prod-stage.active { color: var(--production); border-bottom-color: var(--production); background: var(--production-bg); }
+  .prod-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .prod-meta-item { background: var(--surface); border-radius: var(--radius-sm); padding: 8px 10px; border: 1px solid var(--border); }
+  .prod-meta-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .prod-meta-value { font-size: 12px; font-weight: 700; margin-top: 3px; }
+  .checkin-box { margin-top: 10px; padding: 10px 12px; background: var(--surface); border-radius: var(--radius-sm); border: 1px solid var(--border); }
+  .checkin-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 5px; }
+  .checkin-input { width: 100%; border: none; background: transparent; font-size: 12px; outline: none; color: var(--text); resize: none; font-family: inherit; }
+
+  /* LEADS */
+  .leads-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:12px; }
+  .lead-card { background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow-sm); transition:all 0.15s; }
+  .lead-card:hover { box-shadow:var(--shadow); transform:translateY(-1px); }
+  .lead-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+  .lead-name { font-size:14px; font-weight:700; }
+  .lead-source { font-size:10px; font-weight:600; padding:3px 9px; border-radius:99px; background:var(--surface); color:var(--muted); border:1px solid var(--border); }
+  .lead-meta { display:flex; flex-direction:column; gap:5px; margin-bottom:12px; }
+  .lead-meta-row { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .lead-meta-row strong { color:var(--text); font-weight:600; }
+  .lead-notes { font-size:12px; color:var(--text-2); background:var(--surface); border-radius:var(--radius-sm); padding:8px 10px; margin-bottom:12px; border-left:3px solid var(--border-strong); }
+  .lead-followup { font-size:11px; font-weight:600; color:var(--collect); background:var(--collect-bg); border:1px solid var(--collect-border); border-radius:var(--radius-sm); padding:5px 10px; margin-bottom:10px; }
+  .lead-status-row { display:flex; gap:5px; margin-bottom:12px; flex-wrap:wrap; }
+  .lead-status-chip { font-size:11px; font-weight:500; padding:4px 12px; border-radius:99px; cursor:pointer; border:1.5px solid var(--border); background:var(--surface); color:var(--muted); transition:all 0.1s; }
+  .lead-status-chip.sel { border-color:var(--brand); background:var(--brand); color:white; font-weight:600; }
+  /* Deposit inline row */
+  .deposit-row { display:flex; gap:8px; align-items:center; padding:10px 12px; background:var(--done-bg); border:1px solid var(--done-border); border-radius:var(--radius-sm); margin-bottom:8px; }
+  .deposit-row label { font-size:11px; font-weight:700; color:var(--done); white-space:nowrap; }
+  .deposit-row input { flex:1; padding:6px 10px; border:1px solid var(--done-border); border-radius:6px; font-size:12px; outline:none; background:white; font-family:inherit; min-width:0; }
+  .deposit-row input:focus { border-color:var(--done); }
+  .deposit-confirm-btn { padding:6px 12px; background:var(--done); color:white; border:none; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; transition:all 0.12s; }
+  .deposit-confirm-btn:hover { background:#15803D; }
+  .lost-btn { width:100%; padding:7px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:11px; font-weight:500; cursor:pointer; margin-top:6px; transition:all 0.12s; }
+  .lost-btn:hover { background:var(--lead-bg); color:var(--lead); border-color:var(--lead-border); }
+  .leads-empty { text-align:center; padding:60px 20px; color:var(--muted); }
+  .leads-empty .big { font-size:36px; margin-bottom:12px; }
+  .leads-empty p { font-size:13px; }
+
+  /* PIPELINE EXTRAS */
+  .col-limit-btn { width:100%;padding:8px;font-size:11px;font-weight:700;color:var(--brand);background:var(--white);border:1px dashed var(--border);border-radius:8px;cursor:pointer;text-align:center;margin-top:2px; }
+  .col-limit-btn:hover { background:#EEF2FF;border-color:#A5B4FC; }
+
+  /* KEBAB MENU */
+  .card-menu-wrap { position:relative; display:inline-block; }
+  .kebab-btn { background:none; border:none; cursor:pointer; padding:2px 6px; border-radius:5px; font-size:14px; color:var(--muted); line-height:1; transition:all 0.12s; }
+  .kebab-btn:hover { background:var(--surface); color:var(--text); }
+  .kebab-dropdown { position:absolute; right:0; top:calc(100% + 4px); background:var(--white); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow-md); min-width:150px; z-index:500; overflow:hidden; display:none; }
+  .kebab-dropdown.open { display:block; }
+  .kebab-item { display:flex; align-items:center; gap:9px; padding:9px 14px; font-size:13px; font-weight:500; color:var(--text); cursor:pointer; transition:background 0.1s; }
+  .kebab-item:hover { background:var(--surface); }
+  .kebab-item.danger { color:var(--lead); }
+  .kebab-item.danger:hover { background:var(--lead-bg); }
+  .kebab-item .ki-icon { font-size:14px; width:18px; text-align:center; }
+  .active-filter-tag { display:inline-flex;align-items:center;gap:5px;background:#EEF2FF;border:1px solid #A5B4FC;color:#3730A3;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px; }
+  .active-filter-tag button { background:none;border:none;cursor:pointer;color:#6366F1;font-size:12px;padding:0;line-height:1; }
+  .archive-card { opacity:0.6; }
+  .archive-card:hover { opacity:1; }
+  .card-archive-badge { font-size:9px;font-weight:700;background:#F3F4F6;color:var(--muted);padding:2px 7px;border-radius:4px;margin-bottom:4px;display:inline-block; }
+
+  /* DASHBOARD */
+  .kpi-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .kpi-card .kpi-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-card .kpi-value { font-size: 28px; font-weight: 800; margin: 4px 0 2px; }
+  .kpi-card .kpi-sub { font-size: 11px; color: var(--muted); }
+  .month-row { display: grid; grid-template-columns: 90px 1fr 60px 60px 60px; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .month-row:last-child { border-bottom: none; }
+  .month-row .month-label { font-weight: 700; color: var(--text); }
+  .month-bar-wrap { height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .month-bar-fill { height: 100%; border-radius: 99px; background: #6366F1; }
+  .month-num { text-align: center; font-weight: 700; }
+  .action-item { display: flex; align-items: flex-start; gap: 8px; padding: 9px 10px; border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: all 0.12s; border: 1px solid var(--border); }
+  .action-item:hover { background: #F8FAFF; border-color: #A5B4FC; }
+  .action-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .action-text { font-size: 12px; font-weight: 600; color: var(--text); }
+  .action-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .ctn-year-card { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 20px; min-width: 110px; margin-right: 10px; margin-bottom: 8px; }
+  .ctn-year-card.shipped { border-color: #86EFAC; background: #F0FDF4; }
+  .ctn-year-card .cy-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+  .ctn-year-card .cy-value { font-size: 22px; font-weight: 800; margin: 3px 0; }
+  .ctn-year-card .cy-sub { font-size: 10px; color: var(--muted); }
+
+  /* PRODUCTION GROUPED */
+  .month-group { margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--white); }
+  .month-group-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: var(--bg); cursor: pointer; border-bottom: 1px solid transparent; transition: all 0.12s; }
+  .month-group-header:hover { background: #EEF2FF; }
+  .month-group-header.open { border-bottom-color: var(--border); }
+  .mgh-left { display: flex; align-items: center; gap: 10px; }
+  .mgh-title { font-size: 13px; font-weight: 700; }
+  .mgh-count { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--brand); color: white; }
+  .mgh-chevron { font-size: 12px; color: var(--muted); transition: transform 0.2s; }
+  .mgh-chevron.open { transform: rotate(90deg); }
+  .month-group-body { display: none; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .month-group-body.collapsed { display: none; }
+
+  /* CONTAINER PLANNING */
+  .ctn-col { flex: 0 0 300px; background: var(--white); border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+  .ctn-col-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .ctn-col-id { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .ctn-col-name { font-size: 14px; font-weight: 700; color: var(--text); margin: 3px 0; }
+  .ctn-col-date { font-size: 11px; color: var(--muted); }
+  .ctn-capacity { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .ctn-cap-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .ctn-cap-label { font-size: 11px; font-weight: 600; color: var(--muted); }
+  .ctn-cap-value { font-size: 12px; font-weight: 700; }
+  .ctn-bar-wrap { height: 10px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .ctn-bar-fill { height: 100%; border-radius: 99px; transition: width 0.3s; }
+  .ctn-ready-badge { margin-top: 8px; text-align: center; padding: 6px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+  .ctn-orders-section { padding: 10px 16px; }
+  .ctn-section-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+  .ctn-order-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; margin-bottom: 5px; }
+  .ctn-order-item .co-left { display: flex; flex-direction: column; gap: 1px; }
+  .ctn-order-item .co-po { font-size: 11px; font-weight: 700; color: var(--brand); }
+  .ctn-order-item .co-cust { font-size: 11px; color: var(--text); font-weight: 600; }
+  .ctn-order-item .co-type { font-size: 10px; color: var(--muted); }
+  .ctn-order-item .co-size { font-size: 10px; color: var(--muted); font-weight: 600; }
+  .ctn-remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px; }
+  .ctn-remove:hover { color: var(--lead); background: var(--lead-bg); }
+  .ctn-pool { padding: 10px 16px 16px; border-top: 1px dashed var(--border); }
+  .ctn-pool-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border: 1.5px dashed var(--border); border-radius: 7px; margin-bottom: 5px; cursor: pointer; transition: all 0.12s; }
+  .ctn-pool-item:hover { border-color: #6366F1; background: #F8FAFF; }
+  .ctn-add-btn { font-size: 11px; font-weight: 700; color: #6366F1; }
+
+  /* FACTORY PO CARD */
+  .fac-po-badge { display: inline-flex; align-items: center; gap: 5px; background: #1C2B4A; color: white; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 99px; letter-spacing: 0.3px; }
+  .fac-divider { height: 1px; background: var(--border); margin: 12px 0; }
+  .fac-orders-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .fac-order-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; background: var(--bg); border-radius: 8px; margin-bottom: 6px; cursor: pointer; border: 1px solid var(--border); transition: all 0.12s; }
+  .fac-order-row:hover { border-color: #A5B4FC; background: #F8FAFF; }
+  .fac-order-row:last-child { margin-bottom: 0; }
+  .fac-order-left { display: flex; flex-direction: column; gap: 2px; }
+  .fac-order-po { font-size: 12px; font-weight: 700; color: var(--brand); }
+  .fac-order-type { font-size: 11px; color: var(--muted); }
+  .fac-order-customer { font-size: 11px; font-weight: 600; color: var(--text); }
+  .fac-order-right { display: flex; align-items: center; gap: 6px; }
+  @media (max-width: 640px) {
+    .prod-meta { grid-template-columns: 1fr 1fr; }
+    .prod-stages { display: none; }
+    .table-wrap { padding: 0 12px 12px; }
+    .prod-grid { padding: 0 12px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-mark">🪵</div>
+      <div class="login-logo-text">Pacific Craftworks <span>CRM</span></div>
+    </div>
+    <div class="login-title">Welcome back</div>
+    <div class="login-sub">Sign in to access your workspace</div>
+    <div class="login-field">
+      <label class="login-label">Email</label>
+      <input class="login-input" id="login-email" type="email" placeholder="you@example.com" onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()">
+    </div>
+    <div class="login-field">
+      <label class="login-label">Password</label>
+      <input class="login-input" id="login-password" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay" class="hidden">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Loading your data…</div>
+</div>
+
+<!-- APP WRAPPER (hidden until login) -->
+<div id="app" style="display:none">
+
+<!-- NAV -->
+<nav>
+  <div class="logo"><div class="logo-mark">🪵</div>Pacific Craftworks <span>/ CRM</span></div>
+  <div class="nav-right">
+    <button class="nav-btn" onclick="openAddLead()">+ New Lead</button>
+    <button class="nav-btn primary" onclick="openAddCustomer()">+ New Customer</button>
+    <button class="nav-btn" onclick="doLogout()" style="opacity:0.6" title="Sign out">↪ Logout</button>
+  </div>
+</nav>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="switchView('dashboard', this)">📊 Overview</div>
+  <div class="tab" onclick="switchView('leads', this)">🔴 Leads <span id="lead-badge" style="background:#EF4444;color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:4px">0</span></div>
+  <div class="tab" onclick="switchView('pipeline', this)">Pipeline</div>
+  <div class="tab" onclick="switchView('customers', this)">Customers</div>
+  <div class="tab" onclick="switchView('production', this)">Production</div>
+  <div class="tab" onclick="switchView('container', this)">📦 Containers</div>
+  <div class="tab" onclick="switchView('report', this)">📈 Reports</div>
+</div>
+
+<!-- PIPELINE TOOLBAR -->
+<div id="toolbar-bar" style="display:none">
+  <div class="toolbar" style="flex-wrap:wrap;gap:8px;padding-bottom:6px">
+    <input class="search-input" type="text" id="search-input" placeholder="Search customer, order..." oninput="onSearch(this.value)" style="flex:1;min-width:160px">
+    <select id="filter-year" class="form-select" style="width:90px;padding:8px 10px;font-size:12px" onchange="renderBoard()">
+      <option value="">All years</option>
+      <option value="2026" selected>2026</option>
+      <option value="2027">2027</option>
+    </select>
+    <select id="filter-month" class="form-select" style="width:110px;padding:8px 10px;font-size:12px" onchange="renderBoard()">
+      <option value="">All months</option>
+      <option value="0">January</option><option value="1">February</option><option value="2">March</option>
+      <option value="3">April</option><option value="4">May</option><option value="5">June</option>
+      <option value="6">July</option><option value="7">August</option><option value="8">September</option>
+      <option value="9">October</option><option value="10">November</option><option value="11">December</option>
+    </select>
+    <select id="filter-type" class="form-select" style="width:130px;padding:8px 10px;font-size:12px" onchange="renderBoard()">
+      <option value="">All types</option>
+      <option value="Kitchen Remodel">Kitchen</option>
+      <option value="Bathroom">Bathroom</option>
+      <option value="Vanity">Vanity</option>
+      <option value="Full Remodel">Full Remodel</option>
+    </select>
+    <button class="filter-btn" id="toggle-archive" onclick="toggleShowArchived(this)" style="white-space:nowrap">📁 Show Archived</button>
+  </div>
+  <div style="padding:0 20px 8px;display:flex;gap:6px;flex-wrap:wrap" id="active-filters"></div>
+</div>
+
+<!-- ===== LEADS VIEW ===== -->
+<div class="view" id="view-leads">
+  <div class="toolbar" style="padding-top:0;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="search-input" type="text" id="lead-search" placeholder="Search lead..." oninput="renderLeads()" style="width:200px">
+      <select id="lead-filter-source" class="form-select" style="width:120px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
+        <option value="">All sources</option>
+        <option>Web Form</option><option>Referral</option><option>Email</option><option>Phone</option><option>Walk-in</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="openAddLead()">+ New Lead</button>
+  </div>
+  <div style="padding:0 20px 20px" id="leads-board"></div>
+</div>
+
+<!-- ===== DASHBOARD VIEW ===== -->
+<div class="view active" id="view-dashboard">
+  <div style="padding:16px 20px 20px">
+
+    <!-- KPI ROW -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px" id="kpi-row"></div>
+
+    <!-- MIDDLE ROW: monthly breakdown + action items -->
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:flex-start" id="dash-mid">
+
+      <!-- Monthly breakdown -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;font-weight:700">Orders by Month — 2026</span>
+          <span style="font-size:11px;color:var(--muted);font-weight:600" id="year-select">2026</span>
+        </div>
+        <div style="padding:14px 16px" id="monthly-table"></div>
+      </div>
+
+      <!-- Action items -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+          <span style="font-size:13px;font-weight:700">⚠️ Needs Attention</span>
+        </div>
+        <div style="padding:10px" id="action-items"></div>
+      </div>
+
+    </div>
+
+    <!-- BOTTOM ROW: containers shipped this year -->
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;margin-top:14px;overflow:hidden;box-shadow:var(--shadow)">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;font-weight:700">🚢 Containers — 2026</span>
+      </div>
+      <div style="padding:14px 16px" id="containers-row"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PIPELINE VIEW -->
+<div class="view" id="view-pipeline">
+<div class="board" id="board">
+  <div class="column col-collect">
+    <div class="column-header"><div class="col-title">🟡 Collecting Info</div><div class="col-count" id="count-collect">0</div></div>
+    <div class="column-body" id="col-collect"></div>
+  </div>
+  <div class="column col-production">
+    <div class="column-header"><div class="col-title">🔵 In Production</div><div class="col-count" id="count-production">0</div></div>
+    <div class="column-body" id="col-production"></div>
+  </div>
+  <div class="column col-shipped">
+    <div class="column-header"><div class="col-title">🚢 Loaded / Shipped</div><div class="col-count" id="count-shipped">0</div></div>
+    <div class="column-body" id="col-shipped"></div>
+  </div>
+  <div class="column col-done" id="col-done-wrap" style="display:none">
+    <div class="column-header"><div class="col-title">✅ Done / Archive</div><div class="col-count" id="count-done">0</div></div>
+    <div class="column-body" id="col-done"></div>
+  </div>
+</div>
+</div><!-- end view-pipeline -->
+
+<!-- ALL CUSTOMERS VIEW -->
+<div class="view" id="view-customers">
+  <div class="toolbar" style="padding-top:0">
+    <span style="font-size:13px;color:var(--muted);font-weight:600">All customers</span>
+  </div>
+  <div class="table-wrap">
+    <table id="customers-table">
+      <thead>
+        <tr><th>Customer</th><th>Orders</th><th>Stage</th><th>Project Types</th><th>Source</th><th>Follow-up</th></tr>
+      </thead>
+      <tbody id="customers-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- PRODUCTION VIEW — grouped by month -->
+<div class="view" id="view-production">
+  <div class="toolbar" style="padding-top:0;justify-content:space-between">
+    <span style="font-size:13px;color:var(--muted);font-weight:600" id="prod-count">—</span>
+    <div style="display:flex;gap:8px">
+      <button class="filter-btn active" id="prod-filter-all" onclick="setProdFilter('all',this)">All</button>
+      <button class="filter-btn" onclick="setProdFilter('in_production',this)">In Production</button>
+      <button class="filter-btn" onclick="setProdFilter('loaded',this)">Loaded</button>
+    </div>
+  </div>
+  <div style="padding:0 20px 20px" id="prod-grid"></div>
+</div>
+
+<!-- CONTAINER PLAN VIEW -->
+<div class="view" id="view-container">
+  <div class="toolbar" style="padding-top:0;justify-content:space-between">
+    <span style="font-size:13px;color:var(--muted);font-weight:600" id="ctn-summary">—</span>
+    <button class="nav-btn" style="background:var(--brand);color:white;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="addContainerPlan()">+ New Container</button>
+  </div>
+  <div style="padding:0 20px 20px;display:flex;gap:14px;align-items:flex-start;overflow-x:auto" id="ctn-board"></div>
+</div>
+
+<!-- REPORTS VIEW -->
+<div class="view" id="view-report">
+  <div style="padding:20px 24px 24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div>
+        <div style="font-size:18px;font-weight:800;color:var(--text)">Reports & Estimates</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px" id="report-period-label">—</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <select id="report-month-sel" class="form-select" style="width:120px;font-size:12px;padding:7px 10px" onchange="renderReport()">
+          <option value="5">June 2026</option>
+          <option value="4" selected>May 2026</option>
+          <option value="3">April 2026</option>
+          <option value="2">March 2026</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- KPIs last month -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px" id="report-kpi"></div>
+
+    <!-- 2-col: breakdown + forecast -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px" id="report-mid">
+
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">📊 Last Month Breakdown</div>
+        <div style="padding:14px 16px" id="report-breakdown"></div>
+      </div>
+
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">🔮 Next Month Estimate</div>
+        <div style="padding:14px 16px" id="report-forecast"></div>
+      </div>
+
+    </div>
+
+    <!-- Full pipeline snapshot -->
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">📦 Container Readiness</div>
+      <div style="padding:14px 16px" id="report-containers"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE PANEL OVERLAY -->
+<div class="overlay" id="overlay" onclick="closePanel()"></div>
+
+<!-- CUSTOMER DETAIL PANEL -->
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <div class="ph-top">
+      <div>
+        <div class="customer-name" id="panel-name">—</div>
+        <div class="customer-meta" id="panel-meta">—</div>
+      </div>
+      <button class="close-btn" onclick="closePanel()">✕</button>
+    </div>
+    <div class="panel-tabs">
+      <div class="panel-tab active" onclick="switchPanelTab(0, this)">Orders</div>
+      <div class="panel-tab" onclick="switchPanelTab(1, this)">Contact</div>
+      <div class="panel-tab" onclick="switchPanelTab(2, this)">History</div>
+    </div>
+  </div>
+  <div class="panel-body" id="panel-body">
+  </div>
+</div>
+
+<!-- ADD CUSTOMER MODAL -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-title">Add New Customer</div>
+    <div class="form-group">
+      <label class="form-label">Full Name *</label>
+      <input class="form-input" id="new-name" placeholder="e.g. Sarah Johnson">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Company / Contractor</label>
+      <input class="form-input" id="new-company" placeholder="e.g. Aloha Builders LLC">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" id="new-email" type="email" placeholder="email@example.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Phone</label>
+      <input class="form-input" id="new-phone" placeholder="(808) 555-0000">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Source</label>
+      <select class="form-select" id="new-source">
+        <option>Web Form</option>
+        <option>Referral</option>
+        <option>Email</option>
+        <option>Phone</option>
+        <option>Walk-in</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">First Project Type</label>
+      <select class="form-select" id="new-project">
+        <option>Kitchen Remodel</option>
+        <option>Bathroom</option>
+        <option>Vanity</option>
+        <option>Full Remodel</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeAddCustomer()">Cancel</button>
+      <button class="btn btn-primary" onclick="addCustomer()">Add Customer</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- end #app -->
+
+<script>
+// ============================================================
+// SUPABASE CONFIG — điền URL và KEY của mày vào đây
+// ============================================================
+const SUPABASE_URL  = 'https://ravdtlsnrtltgynswxna.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhdmR0bHNucnRsdGd5bnN3eG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5ODcxMjUsImV4cCI6MjA5NjU2MzEyNX0.dTex6kJooA-t7mxYvvYONEejrQ7pgW-kZAfnNLoOhhc'
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+// ============================================================
+// AUTH
+// ============================================================
+async function doLogin() {
+  const email    = document.getElementById('login-email').value.trim()
+  const password = document.getElementById('login-password').value
+  const btn      = document.getElementById('login-btn')
+  const errBox   = document.getElementById('login-error')
+  if (!email || !password) { showLoginError('Nhập email và password'); return }
+  btn.disabled = true; btn.textContent = 'Signing in…'
+  errBox.classList.remove('show')
+  const { error } = await sb.auth.signInWithPassword({ email, password })
+  if (error) { showLoginError(error.message); btn.disabled = false; btn.textContent = 'Sign In'; return }
+  await startApp()
+}
+
+function showLoginError(msg) {
+  const e = document.getElementById('login-error')
+  e.textContent = msg; e.classList.add('show')
+}
+
+async function doLogout() {
+  await sb.auth.signOut()
+  location.reload()
+}
+
+async function startApp() {
+  document.getElementById('login-screen').classList.add('hidden')
+  document.getElementById('loading-overlay').classList.remove('hidden')
+  document.getElementById('loading-text').textContent = 'Loading data…'
+  await loadAllData()
+  document.getElementById('loading-overlay').classList.add('hidden')
+  document.getElementById('app').style.display = 'block'
+  document.getElementById('lead-badge').textContent = leads.length
+  renderDashboard()
+  renderBoard()
+}
+
+// ============================================================
+// LOAD ALL DATA FROM SUPABASE
+// ============================================================
+async function loadAllData() {
+  const [custRes, leadsRes, fpoRes, ctnRes] = await Promise.all([
+    sb.from('customers').select('*, orders(*)').order('created_at', {ascending: false}),
+    sb.from('leads').select('*').order('created_at', {ascending: false}),
+    sb.from('factory_pos').select('*, factory_po_orders(customer_id, order_id)').order('created_at', {ascending: false}),
+    sb.from('container_plans').select('*, container_orders(customer_id, order_id, size_m3)').order('created_at', {ascending: false}),
+  ])
+  customers     = (custRes.data  || []).map(c => ({...c, orders: (c.orders||[]).map(o => ({...o, checked: o.checked||{}}))}))
+  leads         = leadsRes.data  || []
+  factoryPOs    = (fpoRes.data   || []).map(f => ({...f, customerOrders: f.factory_po_orders||[]}))
+  containerPlans= (ctnRes.data   || []).map(c => ({...c, orderRefs: c.container_orders||[]}))
+}
+
+// ============================================================
+// DB HELPERS
+// ============================================================
+async function dbInsert(table, data) {
+  const { data: r, error } = await sb.from(table).insert(data).select().single()
+  if (error) console.error('Insert error', table, error)
+  return r
+}
+async function dbUpdate(table, match, data) {
+  const { error } = await sb.from(table).update(data).match(match)
+  if (error) console.error('Update error', table, error)
+}
+async function dbDelete(table, match) {
+  const { error } = await sb.from(table).delete().match(match)
+  if (error) console.error('Delete error', table, error)
+}
+
+// ============================================================
+// DATA — empty on load, filled from Supabase
+// ============================================================
+// =====================
+// DATA
+// =====================
+const CHECKLIST = {
+  dimensions: [
+    { id: 'd1', label: 'Overall dimensions (W × H × D)' },
+    { id: 'd2', label: 'Per-cabinet dimensions' },
+    { id: 'd3', label: 'Door / drawer sizes' },
+    { id: 'd4', label: 'Edge profile' },
+    { id: 'd5', label: 'Paint / finish code' },
+    { id: 'd6', label: 'Wood / stain color' },
+    { id: 'd7', label: 'Interior finish color' },
+  ],
+  drawings: [
+    { id: 'dr1', label: 'Client drawing (floor plan / elevation)' },
+    { id: 'dr2', label: 'Shop drawing (production-ready)' },
+    { id: 'dr3', label: 'Client sign-off on shop drawing ⚠️' },
+    { id: 'dr4', label: 'Revision notes documented' },
+  ],
+  stone: [
+    { id: 's1', label: 'Stone type (quartz / marble / granite)' },
+    { id: 's2', label: 'Brand & color name' },
+    { id: 's3', label: 'Thickness (2cm / 3cm)' },
+    { id: 's4', label: 'Edge detail' },
+  ],
+  hardware: [
+    { id: 'h1', label: 'Hinge brand & model' },
+    { id: 'h2', label: 'Drawer slide (soft-close?)' },
+    { id: 'h3', label: 'Handle / pull (finish, size)' },
+    { id: 'h4', label: 'Specialty hardware' },
+  ]
+};
+
+const TOTAL_CHECKS = Object.values(CHECKLIST).flat().length; // 19
+
+// LEADS / CUSTOMERS / FACTORY POs / CONTAINERS — loaded from Supabase on login
+let leads          = [];
+let customers      = [];
+let factoryPOs     = [];
+let containerPlans = [];
+const LEAD_STATUSES = ['New', 'Contacted', 'Quoted', 'Follow-up'];
+
+let activeCustomerId = null;
+let activePanelTab = 0;
+let showArchived = false;
+const COL_LIMIT = 5; // cards shown per column before "show more"
+let colExpanded = {};
+
+// =====================
+// RENDER BOARD
+// =====================
+function renderBoard() {
+  const filterYear  = document.getElementById('filter-year')?.value || '';
+  const filterMonth = document.getElementById('filter-month')?.value;
+  const filterType  = document.getElementById('filter-type')?.value || '';
+  const searchQ     = (document.getElementById('search-input')?.value || '').toLowerCase();
+
+  const activeStages = ['collect','production','shipped'];
+  const colIds   = { lead:'col-lead', collect:'col-collect', production:'col-production', shipped:'col-shipped', done:'col-done' };
+  const countIds = { lead:'count-lead', collect:'count-collect', production:'count-production', shipped:'count-shipped', done:'count-done' };
+
+  // Show/hide archive column
+  document.getElementById('col-done-wrap').style.display = showArchived ? '' : 'none';
+  const stages = showArchived ? [...activeStages, 'done'] : activeStages;
+
+  // Build active filter tags
+  const tags = [];
+  if (filterYear)  tags.push({ label: filterYear, clear: () => { document.getElementById('filter-year').value=''; renderBoard(); } });
+  if (filterMonth !== '' && filterMonth !== undefined) tags.push({ label: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][filterMonth], clear: () => { document.getElementById('filter-month').value=''; renderBoard(); } });
+  if (filterType)  tags.push({ label: filterType, clear: () => { document.getElementById('filter-type').value=''; renderBoard(); } });
+  const filterBar = document.getElementById('active-filters');
+  if (filterBar) filterBar.innerHTML = tags.map((t,i) =>
+    `<span class="active-filter-tag">${t.label}<button onclick="clearFilter(${i})">✕</button></span>`
+  ).join('');
+  window._filterClears = tags.map(t => t.clear);
+
+  stages.forEach(stage => {
+    const col = document.getElementById(colIds[stage]);
+    col.innerHTML = '';
+
+    let stageCustomers = customers.filter(c => {
+      if (stage === 'done') return c.stage === 'done';
+      return c.stage === stage;
+    });
+
+    // Apply filters — match against orders' ETA dates and types
+    stageCustomers = stageCustomers.filter(c => {
+      // search
+      if (searchQ && !c.name.toLowerCase().includes(searchQ) && !c.company.toLowerCase().includes(searchQ) && !c.orders.some(o => o.id.toLowerCase().includes(searchQ))) return false;
+      // type filter
+      if (filterType && !c.orders.some(o => o.type === filterType)) return false;
+      // date filters — match ETA on any order
+      if (filterYear || (filterMonth !== '' && filterMonth !== undefined)) {
+        const hasMatch = c.orders.some(o => {
+          const d = o.eta ? new Date(o.eta) : null;
+          if (!d) return false;
+          if (filterYear && String(d.getFullYear()) !== filterYear) return false;
+          if (filterMonth !== '' && filterMonth !== undefined && d.getMonth() !== parseInt(filterMonth)) return false;
+          return true;
+        });
+        if (!hasMatch) return false;
+      }
+      return true;
+    });
+
+    const total = stageCustomers.length;
+    document.getElementById(countIds[stage]).textContent = total;
+
+    const limit = colExpanded[stage] ? total : COL_LIMIT;
+    stageCustomers.slice(0, limit).forEach(c => {
+      const card = buildCard(c);
+      if (stage === 'done') card.classList.add('archive-card');
+      col.appendChild(card);
+    });
+
+    if (total > COL_LIMIT && !colExpanded[stage]) {
+      const more = document.createElement('div');
+      more.className = 'col-limit-btn';
+      more.textContent = `Show ${total - COL_LIMIT} more…`;
+      more.onclick = () => { colExpanded[stage] = true; renderBoard(); };
+      col.appendChild(more);
+    } else if (colExpanded[stage] && total > COL_LIMIT) {
+      const less = document.createElement('div');
+      less.className = 'col-limit-btn';
+      less.textContent = `▲ Show less`;
+      less.onclick = () => { colExpanded[stage] = false; renderBoard(); };
+      col.appendChild(less);
+    }
+
+    if (stage !== 'done') {
+      const add = document.createElement('div');
+      add.className = 'add-card';
+      add.textContent = '+ Add';
+      add.onclick = () => openAddCustomer(stage);
+      col.appendChild(add);
+    }
+  });
+}
+
+function clearFilter(i) { window._filterClears[i]?.(); }
+
+function toggleShowArchived(btn) {
+  showArchived = !showArchived;
+  btn.textContent = showArchived ? '📁 Hide Archived' : '📁 Show Archived';
+  btn.classList.toggle('active', showArchived);
+  renderBoard();
+}
+
+function setFilter(val, el) {
+  document.querySelectorAll('#toolbar-bar .filter-btn:not(#toggle-archive)').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  currentFilter = val;
+  renderBoard();
+}
+
+function buildCard(customer) {
+  const div = document.createElement('div');
+  div.className = 'customer-card';
+  div.onclick = () => openPanel(customer.id);
+
+  const orderTypes = [...new Set(customer.orders.map(o => o.type))];
+  const typeClass = { 'Kitchen Remodel': 'kitchen', 'Bathroom': 'bathroom', 'Vanity': 'vanity', 'Full Remodel': 'remodel' };
+  const chips = orderTypes.map(t => `<span class="order-chip ${typeClass[t] || 'kitchen'}">${t}</span>`).join('');
+
+  const missingInfo = customer.orders.some(o => {
+    if (o.stage === 'collect') return Object.values(o.checked || {}).filter(Boolean).length < TOTAL_CHECKS;
+    return false;
+  });
+  const totalOrders = customer.orders.length;
+
+  // For production/shipped: show Factory PO + order IDs + ETA
+  let extraHTML = '';
+  if (['production', 'shipped'].includes(customer.stage)) {
+    const prodOrders = customer.orders.filter(o => ['production','shipped'].includes(o.stage));
+    const poLines = prodOrders.map(o => {
+      // Find which Factory PO this order belongs to
+      const fpo = factoryPOs.find(f => f.customerOrders.some(r => r.orderId === o.id));
+      const fpoTag = fpo ? `<span style="font-size:9px;font-weight:700;background:#1C2B4A;color:white;padding:1px 6px;border-radius:4px;margin-left:4px">${fpo.id}</span>` : '';
+      const eta = o.eta ? `<span style="font-size:9px;color:var(--muted)"> · ETA ${o.eta}</span>` : '';
+      return `<div style="font-size:10px;color:var(--brand);font-weight:600;margin-top:3px">${o.id}${fpoTag}${eta}</div>`;
+    }).join('');
+
+    // Container plan
+    const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => prodOrders.some(o => o.id === r.orderId)));
+    const ctnTag = ctnPlan
+      ? `<div style="font-size:9px;color:#8B5CF6;font-weight:600;margin-top:4px">📦 ${ctnPlan.id} · Load ${ctnPlan.plannedLoadDate}</div>`
+      : `<div style="font-size:9px;color:#F59E0B;font-weight:600;margin-top:4px">📦 No container assigned</div>`;
+
+    extraHTML = `<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px">${poLines}${ctnTag}</div>`;
+  }
+
+  const archiveBadge = customer.stage === 'done'
+    ? `<div class="card-archive-badge">📁 Archived — Completed</div>` : '';
+
+  div.innerHTML = `
+    ${archiveBadge}
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
+      <div class="card-name" style="margin-bottom:0">${customer.name}</div>
+      <div class="card-menu-wrap" onclick="event.stopPropagation()">
+        <button class="kebab-btn" onclick="toggleKebab('cust-${customer.id}')">···</button>
+        <div class="kebab-dropdown" id="kebab-cust-${customer.id}">
+          <div class="kebab-item" onclick="duplicateCustomer(${customer.id})"><span class="ki-icon">⧉</span> Duplicate</div>
+          <div class="kebab-item danger" onclick="deleteCustomer(${customer.id})"><span class="ki-icon">🗑</span> Delete</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-company">${customer.company || customer.email}</div>
+    <div class="card-orders">${chips}</div>
+    ${extraHTML}
+    <div class="card-footer" style="margin-top:6px">
+      <div class="card-count">${totalOrders} order${totalOrders > 1 ? 's' : ''}</div>
+      ${missingInfo ? '<div class="card-alert">⚠️ Missing info</div>' : ''}
+    </div>
+  `;
+  return div;
+}
+
+// =====================
+// PANEL
+// =====================
+function openPanel(customerId) {
+  activeCustomerId = customerId;
+  const c = customers.find(x => x.id === customerId);
+  document.getElementById('panel-name').textContent = c.name;
+  document.getElementById('panel-meta').textContent = (c.company ? c.company + ' · ' : '') + c.email + ' · ' + c.phone;
+  activePanelTab = 0;
+  renderPanelTab(0);
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+
+function closePanel() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+}
+
+function switchPanelTab(idx, el) {
+  document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  activePanelTab = idx;
+  renderPanelTab(idx);
+}
+
+function renderPanelTab(idx) {
+  const c = customers.find(x => x.id === activeCustomerId);
+  const body = document.getElementById('panel-body');
+  if (idx === 0) body.innerHTML = buildOrdersTab(c);
+  else if (idx === 1) body.innerHTML = buildContactTab(c);
+  else body.innerHTML = buildHistoryTab(c);
+}
+
+function buildOrdersTab(c) {
+  let html = `<div class="order-list">`;
+  html += `<div style="display:flex;gap:8px;margin-bottom:10px">
+    <button class="btn btn-outline" style="flex:1" onclick="openAddOrder(${c.id})">+ Add Order</button>
+    ${c.stage !== 'done' ? `<button class="btn btn-danger" onclick="archiveCustomer(${c.id})">📁 Archive</button>` : `<span style="font-size:11px;color:var(--muted);align-self:center;padding:0 8px">📁 Archived</span>`}
+  </div>`;
+  c.orders.forEach((order, i) => {
+    const checked = Object.values(order.checked || {}).filter(Boolean).length;
+    const pct = Math.round((checked / TOTAL_CHECKS) * 100);
+    const stageLabel = { lead: 'Lead', collect: 'Collecting Info', production: 'In Production', shipped: 'Shipped', done: 'Done' };
+    const stageBadge = { lead: 'badge-lead', collect: 'badge-collect', production: 'badge-production', shipped: 'badge-shipped', done: 'badge-done' };
+    const barColor = pct === 100 ? '#10B981' : pct > 50 ? '#3B82F6' : '#F59E0B';
+
+    html += `
+    <div class="order-item" id="order-item-${order.id}">
+      <div class="order-item-header" onclick="toggleOrder('${order.id}')">
+        <div>
+          <div class="order-item-title">${order.id} — ${order.type}</div>
+          <div class="order-item-sub">Balance: $${order.balance?.toLocaleString() || '—'} ${order.eta ? '· ETA ' + order.eta : ''}</div>
+        </div>
+        <div class="order-item-right">
+          <span class="stage-badge ${stageBadge[order.stage]}">${stageLabel[order.stage]}</span>
+          ${order.stage === 'collect' ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ''}
+        </div>
+      </div>
+      <div class="order-detail ${i === 0 ? 'open' : ''}" id="detail-${order.id}">
+        ${buildOrderDetail(order, c)}
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function buildOrderDetail(order, customer) {
+  if (order.stage === 'lead') {
+    return `
+      <div class="section-title">Notes</div>
+      <div style="font-size:13px;color:var(--muted);background:white;padding:10px 12px;border-radius:8px;border:1px solid var(--border)">${order.notes || '—'}</div>
+      <div class="action-bar">
+        <button class="btn btn-primary" onclick="moveToCollect(${customer.id}, '${order.id}')">Deposit Received → Start Collecting</button>
+      </div>
+    `;
+  }
+
+  if (order.stage === 'collect') {
+    const checked = order.checked || {};
+    const checkedCount = Object.values(checked).filter(Boolean).length;
+    const pct = Math.round((checkedCount / TOTAL_CHECKS) * 100);
+    const allDone = checkedCount === TOTAL_CHECKS;
+    const signOff = checked['dr3'];
+
+    let html = `
+      <div class="checklist-progress">
+        <div class="cp-label">Info Checklist</div>
+        <div class="cp-bar"><div class="cp-fill" id="cp-fill-${order.id}" style="width:${pct}%"></div></div>
+        <div class="cp-count" id="cp-count-${order.id}">${checkedCount}/${TOTAL_CHECKS}</div>
+      </div>`;
+
+    const groups = [
+      { key: 'dimensions', label: '📐 Dimensions & Finish', items: CHECKLIST.dimensions },
+      { key: 'drawings', label: '📄 Drawings', items: CHECKLIST.drawings },
+      { key: 'stone', label: '🪨 Stone', items: CHECKLIST.stone },
+      { key: 'hardware', label: '🔩 Hardware', items: CHECKLIST.hardware },
+    ];
+
+    groups.forEach(g => {
+      html += `<div class="checklist-group"><div class="group-label">${g.label}</div><div class="checklist">`;
+      g.items.forEach(item => {
+        const isChecked = checked[item.id];
+        html += `<div class="check-item ${isChecked ? 'checked' : ''}" onclick="toggleCheck(${customer.id}, '${order.id}', '${item.id}')">
+          <div class="check-box"><span class="check-tick">✓</span></div>
+          <div class="check-label">${item.label}</div>
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+
+    if (!allDone) {
+      html += `<div class="alert-box alert-block">⛔ ${TOTAL_CHECKS - checkedCount} item(s) missing — cannot push to factory yet.</div>`;
+    } else if (!signOff) {
+      html += `<div class="alert-box alert-warning">⚠️ All items checked but client hasn't signed off on shop drawing.</div>`;
+    } else {
+      html += `<div class="alert-box alert-success">✅ All complete — ready to push to factory!</div>`;
+    }
+
+    html += `<div class="action-bar">
+      <button class="btn btn-primary" ${!allDone ? 'disabled' : ''} onclick="pushToFactory(${customer.id}, '${order.id}')">Push to Factory →</button>
+      <button class="btn btn-outline">Save Notes</button>
+    </div>`;
+    return html;
+  }
+
+  if (order.stage === 'production') {
+    return `
+      <div class="section-title">Production Timeline</div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="tl-left"><div class="tl-dot done">✓</div><div class="tl-line done"></div></div>
+          <div class="tl-content"><div class="tl-title">Spec sent to factory</div><div class="tl-date">${order.specSent || '—'}</div></div>
+        </div>
+        <div class="timeline-item">
+          <div class="tl-left"><div class="tl-dot active">⚙</div><div class="tl-line"></div></div>
+          <div class="tl-content"><div class="tl-title">In Production</div><div class="tl-date">Est. complete: ${order.estComplete || '—'}</div></div>
+        </div>
+        <div class="timeline-item">
+          <div class="tl-left"><div class="tl-dot pending">○</div><div class="tl-line"></div></div>
+          <div class="tl-content"><div class="tl-title tl-title pending">QC & Pack</div><div class="tl-date">—</div></div>
+        </div>
+        <div class="timeline-item">
+          <div class="tl-left"><div class="tl-dot pending">○</div><div class="tl-line"></div></div>
+          <div class="tl-content"><div class="tl-title tl-title pending">Load Container</div><div class="tl-date">—</div></div>
+        </div>
+        <div class="timeline-item">
+          <div class="tl-left"><div class="tl-dot pending">○</div></div>
+          <div class="tl-content"><div class="tl-title tl-title pending">Delivered</div><div class="tl-date">ETA: ${order.eta || '—'}</div></div>
+        </div>
+      </div>
+      <div class="action-bar">
+        <button class="btn btn-primary" onclick="markLoaded(${customer.id}, '${order.id}')">Mark as Loaded →</button>
+        <button class="btn btn-outline">Add Factory Note</button>
+      </div>
+    `;
+  }
+
+  if (order.stage === 'shipped') {
+    return `
+      <div class="section-title">Shipping Info</div>
+      <div class="info-grid">
+        <div class="info-item"><div class="info-label">Container #</div><div class="info-value">${order.container || '—'}</div></div>
+        <div class="info-item"><div class="info-label">Load Date</div><div class="info-value">${order.loadDate || '—'}</div></div>
+        <div class="info-item"><div class="info-label">ETA</div><div class="info-value">${order.eta || '—'}</div></div>
+        <div class="info-item"><div class="info-label">Balance</div><div class="info-value">$${order.balance?.toLocaleString()}</div></div>
+      </div>
+      <div class="action-bar">
+        <button class="btn btn-primary" onclick="markDone(${customer.id}, '${order.id}')">Mark Delivered ✓</button>
+      </div>
+    `;
+  }
+
+  return `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">✅ Order completed.</div>`;
+}
+
+function buildContactTab(c) {
+  return `
+    <div class="section-title">Contact Info</div>
+    <div class="info-grid">
+      <div class="info-item"><div class="info-label">Name</div><div class="info-value">${c.name}</div></div>
+      <div class="info-item"><div class="info-label">Company</div><div class="info-value">${c.company || '—'}</div></div>
+      <div class="info-item"><div class="info-label">Email</div><div class="info-value" style="font-size:12px">${c.email}</div></div>
+      <div class="info-item"><div class="info-label">Phone</div><div class="info-value">${c.phone}</div></div>
+      <div class="info-item"><div class="info-label">Source</div><div class="info-value">${c.source}</div></div>
+      <div class="info-item"><div class="info-label">Total Orders</div><div class="info-value">${c.orders.length}</div></div>
+    </div>
+  `;
+}
+
+function buildHistoryTab(c) {
+  return `
+    <div class="section-title">Activity Log</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${c.orders.map(o => `
+        <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+          <div style="font-size:12px;font-weight:700">${o.id} — ${o.type}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">${o.notes || '—'}</div>
+        </div>`).join('')}
+    </div>
+  `;
+}
+
+// =====================
+// ACTIONS
+// =====================
+function toggleOrder(orderId) {
+  const detail = document.getElementById('detail-' + orderId);
+  detail.classList.toggle('open');
+}
+
+async function toggleCheck(customerId, orderId, checkId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c.orders.find(o => o.id === orderId);
+  order.checked = order.checked || {};
+  order.checked[checkId] = !order.checked[checkId];
+  renderPanelTab(0);
+  setTimeout(() => { const d = document.getElementById('detail-'+orderId); if(d) d.classList.add('open'); }, 10);
+  await dbUpdate('orders', {id: orderId}, {checked: order.checked});
+}
+
+async function moveToCollect(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c.orders.find(o => o.id === orderId);
+  order.stage = 'collect'; c.stage = 'collect';
+  renderBoard(); renderPanelTab(0);
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {stage: 'collect'}),
+    dbUpdate('customers', {id: customerId}, {stage: 'collect'})
+  ]);
+}
+
+async function pushToFactory(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c.orders.find(o => o.id === orderId);
+  const checked = Object.values(order.checked || {}).filter(Boolean).length;
+  if (checked < TOTAL_CHECKS) { alert('⛔ Please complete all checklist items first.'); return; }
+  const today = new Date().toISOString().split('T')[0];
+  order.stage = 'production'; order.specSent = today;
+  const allBeyond = c.orders.every(o => ['production','shipped','done'].includes(o.stage));
+  if (allBeyond) c.stage = 'production';
+  renderBoard(); renderPanelTab(0);
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {stage: 'production', spec_sent: today}),
+    allBeyond ? dbUpdate('customers', {id: customerId}, {stage: 'production'}) : Promise.resolve()
+  ]);
+}
+
+async function markLoaded(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c.orders.find(o => o.id === orderId);
+  const today = new Date().toISOString().split('T')[0];
+  const ctnNum = 'MSCU' + Math.floor(Math.random()*9000000+1000000);
+  order.stage = 'shipped'; order.loadDate = today; order.container = ctnNum;
+  const allShipped = c.orders.every(o => ['shipped','done'].includes(o.stage));
+  if (allShipped) c.stage = 'shipped';
+  renderBoard(); renderPanelTab(0);
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {stage: 'shipped', load_date: today, container: ctnNum}),
+    allShipped ? dbUpdate('customers', {id: customerId}, {stage: 'shipped'}) : Promise.resolve()
+  ]);
+}
+
+async function markDone(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c.orders.find(o => o.id === orderId);
+  order.stage = 'done';
+  const allDone = c.orders.every(o => o.stage === 'done');
+  if (allDone) c.stage = 'done';
+  renderBoard(); renderPanelTab(0);
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {stage: 'done'}),
+    allDone ? dbUpdate('customers', {id: customerId}, {stage: 'done'}) : Promise.resolve()
+  ]);
+}
+
+// =====================
+// ADD CUSTOMER / ORDER
+// =====================
+function openAddCustomer(stage) {
+  document.getElementById('add-modal').classList.add('open');
+}
+function closeAddCustomer() {
+  document.getElementById('add-modal').classList.remove('open');
+}
+async function addCustomer() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  const modal = document.getElementById('add-modal');
+  const isLead = modal.dataset.isLead === 'true';
+  const company  = document.getElementById('new-company').value;
+  const email    = document.getElementById('new-email').value;
+  const phone    = document.getElementById('new-phone').value;
+  const source   = document.getElementById('new-source').value;
+  const interest = document.getElementById('new-project').value;
+
+  if (isLead) {
+    const newLid = 'L'+String(Date.now()).slice(-6);
+    const newL = await dbInsert('leads', {id:newLid, name, company, email, phone, source, status:'New', interest, budget:'', notes:''});
+    if (newL) leads.push(newL);
+    closeAddCustomer();
+    const leadsTab = document.querySelector('.tab:nth-child(2)');
+    switchView('leads', leadsTab);
+  } else {
+    const newCust = await dbInsert('customers', {name, company, email, phone, source, stage:'collect'});
+    if (!newCust) { alert('Error creating customer'); return; }
+    const newOId = 'PO-'+String(Date.now()).slice(-6);
+    const newO = await dbInsert('orders', {id:newOId, customer_id:newCust.id, type:interest, stage:'collect', balance:0, notes:'', checked:{}});
+    customers.push({...newCust, orders: newO ? [{...newO, checked:{}}] : []});
+    closeAddCustomer();
+    renderBoard();
+  }
+  ['new-name','new-company','new-email','new-phone'].forEach(id => document.getElementById(id).value = '');
+  delete modal.dataset.isLead;
+}
+
+function closeAddCustomer() {
+  document.getElementById('add-modal').classList.remove('open');
+  document.querySelector('.modal-title').textContent = 'Add New Customer';
+  delete document.getElementById('add-modal').dataset.isLead;
+}
+
+function openAddOrder(customerId) {
+  alert('Add Order flow — will be built in full version');
+}
+
+// =====================
+// VIEW SWITCHER
+// =====================
+let currentView = 'pipeline';
+let currentFilter = 'all';
+
+function switchView(view, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  currentView = view;
+  document.getElementById('toolbar-bar').style.display = view === 'pipeline' ? 'flex' : 'none';
+  if (view === 'dashboard') renderDashboard();
+  if (view === 'leads') renderLeads();
+  if (view === 'customers') renderCustomersTable();
+  if (view === 'production') renderProductionView();
+  if (view === 'container') renderContainerView();
+  if (view === 'report') renderReport();
+}
+
+let prodFilter = 'all';
+function setProdFilter(f, el) {
+  document.querySelectorAll('#view-production .filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  prodFilter = f;
+  renderProductionView();
+}
+
+// =====================
+// DASHBOARD
+// =====================
+function renderDashboard() {
+  const allOrders = customers.flatMap(c => c.orders);
+  const now = new Date();
+  const thisYear = now.getFullYear();
+
+  // KPIs
+  const kpis = [
+    { label: 'Active Customers', value: customers.filter(c => c.stage !== 'done').length, sub: 'in pipeline', color: 'var(--brand)' },
+    { label: 'Open Orders', value: allOrders.filter(o => o.stage !== 'done').length, sub: 'total active', color: '#6366F1' },
+    { label: 'In Production', value: allOrders.filter(o => o.stage === 'production').length, sub: 'at factory now', color: '#3B82F6' },
+    { label: 'Shipped YTD', value: factoryPOs.filter(f => ['loaded','delivered'].includes(f.status)).length, sub: 'containers ' + thisYear, color: '#8B5CF6' },
+    { label: 'Delivered', value: allOrders.filter(o => o.stage === 'done').length, sub: 'orders completed', color: '#10B981' },
+    { label: '⚠️ Missing Info', value: allOrders.filter(o => o.stage === 'collect' && Object.values(o.checked||{}).filter(Boolean).length < TOTAL_CHECKS).length, sub: 'need attention', color: '#EF4444' },
+  ];
+  document.getElementById('kpi-row').innerHTML = kpis.map(k =>
+    `<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value" style="color:${k.color}">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`
+  ).join('');
+
+  // Monthly breakdown — group by ETA month
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const byMonth = Array(12).fill(null).map(() => ({ total: 0, production: 0, shipped: 0, done: 0 }));
+  allOrders.forEach(o => {
+    const etaStr = o.eta || (o.stage === 'lead' || o.stage === 'collect' ? null : null);
+    if (!etaStr) return;
+    const d = new Date(etaStr);
+    if (d.getFullYear() !== thisYear) return;
+    const m = d.getMonth();
+    byMonth[m].total++;
+    if (o.stage === 'production') byMonth[m].production++;
+    if (o.stage === 'shipped') byMonth[m].shipped++;
+    if (o.stage === 'done') byMonth[m].done++;
+  });
+  const maxTotal = Math.max(...byMonth.map(m => m.total), 1);
+  const monthHTML = months.map((mn, i) => {
+    const m = byMonth[i];
+    if (m.total === 0 && i < now.getMonth()) return '';
+    const pct = Math.round((m.total / maxTotal) * 100);
+    const isNow = i === now.getMonth();
+    return `<div class="month-row" style="${isNow ? 'background:#F8FAFF;border-radius:6px;padding:7px 6px;' : ''}">
+      <div class="month-label">${mn} ${isNow ? '<span style="font-size:9px;color:#6366F1;font-weight:700">← now</span>' : ''}</div>
+      <div><div class="month-bar-wrap"><div class="month-bar-fill" style="width:${pct}%"></div></div></div>
+      <div class="month-num" style="color:#6366F1">${m.total || '—'}</div>
+      <div class="month-num" style="color:#3B82F6">${m.production || '—'}</div>
+      <div class="month-num" style="color:#10B981">${m.done || '—'}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('monthly-table').innerHTML = `
+    <div class="month-row" style="font-size:10px;font-weight:700;color:var(--muted);padding-bottom:4px">
+      <div>Month</div><div>Activity</div>
+      <div class="month-num" style="color:#6366F1">Total</div>
+      <div class="month-num" style="color:#3B82F6">In SX</div>
+      <div class="month-num" style="color:#10B981">Done</div>
+    </div>${monthHTML}`;
+
+  // Action items
+  const actions = [];
+  customers.forEach(c => {
+    c.orders.forEach(o => {
+      if (o.stage === 'collect') {
+        const checked = Object.values(o.checked||{}).filter(Boolean).length;
+        if (checked < TOTAL_CHECKS) actions.push({ color: '#EF4444', bg: '#FEF2F2', text: `${o.id} — Missing info`, sub: `${c.name} · ${TOTAL_CHECKS - checked} items left`, cid: c.id });
+      }
+      if (o.stage === 'lead') actions.push({ color: '#F59E0B', bg: '#FFFBEB', text: `${o.id} — Follow up`, sub: `${c.name} · ${o.type}`, cid: c.id });
+    });
+  });
+  document.getElementById('action-items').innerHTML = actions.length === 0
+    ? `<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">✅ All clear!</div>`
+    : actions.map(a => `<div class="action-item" onclick="openPanel(${a.cid})">
+        <div class="action-dot" style="background:${a.color}"></div>
+        <div><div class="action-text">${a.text}</div><div class="action-sub">${a.sub}</div></div>
+      </div>`).join('');
+
+  // Containers this year
+  const ctnCards = factoryPOs.map(f => {
+    const isShipped = ['loaded','delivered'].includes(f.status);
+    const orderCount = f.customerOrders.length;
+    return `<div class="ctn-year-card ${isShipped ? 'shipped' : ''}">
+      <div class="cy-label">${f.id}</div>
+      <div class="cy-value">${orderCount}</div>
+      <div class="cy-sub">${orderCount} order${orderCount !== 1 ? 's' : ''} · ${isShipped ? '✅ Loaded' : '⚙️ Planning'}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px">${f.eta || '—'}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('containers-row').innerHTML = ctnCards ||
+    `<div style="color:var(--muted);font-size:12px">No containers yet this year.</div>`;
+}
+
+function setFilter(filter, el) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  currentFilter = filter;
+  renderBoard();
+}
+
+function onSearch(val) {
+  const q = val.toLowerCase();
+  if (currentView === 'customers') renderCustomersTable(q);
+  else renderBoard(q);
+}
+
+// =====================
+// ALL CUSTOMERS TABLE
+// =====================
+function renderCustomersTable(q = '') {
+  const tbody = document.getElementById('customers-tbody');
+  const stageLabel = { lead: 'Lead', collect: 'Collecting Info', production: 'In Production', shipped: 'Shipped', done: 'Done' };
+  const stageBadge = { lead: 'badge-lead', collect: 'badge-collect', production: 'badge-production', shipped: 'badge-shipped', done: 'badge-done' };
+  const typeClass = { 'Kitchen Remodel': 'kitchen', 'Bathroom': 'bathroom', 'Vanity': 'vanity', 'Full Remodel': 'remodel' };
+
+  let filtered = customers;
+  if (q) filtered = customers.filter(c => c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q) || c.email.toLowerCase().includes(q));
+
+  tbody.innerHTML = filtered.map(c => {
+    const types = [...new Set(c.orders.map(o => o.type))];
+    const chips = types.map(t => `<span class="order-chip ${typeClass[t] || 'kitchen'}" style="font-size:10px">${t}</span>`).join(' ');
+    const needsFollowUp = c.stage === 'lead';
+    return `<tr onclick="openPanel(${c.id})">
+      <td><div class="name">${c.name}</div><div class="company">${c.company || c.email}</div></td>
+      <td><span class="order-count">${c.orders.length}</span></td>
+      <td><span class="stage-badge ${stageBadge[c.stage]}">${stageLabel[c.stage]}</span></td>
+      <td>${chips}</td>
+      <td style="color:var(--muted);font-size:12px">${c.source}</td>
+      <td style="font-size:12px;color:${needsFollowUp ? 'var(--collect)' : 'var(--muted)'}">${needsFollowUp ? '⏰ Follow up' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// =====================
+// PRODUCTION VIEW
+// =====================
+function renderProductionView() {
+  const grid = document.getElementById('prod-grid');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const statusOrder = ['spec_sent', 'in_production', 'qc_done', 'prep_load', 'loaded', 'delivered'];
+  const statusLabel = {
+    spec_sent:     { label: 'Spec Sent',      badge: 'badge-collect' },
+    in_production: { label: 'In Production',  badge: 'badge-production' },
+    qc_done:       { label: 'QC Done',        badge: 'badge-production' },
+    prep_load:     { label: 'Preparing Load', badge: 'badge-shipped' },
+    loaded:        { label: 'Loaded 🚢',      badge: 'badge-shipped' },
+    delivered:     { label: 'Delivered ✅',   badge: 'badge-done' },
+  };
+  const stageSteps = ['Spec Sent', 'In Production', 'QC Done', 'Prep Load', 'Loaded 🚢', 'Delivered'];
+  const typeClass = { 'Kitchen Remodel': 'kitchen', 'Bathroom': 'bathroom', 'Vanity': 'vanity', 'Full Remodel': 'remodel' };
+
+  // Filter
+  let filtered = factoryPOs;
+  if (prodFilter === 'in_production') filtered = factoryPOs.filter(f => ['spec_sent','in_production','qc_done','prep_load'].includes(f.status));
+  if (prodFilter === 'loaded') filtered = factoryPOs.filter(f => ['loaded','delivered'].includes(f.status));
+
+  const active = filtered.filter(f => f.status !== 'delivered').length;
+  document.getElementById('prod-count').textContent =
+    `${filtered.length} Factory PO${filtered.length !== 1 ? 's' : ''} · ${active} active`;
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px">No factory POs for this filter.</div>`;
+    return;
+  }
+
+  // Group by ETA month
+  const grouped = {};
+  filtered.forEach(fpo => {
+    const d = fpo.eta ? new Date(fpo.eta) : null;
+    const key = d ? `${d.getFullYear()}-${String(d.getMonth()).padStart(2,'0')}` : 'no-eta';
+    const label = d ? `${months[d.getMonth()]} ${d.getFullYear()}` : 'No ETA';
+    if (!grouped[key]) grouped[key] = { label, fpos: [] };
+    grouped[key].fpos.push(fpo);
+  });
+
+  const sortedKeys = Object.keys(grouped).sort();
+  const nowKey = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()).padStart(2,'0')}`; })();
+
+  grid.innerHTML = sortedKeys.map((key, gi) => {
+    const group = grouped[key];
+    const isCurrentMonth = key === nowKey;
+    const startOpen = gi === 0 || isCurrentMonth;
+    const fpoCards = group.fpos.map(fpo => {
+    const statusIdx = statusOrder.indexOf(fpo.status);
+    const sl = statusLabel[fpo.status] || statusLabel.in_production;
+
+    // Stage progress bar
+    const stagesHTML = stageSteps.map((s, i) => {
+      const cls = i < statusIdx ? 'done' : i === statusIdx ? 'active' : '';
+      return `<div class="prod-stage ${cls}">${s}</div>`;
+    }).join('');
+
+    // ETA countdown
+    const etaDate = fpo.eta ? new Date(fpo.eta) : null;
+    const daysToETA = etaDate ? Math.ceil((etaDate - new Date()) / 86400000) : null;
+    const etaColor = daysToETA !== null ? (daysToETA < 14 ? '#EF4444' : daysToETA < 30 ? '#F59E0B' : '#10B981') : 'var(--text)';
+
+    // Customer orders inside this Factory PO
+    const orderRowsHTML = fpo.customerOrders.map(ref => {
+      const cust = customers.find(c => c.id === ref.customerId);
+      const order = cust?.orders.find(o => o.id === ref.orderId);
+      if (!cust || !order) return '';
+      const tClass = typeClass[order.type] || 'kitchen';
+      return `
+        <div class="fac-order-row" onclick="event.stopPropagation(); openPanel(${cust.id})">
+          <div class="fac-order-left">
+            <div class="fac-order-po">${order.id}</div>
+            <div class="fac-order-type">${order.type}</div>
+          </div>
+          <div class="fac-order-right">
+            <span class="fac-order-customer">👤 ${cust.name}${cust.company ? ' · ' + cust.company : ''}</span>
+            <span class="order-chip ${tClass}" style="font-size:10px">${order.type}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="prod-card">
+      <div class="prod-card-header">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="fac-po-badge">🏭 ${fpo.id}</span>
+            <span class="stage-badge ${sl.badge}">${sl.label}</span>
+          </div>
+          <div class="prod-card-sub">Factory: ${fpo.factory}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="event.stopPropagation(); advanceFPO('${fpo.id}')">
+            ${fpo.status === 'loaded' ? 'Mark Delivered' : fpo.status === 'delivered' ? '✅ Done' : 'Next Stage →'}
+          </button>
+          <div class="card-menu-wrap" onclick="event.stopPropagation()">
+            <button class="kebab-btn" onclick="toggleKebab('fpo-${fpo.id}')">···</button>
+            <div class="kebab-dropdown" id="kebab-fpo-${fpo.id}">
+              <div class="kebab-item" onclick="duplicateFPO('${fpo.id}')"><span class="ki-icon">⧉</span> Duplicate</div>
+              <div class="kebab-item danger" onclick="deleteFPO('${fpo.id}')"><span class="ki-icon">🗑</span> Delete</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="prod-stages">${stagesHTML}</div>
+
+      <div class="prod-meta">
+        <div class="prod-meta-item">
+          <div class="prod-meta-label">Spec Sent</div>
+          <div class="prod-meta-value">${fpo.specSentDate || '—'}</div>
+        </div>
+        <div class="prod-meta-item">
+          <div class="prod-meta-label">Est. Complete</div>
+          <div class="prod-meta-value">${fpo.estComplete || '—'}</div>
+        </div>
+        <div class="prod-meta-item">
+          <div class="prod-meta-label">Container #</div>
+          <div class="prod-meta-value" style="font-size:11px">${fpo.container || '—'}</div>
+        </div>
+        <div class="prod-meta-item">
+          <div class="prod-meta-label">ETA to Customer</div>
+          <div class="prod-meta-value" style="color:${etaColor}">
+            ${fpo.eta || '—'}${daysToETA !== null ? `<span style="font-size:10px;font-weight:600;margin-left:4px">(${daysToETA}d)</span>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="fac-divider"></div>
+
+      <div class="fac-orders-label">📦 Customer Orders in this Factory PO (${fpo.customerOrders.length})</div>
+      ${orderRowsHTML}
+
+      <div class="checkin-box" onclick="event.stopPropagation()" style="margin-top:10px">
+        <div class="checkin-label">📝 Weekly Check-in Note</div>
+        <textarea class="checkin-input" rows="2" placeholder="Factory update, QC status, delay info..." onchange="saveFPONote('${fpo.id}', this.value)">${fpo.checkinNote || ''}</textarea>
+      </div>
+    </div>`;
+    }).join('');
+
+    const isNowBadge = isCurrentMonth ? `<span style="font-size:9px;background:#6366F1;color:white;padding:1px 7px;border-radius:99px;font-weight:700;margin-left:6px">THIS MONTH</span>` : '';
+    return `
+    <div class="month-group">
+      <div class="month-group-header ${startOpen ? 'open' : ''}" onclick="toggleMonthGroup(this)">
+        <div class="mgh-left">
+          <span class="mgh-chevron ${startOpen ? 'open' : ''}">▶</span>
+          <span class="mgh-title">ETA: ${group.label}${isNowBadge}</span>
+          <span class="mgh-count">${group.fpos.length} PO${group.fpos.length > 1 ? 's' : ''}</span>
+        </div>
+        <span style="font-size:11px;color:var(--muted)">${group.fpos.reduce((s,f) => s + f.customerOrders.length, 0)} customer orders</span>
+      </div>
+      <div class="month-group-body ${startOpen ? '' : 'collapsed'}">${fpoCards}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleMonthGroup(header) {
+  const body = header.nextElementSibling;
+  const chevron = header.querySelector('.mgh-chevron');
+  const isOpen = !body.classList.contains('collapsed');
+  body.classList.toggle('collapsed', isOpen);
+  chevron.classList.toggle('open', !isOpen);
+  header.classList.toggle('open', !isOpen);
+}
+
+async function advanceFPO(fpoId) {
+  const statusOrder = ['spec_sent', 'in_production', 'qc_done', 'prep_load', 'loaded', 'delivered'];
+  const fpo = factoryPOs.find(f => f.id === fpoId);
+  if (!fpo || fpo.status === 'delivered') return;
+  const idx = statusOrder.indexOf(fpo.status);
+  if (idx < statusOrder.length - 1) fpo.status = statusOrder[idx + 1];
+  const updates = {status: fpo.status};
+  if (fpo.status === 'loaded' && !fpo.container) {
+    fpo.loadDate = new Date().toISOString().split('T')[0];
+    fpo.container = 'MSCU' + Math.floor(Math.random() * 9000000 + 1000000);
+    updates.load_date = fpo.loadDate; updates.container = fpo.container;
+    for (const ref of fpo.customerOrders) {
+      const cust = customers.find(c => c.id === ref.customerId || c.id === ref.customer_id);
+      const order = cust?.orders.find(o => o.id === ref.orderId || o.id === ref.order_id);
+      if (order) { order.stage = 'shipped'; order.container = fpo.container; }
+      if (cust && cust.orders.every(o => ['shipped','done'].includes(o.stage))) cust.stage = 'shipped';
+      if (order) await dbUpdate('orders', {id: order.id}, {stage:'shipped', container:fpo.container, load_date:fpo.loadDate});
+    }
+  }
+  if (fpo.status === 'delivered') {
+    for (const ref of fpo.customerOrders) {
+      const cust = customers.find(c => c.id === ref.customerId || c.id === ref.customer_id);
+      const order = cust?.orders.find(o => o.id === ref.orderId || o.id === ref.order_id);
+      if (order) { order.stage = 'done'; await dbUpdate('orders', {id:order.id}, {stage:'done'}); }
+      if (cust && cust.orders.every(o => o.stage === 'done')) { cust.stage = 'done'; await dbUpdate('customers', {id:cust.id}, {stage:'done'}); }
+    }
+  }
+  await dbUpdate('factory_pos', {id: fpoId}, updates);
+  renderProductionView(); renderBoard();
+}
+
+async function saveFPONote(fpoId, val) {
+  const fpo = factoryPOs.find(f => f.id === fpoId);
+  if (fpo) fpo.checkinNote = val;
+  await dbUpdate('factory_pos', {id: fpoId}, {checkin_note: val});
+}
+
+// =====================
+// CONTAINER PLANNING
+// =====================
+function renderContainerView() {
+  const board = document.getElementById('ctn-board');
+  const typeClass = { 'Kitchen Remodel': 'kitchen', 'Bathroom': 'bathroom', 'Vanity': 'vanity', 'Full Remodel': 'remodel' };
+
+  // All production orders not yet assigned to any container
+  const assignedOrderIds = new Set(containerPlans.flatMap(c => c.orderRefs.map(r => r.orderId)));
+  const poolOrders = [];
+  customers.forEach(c => {
+    c.orders.forEach(o => {
+      if (['production'].includes(o.stage) && !assignedOrderIds.has(o.id)) {
+        poolOrders.push({ customer: c, order: o });
+      }
+    });
+  });
+
+  const totalAssigned = containerPlans.reduce((s, c) => s + c.orderRefs.length, 0);
+  const totalTarget = containerPlans.reduce((s, c) => s + c.targetOrders, 0);
+  document.getElementById('ctn-summary').textContent =
+    `${containerPlans.length} containers planned · ${totalAssigned} orders assigned · ${poolOrders.length} unassigned`;
+
+  board.innerHTML = containerPlans.map(ctn => {
+    const usedM3 = ctn.orderRefs.reduce((s, r) => s + (r.sizeM3 || 0), 0);
+    const pctM3 = Math.min(100, Math.round((usedM3 / ctn.capacityM3) * 100));
+    const pctOrders = Math.min(100, Math.round((ctn.orderRefs.length / ctn.targetOrders) * 100));
+    const barColor = pctM3 >= 90 ? '#10B981' : pctM3 >= 60 ? '#3B82F6' : '#F59E0B';
+    const isReady = pctM3 >= 75 || ctn.orderRefs.length >= ctn.targetOrders;
+
+    // Orders inside this container
+    const orderItemsHTML = ctn.orderRefs.length === 0
+      ? `<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">No orders yet — add from pool below</div>`
+      : ctn.orderRefs.map(ref => {
+          const cust = customers.find(c => c.id === ref.customerId);
+          const order = cust?.orders.find(o => o.id === ref.orderId);
+          if (!cust || !order) return '';
+          return `<div class="ctn-order-item">
+            <div class="co-left">
+              <div class="co-po">${order.id}</div>
+              <div class="co-cust">👤 ${cust.name}</div>
+              <div class="co-type">${order.type} · <span class="co-size">${ref.sizeM3 || '?'} m³</span></div>
+            </div>
+            <button class="ctn-remove" title="Remove" onclick="removeFromContainer('${ctn.id}','${order.id}')">✕</button>
+          </div>`;
+        }).join('');
+
+    // Pool orders available to add
+    const poolHTML = poolOrders.length === 0
+      ? `<div style="text-align:center;font-size:11px;color:var(--muted);padding:8px">No unassigned orders in production</div>`
+      : poolOrders.map(({ customer, order }) => {
+          return `<div class="ctn-pool-item" onclick="addToContainer('${ctn.id}', ${customer.id}, '${order.id}')">
+            <div class="co-left">
+              <div class="co-po">${order.id} <span style="font-size:10px;color:var(--muted)">· ${order.type}</span></div>
+              <div class="co-cust" style="font-size:11px">👤 ${customer.name}</div>
+            </div>
+            <span class="ctn-add-btn">+ Add</span>
+          </div>`;
+        }).join('');
+
+    const readyBg = isReady ? '#F0FDF4' : '#FFFBEB';
+    const readyColor = isReady ? '#065F46' : '#92400E';
+    const readyText = isReady ? '✅ Ready to load!' : `⏳ ${ctn.targetOrders - ctn.orderRefs.length} more orders to reach target`;
+
+    return `<div class="ctn-col">
+      <div class="ctn-col-header">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="ctn-col-id">${ctn.id}</div>
+            <div class="ctn-col-name">${ctn.label}</div>
+            <div class="ctn-col-date">📅 Planned load: <strong>${ctn.plannedLoadDate}</strong></div>
+          </div>
+          <div class="card-menu-wrap" onclick="event.stopPropagation()">
+            <button class="kebab-btn" onclick="toggleKebab('ctn-${ctn.id}')">···</button>
+            <div class="kebab-dropdown" id="kebab-ctn-${ctn.id}">
+              <div class="kebab-item" onclick="duplicateContainer('${ctn.id}')"><span class="ki-icon">⧉</span> Duplicate</div>
+              <div class="kebab-item danger" onclick="deleteContainer('${ctn.id}')"><span class="ki-icon">🗑</span> Delete</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ctn-capacity">
+        <div class="ctn-cap-row">
+          <span class="ctn-cap-label">Volume (m³)</span>
+          <span class="ctn-cap-value" style="color:${barColor}">${usedM3} / ${ctn.capacityM3} m³</span>
+        </div>
+        <div class="ctn-bar-wrap"><div class="ctn-bar-fill" style="width:${pctM3}%;background:${barColor}"></div></div>
+
+        <div class="ctn-cap-row" style="margin-top:8px">
+          <span class="ctn-cap-label">Orders</span>
+          <span class="ctn-cap-value">${ctn.orderRefs.length} / ${ctn.targetOrders} target</span>
+        </div>
+        <div class="ctn-bar-wrap"><div class="ctn-bar-fill" style="width:${pctOrders}%;background:#6366F1"></div></div>
+
+        <div class="ctn-ready-badge" style="background:${readyBg};color:${readyColor};border:1px solid ${isReady ? '#86EFAC' : '#FDE68A'}">
+          ${readyText}
+        </div>
+      </div>
+
+      <div class="ctn-orders-section">
+        <div class="ctn-section-label">📦 Orders in this container (${ctn.orderRefs.length})</div>
+        ${orderItemsHTML}
+      </div>
+
+      <div class="ctn-pool">
+        <div class="ctn-section-label" style="color:#6366F1">+ Add from production pool</div>
+        ${poolHTML}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function addToContainer(ctnId, customerId, orderId) {
+  const ctn = containerPlans.find(c => c.id === ctnId);
+  if (!ctn) return;
+  if (ctn.orderRefs.some(r => (r.orderId||r.order_id) === orderId)) return;
+  const newRef = await dbInsert('container_orders', {container_id:ctnId, customer_id:customerId, order_id:orderId, size_m3:8});
+  ctn.orderRefs.push({customerId, orderId, sizeM3:8, ...(newRef||{})});
+  renderContainerView();
+}
+
+async function removeFromContainer(ctnId, orderId) {
+  const ctn = containerPlans.find(c => c.id === ctnId);
+  if (!ctn) return;
+  ctn.orderRefs = ctn.orderRefs.filter(r => (r.orderId||r.order_id) !== orderId);
+  renderContainerView();
+  await sb.from('container_orders').delete().match({container_id:ctnId, order_id:orderId});
+}
+
+async function addContainerPlan() {
+  const newId = 'CTN-'+new Date().getFullYear()+'-'+String(Date.now()).slice(-4);
+  const newC = await dbInsert('container_plans', {id:newId, label:'40ft HQ — New Container', target_orders:8, capacity_m3:76, planned_load_date:null, status:'planning'});
+  containerPlans.push({...(newC||{id:newId}), label:'40ft HQ — New Container', targetOrders:8, capacityM3:76, plannedLoadDate:null, orderRefs:[]});
+  renderContainerView();
+}
+
+// =====================
+// LEADS
+// =====================
+function renderLeads() {
+  const q = (document.getElementById('lead-search')?.value || '').toLowerCase();
+  const srcFilter = document.getElementById('lead-filter-source')?.value || '';
+  const board = document.getElementById('leads-board');
+
+  let filtered = leads.filter(l => {
+    if (q && !l.name.toLowerCase().includes(q) && !l.company.toLowerCase().includes(q) && !l.email.toLowerCase().includes(q)) return false;
+    if (srcFilter && l.source !== srcFilter) return false;
+    return true;
+  });
+
+  // Update badge
+  document.getElementById('lead-badge').textContent = leads.length;
+
+  if (filtered.length === 0) {
+    board.innerHTML = `<div class="leads-empty"><div class="big">🎯</div><p>No leads yet — click "+ New Lead" to add one.</p></div>`;
+    return;
+  }
+
+  const statusColors = { New:'#EF4444', Contacted:'#F59E0B', Quoted:'#6366F1', 'Follow-up':'#3B82F6' };
+  const statusBg = { New:'#FEF2F2', Contacted:'#FFFBEB', Quoted:'#EEF2FF', 'Follow-up':'#EFF6FF' };
+
+  const today = new Date().toISOString().split('T')[0];
+
+  board.innerHTML = `<div class="leads-grid">` + filtered.map(lead => {
+    const isOverdue = lead.followUp && lead.followUp <= today;
+    const followUpHTML = lead.followUp
+      ? `<div class="lead-followup">${isOverdue ? '🔴' : '🟡'} Follow-up: ${lead.followUp}${isOverdue ? ' — OVERDUE' : ''}</div>`
+      : '';
+
+    const statusChips = LEAD_STATUSES.map(s =>
+      `<span class="lead-status-chip${lead.status===s?' sel':''}" onclick="setLeadStatus('${lead.id}','${s}')">${s}</span>`
+    ).join('');
+
+    return `<div class="lead-card">
+      <div class="lead-card-header">
+        <div>
+          <div class="lead-name">${lead.name}</div>
+          ${lead.company ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">${lead.company}</div>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="lead-source">${lead.source}</span>
+          <div class="card-menu-wrap" onclick="event.stopPropagation()">
+            <button class="kebab-btn" onclick="toggleKebab('lead-${lead.id}')">···</button>
+            <div class="kebab-dropdown" id="kebab-lead-${lead.id}">
+              <div class="kebab-item" onclick="duplicateLead('${lead.id}')"><span class="ki-icon">⧉</span> Duplicate</div>
+              <div class="kebab-item danger" onclick="deleteLead('${lead.id}')"><span class="ki-icon">🗑</span> Delete</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="lead-meta">
+        <div class="lead-meta-row">✉️ <strong>${lead.email}</strong></div>
+        <div class="lead-meta-row">📞 ${lead.phone}</div>
+        <div class="lead-meta-row">🏠 ${lead.interest} · ${lead.budget}</div>
+      </div>
+      ${lead.notes ? `<div class="lead-notes">"${lead.notes}"</div>` : ''}
+      ${followUpHTML}
+      <div class="lead-status-row">${statusChips}</div>
+
+      <!-- Deposit inline row -->
+      <div class="deposit-row">
+        <label>💳 Deposit</label>
+        <input type="number" id="dep-${lead.id}" placeholder="Amount ($)" min="0"
+          onkeydown="if(event.key==='Enter') depositAndConvert('${lead.id}')"
+          value="${lead.depositAmount || ''}">
+        <button class="deposit-confirm-btn" onclick="depositAndConvert('${lead.id}')">Confirm →</button>
+      </div>
+
+      <button class="lost-btn" onclick="removeLead('${lead.id}')">✕ Mark as Lost / Remove</button>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+async function setLeadStatus(leadId, status) {
+  const l = leads.find(x => x.id === leadId);
+  if (l) l.status = status;
+  renderLeads();
+  await dbUpdate('leads', {id: leadId}, {status});
+}
+
+function depositAndConvert(leadId) {
+  const input = document.getElementById('dep-' + leadId);
+  const amount = parseFloat(input?.value);
+  if (!amount || amount <= 0) {
+    input.style.borderColor = '#EF4444';
+    input.placeholder = 'Enter amount first!';
+    setTimeout(() => { input.style.borderColor = '#86EFAC'; input.placeholder = 'Amount ($)'; }, 1500);
+    return;
+  }
+  convertLeadToCustomer(leadId, amount);
+}
+
+async function convertLeadToCustomer(leadId, depositAmount) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  const today = new Date().toISOString().split('T')[0];
+  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
+  if (!newCust) { alert('Error creating customer'); return; }
+  const newOId = 'PO-'+String(Date.now()).slice(-6);
+  const newO = await dbInsert('orders', {id:newOId, customer_id:newCust.id, type:l.interest||'Kitchen Remodel', stage:'collect', deposit:depositAmount?`$${depositAmount.toLocaleString()}`:null, deposit_date:today, balance:0, notes:l.notes||'', checked:{}});
+  customers.push({...newCust, orders: newO ? [{...newO, checked:{}}] : []});
+  leads = leads.filter(x => x.id !== leadId);
+  await dbDelete('leads', {id: leadId});
+  document.getElementById('lead-badge').textContent = leads.length;
+  showToast(`✅ ${l.name} converted → Pipeline`);
+  const pipelineTab = document.querySelector('.tab:nth-child(3)');
+  switchView('pipeline', pipelineTab);
+  renderBoard();
+  setTimeout(() => openPanel(newCust.id), 200);
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1C2B4A;color:white;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2);transition:opacity 0.3s';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => t.style.opacity = '0', 3000);
+}
+
+function removeLead(leadId) {
+  deleteLead(leadId);
+}
+
+function openAddLead() {
+  // Reuse add customer modal, just set intent
+  document.getElementById('add-modal').classList.add('open');
+  document.getElementById('add-modal').dataset.isLead = 'true';
+  document.querySelector('.modal-title').textContent = 'Add New Lead';
+}
+
+// Archive a customer (move to done + collapse from pipeline)
+async function archiveCustomer(customerId) {
+  const c = customers.find(x => x.id === customerId);
+  if (!c) return;
+  c.stage = 'done';
+  c.orders.forEach(o => o.stage = 'done');
+  closePanel(); renderBoard(); renderDashboard();
+  await dbUpdate('customers', {id: customerId}, {stage: 'done'});
+  for (const o of c.orders) await dbUpdate('orders', {id: o.id}, {stage: 'done'});
+}
+
+// =====================
+// KEBAB MENU
+// =====================
+function toggleKebab(id) {
+  const target = document.getElementById('kebab-' + id);
+  if (!target) return;
+  const isOpen = target.classList.contains('open');
+  // Close all open dropdowns first
+  document.querySelectorAll('.kebab-dropdown.open').forEach(d => d.classList.remove('open'));
+  if (!isOpen) target.classList.add('open');
+}
+// Close on outside click
+document.addEventListener('click', () => {
+  document.querySelectorAll('.kebab-dropdown.open').forEach(d => d.classList.remove('open'));
+});
+
+// --- Customer ---
+async function deleteCustomer(id) {
+  customers = customers.filter(c => c.id !== id);
+  renderBoard(); renderDashboard();
+  await dbDelete('customers', {id});
+  showToast('Customer deleted');
+}
+async function duplicateCustomer(id) {
+  const c = customers.find(x => x.id === id);
+  if (!c) return;
+  const newCust = await dbInsert('customers', {name: c.name+' (copy)', company:c.company, email:c.email, phone:c.phone, source:c.source, stage:c.stage});
+  if (!newCust) return;
+  const newOrders = [];
+  for (const o of c.orders) {
+    const newOId = 'PO-'+String(Date.now()).slice(-6);
+    const newO = await dbInsert('orders', {id:newOId, customer_id:newCust.id, type:o.type, stage:'collect', balance:o.balance||0, notes:o.notes||'', checked:{}});
+    if (newO) newOrders.push({...newO, checked:{}});
+  }
+  customers.push({...newCust, orders:newOrders});
+  renderBoard();
+  showToast('Customer duplicated');
+}
+
+// --- Lead ---
+async function deleteLead(id) {
+  leads = leads.filter(l => l.id !== id);
+  renderLeads(); renderDashboard();
+  await dbDelete('leads', {id});
+  showToast('Lead deleted');
+}
+async function duplicateLead(id) {
+  const l = leads.find(x => x.id === id);
+  if (!l) return;
+  const newLid = 'L'+String(Date.now()).slice(-6);
+  const newL = await dbInsert('leads', {id:newLid, name:l.name+' (copy)', company:l.company, email:l.email, phone:l.phone, source:l.source, status:'New', interest:l.interest, budget:l.budget, notes:l.notes});
+  if (newL) { leads.push(newL); renderLeads(); }
+  showToast('Lead duplicated');
+}
+
+// --- Container ---
+async function deleteContainer(id) {
+  containerPlans = containerPlans.filter(c => c.id !== id);
+  renderContainerView();
+  await dbDelete('container_plans', {id});
+  showToast('Container deleted');
+}
+async function duplicateContainer(id) {
+  const c = containerPlans.find(x => x.id === id);
+  if (!c) return;
+  const newId = 'CTN-'+new Date().getFullYear()+'-'+String(Date.now()).slice(-4);
+  const newC = await dbInsert('container_plans', {id:newId, label:c.label+' (copy)', target_orders:c.target_orders||c.targetOrders||8, capacity_m3:c.capacity_m3||c.capacityM3||76, planned_load_date:c.planned_load_date||c.plannedLoadDate, status:'planning'});
+  if (newC) { containerPlans.push({...newC, orderRefs:[]}); renderContainerView(); }
+  showToast('Container duplicated');
+}
+
+// --- Factory PO ---
+async function deleteFPO(id) {
+  factoryPOs = factoryPOs.filter(f => f.id !== id);
+  renderProductionView();
+  await dbDelete('factory_pos', {id});
+  showToast('Factory PO deleted');
+}
+async function duplicateFPO(id) {
+  const f = factoryPOs.find(x => x.id === id);
+  if (!f) return;
+  const newId = 'FAC-'+new Date().getFullYear()+'-'+String(Date.now()).slice(-4);
+  const newF = await dbInsert('factory_pos', {id:newId, factory:f.factory, status:'spec_sent', eta:f.eta, checkin_note:''});
+  if (newF) { factoryPOs.push({...newF, customerOrders:[]}); renderProductionView(); }
+  showToast('Factory PO duplicated (orders cleared)');
+}
+
+// =====================
+// REPORTS
+// =====================
+function renderReport() {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const selMonth = parseInt(document.getElementById('report-month-sel')?.value ?? 4);
+  const selYear = 2026;
+  const monthName = months[selMonth];
+  const nextMonthName = months[(selMonth + 1) % 12];
+
+  document.getElementById('report-period-label').textContent = `Reporting period: ${monthName} ${selYear}`;
+
+  // Gather all orders with ETAs in the selected month
+  const allOrders = customers.flatMap(c => c.orders.map(o => ({ ...o, customer: c })));
+  const thisMonthOrders = allOrders.filter(o => {
+    if (!o.eta) return false;
+    const d = new Date(o.eta);
+    return d.getMonth() === selMonth && d.getFullYear() === selYear;
+  });
+  const nextMonthOrders = allOrders.filter(o => {
+    if (!o.eta) return false;
+    const d = new Date(o.eta);
+    return d.getMonth() === (selMonth + 1) % 12 && d.getFullYear() === selYear;
+  });
+
+  // Leads converted (approximation: customers created in that month)
+  const leadsConverted = customers.filter(c => c.id >= 3 && c.id <= 7).length; // demo data
+  const newLeadsThisMonth = leads.length;
+  const containersThisMonth = factoryPOs.filter(f => {
+    if (!f.eta) return false;
+    const d = new Date(f.eta);
+    return d.getMonth() === selMonth;
+  });
+  const containersFulfilled = containersThisMonth.filter(f => ['loaded','delivered'].includes(f.status)).length;
+
+  // Revenue (sum of balance amounts from orders)
+  const revenue = thisMonthOrders.reduce((s, o) => s + (o.balance || 0), 0);
+  const nextRevEst = nextMonthOrders.reduce((s, o) => s + (o.balance || 0), 0);
+
+  // KPIs
+  const kpis = [
+    { label: 'Orders (ETA this month)', value: thisMonthOrders.length, color: 'var(--brand)', icon: '📋' },
+    { label: 'Revenue (balance)', value: '$' + revenue.toLocaleString(), color: 'var(--done)', icon: '💰' },
+    { label: 'Leads → Customer', value: leadsConverted, color: 'var(--production)', icon: '🔄' },
+    { label: 'New Leads', value: newLeadsThisMonth, color: 'var(--lead)', icon: '🎯' },
+    { label: 'Containers Loaded', value: containersFulfilled + ' / ' + containersThisMonth.length, color: 'var(--shipped)', icon: '🚢' },
+  ];
+  document.getElementById('report-kpi').innerHTML = kpis.map(k => `
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-sm)">
+      <div style="font-size:18px;margin-bottom:6px">${k.icon}</div>
+      <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">${k.label}</div>
+      <div style="font-size:26px;font-weight:800;color:${k.color};margin-top:4px">${k.value}</div>
+    </div>`).join('');
+
+  // Breakdown rows
+  const typeCount = {};
+  thisMonthOrders.forEach(o => { typeCount[o.type] = (typeCount[o.type] || 0) + 1; });
+  const stageCount = {};
+  thisMonthOrders.forEach(o => { stageCount[o.stage] = (stageCount[o.stage] || 0) + 1; });
+  const stageLabel = { collect:'Collecting Info', production:'In Production', shipped:'Shipped', done:'Delivered' };
+  const stageColor = { collect:'var(--collect)', production:'var(--production)', shipped:'var(--shipped)', done:'var(--done)' };
+
+  const bRow = (label, value, note = '', color = 'var(--text)') =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;color:var(--text-2)">${label}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${note ? `<span style="font-size:11px;color:var(--muted)">${note}</span>` : ''}
+        <span style="font-size:14px;font-weight:700;color:${color}">${value}</span>
+      </div>
+    </div>`;
+
+  document.getElementById('report-breakdown').innerHTML =
+    `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">By Type</div>` +
+    Object.entries(typeCount).map(([t, n]) => bRow(t, n)).join('') +
+    `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin:12px 0 8px">By Stage</div>` +
+    Object.entries(stageCount).map(([s, n]) => bRow(stageLabel[s] || s, n, '', stageColor[s] || 'var(--text)')).join('') ||
+    '<div style="color:var(--muted);font-size:13px">No orders with ETA this month.</div>';
+
+  // Forecast next month
+  const inProdNow = allOrders.filter(o => o.stage === 'production').length;
+  const collectingNow = allOrders.filter(o => o.stage === 'collect').length;
+  const unassignedOrders = customers.flatMap(c => c.orders).filter(o =>
+    o.stage === 'production' && !containerPlans.some(cp => cp.orderRefs.some(r => r.orderId === o.id))
+  ).length;
+  const totalCtnCapacity = containerPlans.reduce((s, c) => s + (c.targetOrders - c.orderRefs.length), 0);
+
+  const fRow = (icon, label, value, sub, color = 'var(--brand)') =>
+    `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:18px">${icon}</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${label}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px">${sub}</div>
+      </div>
+      <div style="font-size:16px;font-weight:800;color:${color}">${value}</div>
+    </div>`;
+
+  document.getElementById('report-forecast').innerHTML =
+    fRow('📋', `Orders ETA ${nextMonthName}`, nextMonthOrders.length, 'Based on current ETAs') +
+    fRow('💰', 'Est. Revenue', '$' + nextRevEst.toLocaleString(), 'Sum of outstanding balances', 'var(--done)') +
+    fRow('🏭', 'Still In Production', inProdNow, 'Orders at factory right now', 'var(--production)') +
+    fRow('📝', 'Collecting Info', collectingNow, 'Waiting on customer details', 'var(--collect)') +
+    fRow('📦', 'Unassigned to Container', unassignedOrders, 'Need container plan', unassignedOrders > 0 ? 'var(--lead)' : 'var(--done)') +
+    fRow('🚢', 'Container Space Available', totalCtnCapacity + ' slots', 'Across planned containers', 'var(--shipped)');
+
+  // Container readiness
+  const ctnHTML = containerPlans.map(c => {
+    const pct = Math.round((c.orderRefs.length / c.targetOrders) * 100);
+    const barColor = pct >= 100 ? 'var(--done)' : pct >= 60 ? 'var(--production)' : 'var(--collect)';
+    return `<div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="min-width:140px">
+        <div style="font-size:13px;font-weight:700">${c.id}</div>
+        <div style="font-size:11px;color:var(--muted)">${c.label} · Load ${c.plannedLoadDate}</div>
+      </div>
+      <div style="flex:1">
+        <div style="height:8px;background:var(--border);border-radius:99px;overflow:hidden">
+          <div style="height:100%;border-radius:99px;background:${barColor};width:${pct}%;transition:width 0.3s"></div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:${barColor};min-width:80px;text-align:right">${c.orderRefs.length}/${c.targetOrders} orders</div>
+      <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:${pct>=75?'var(--done-bg)':'var(--collect-bg)'};color:${pct>=75?'var(--done)':'var(--collect)'}">${pct >= 75 ? '✅ Ready' : `${100-pct}% to go`}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--muted);font-size:13px">No containers planned.</div>';
+  document.getElementById('report-containers').innerHTML = ctnHTML;
+}
+
+// =====================
+// INIT — check auth then load
+// =====================
+document.getElementById('toolbar-bar').style.display = 'none';
+document.getElementById('app').style.display = 'none';
+
+// Check if already logged in
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    await startApp();
+  }
+  // else login screen stays visible (default)
+})();
+</script>
+</body>
+</html>
