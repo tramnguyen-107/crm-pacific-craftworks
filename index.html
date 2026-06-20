@@ -509,6 +509,57 @@
   .urgent-toggle input:checked + .urgent-slider { background:#EF4444; }
   .urgent-toggle input:checked + .urgent-slider:before { transform:translateX(16px); }
   .urgent-weeks-input { width:60px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit; }
+
+  /* QUOTE BUILDER */
+  .quote-table { width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px; }
+  .quote-table th { text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-bottom:2px solid var(--border); }
+  .quote-table td { padding:5px 8px;vertical-align:middle;border-bottom:1px solid #F3F2EE; }
+  .quote-input { width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--white); }
+  .quote-input:focus { outline:none;border-color:var(--brand); }
+  .quote-input.num { width:70px;text-align:right; }
+  .quote-del { background:none;border:none;color:#EF4444;font-size:13px;cursor:pointer;padding:2px 5px; }
+  .quote-total-row { display:flex;justify-content:space-between;align-items:center;padding:7px 10px;font-size:13px; }
+  .quote-total-row.grand { background:var(--brand);color:white;border-radius:7px;font-weight:700;font-size:14px; }
+  .quote-total-row.deposit { background:#F0FDF4;border:1px solid #86EFAC;border-radius:7px;color:#065F46;font-weight:700; }
+  .quote-totals { background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px; }
+  .quote-add-btn { width:100%;padding:8px;border:1.5px dashed var(--border);background:transparent;border-radius:7px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;transition:all 0.12s;margin-bottom:12px; }
+  .quote-add-btn:hover { border-color:var(--brand);color:var(--brand); }
+  .lp-contact-grid { display:flex;flex-direction:column;gap:10px; }
+  .lp-field { display:flex;flex-direction:column;gap:4px; }
+  .lp-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--muted); }
+  .lp-input { padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;outline:none; }
+  .lp-input:focus { border-color:var(--brand); }
+  .lp-convert-bar { position:sticky;bottom:0;background:var(--white);border-top:1px solid var(--border);padding:14px 20px;display:flex;flex-direction:column;gap:8px; }
+
+  /* PRINT STYLES */
+  #print-area { display:none; }
+  @media print {
+    body > * { display:none !important; }
+    #print-area { display:block !important; font-family:'Inter',sans-serif; color:#111; padding:40px; }
+    .pq-header { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #1C2B4A; }
+    .pq-logo { font-size:18px;font-weight:800;color:#1C2B4A; }
+    .pq-logo span { display:block;font-size:11px;font-weight:400;color:#666;margin-top:2px; }
+    .pq-meta { text-align:right;font-size:12px;color:#444; }
+    .pq-meta strong { display:block;font-size:15px;font-weight:800;color:#1C2B4A;margin-bottom:4px; }
+    .pq-to { margin-bottom:28px; }
+    .pq-to-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#888;margin-bottom:6px; }
+    .pq-to-name { font-size:16px;font-weight:700; }
+    .pq-to-detail { font-size:12px;color:#555;margin-top:2px; }
+    .pq-table { width:100%;border-collapse:collapse;margin-bottom:20px; }
+    .pq-table th { background:#1C2B4A;color:white;padding:9px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px; }
+    .pq-table td { padding:9px 12px;border-bottom:1px solid #E8E8E8;font-size:13px; }
+    .pq-table td.num { text-align:right; }
+    .pq-table tr:last-child td { border-bottom:none; }
+    .pq-totals { margin-left:auto;width:280px; }
+    .pq-tot-row { display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #EEE; }
+    .pq-tot-row.grand { font-weight:800;font-size:16px;color:#1C2B4A;border-bottom:none;padding-top:10px; }
+    .pq-tot-row.deposit { font-weight:700;color:#065F46;background:#F0FDF4;padding:8px 10px;border-radius:6px;margin-top:8px;border:none; }
+    .pq-footer { margin-top:48px;padding-top:20px;border-top:1px solid #DDD;font-size:11px;color:#888;text-align:center; }
+    .pq-sign { display:flex;justify-content:space-between;margin-top:48px; }
+    .pq-sign-box { width:45%; }
+    .pq-sign-line { border-top:1px solid #333;margin-bottom:6px; }
+    .pq-sign-label { font-size:11px;color:#666; }
+  }
 </style>
 </head>
 <body>
@@ -785,6 +836,31 @@
     </div>
   </div>
 </div>
+
+<!-- LEAD PANEL OVERLAY -->
+<div class="overlay" id="lead-overlay" onclick="closeLeadPanel()"></div>
+
+<!-- LEAD DETAIL PANEL -->
+<div class="panel" id="lead-panel">
+  <div class="panel-header">
+    <div class="ph-top">
+      <div>
+        <div class="customer-name" id="lp-name">—</div>
+        <div class="customer-meta" id="lp-meta">—</div>
+      </div>
+      <button class="close-btn" onclick="closeLeadPanel()">✕</button>
+    </div>
+    <div class="panel-tabs">
+      <div class="panel-tab active" onclick="switchLeadTab(0,this)">💰 Quote</div>
+      <div class="panel-tab" onclick="switchLeadTab(1,this)">👤 Contact</div>
+      <div class="panel-tab" onclick="switchLeadTab(2,this)">📝 Notes</div>
+    </div>
+  </div>
+  <div class="panel-body" id="lp-body"></div>
+</div>
+
+<!-- PRINT AREA — hidden, only visible when printing -->
+<div id="print-area"></div>
 
 <!-- SLIDE PANEL OVERLAY -->
 <div class="overlay" id="overlay" onclick="closePanel()"></div>
@@ -2463,6 +2539,238 @@ async function confirmAddContainer() {
 // =====================
 // LEADS
 // =====================
+// =====================
+// LEAD PANEL
+// =====================
+let activeLead = null;
+let activeLeadTab = 0;
+
+function openLeadPanel(leadId) {
+  activeLead = leads.find(x => x.id === leadId);
+  if (!activeLead) return;
+  activeLeadTab = 0;
+  document.getElementById('lp-name').textContent = activeLead.name;
+  document.getElementById('lp-meta').textContent = (activeLead.company ? activeLead.company + ' · ' : '') + (activeLead.interest || '') + (activeLead.budget ? ' · ' + activeLead.budget : '');
+  renderLeadTab(0);
+  document.getElementById('lead-panel').classList.add('open');
+  document.getElementById('lead-overlay').classList.add('open');
+}
+
+function closeLeadPanel() {
+  document.getElementById('lead-panel').classList.remove('open');
+  document.getElementById('lead-overlay').classList.remove('open');
+  activeLead = null;
+}
+
+function switchLeadTab(idx, el) {
+  activeLeadTab = idx;
+  document.querySelectorAll('#lead-panel .panel-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  renderLeadTab(idx);
+}
+
+function renderLeadTab(idx) {
+  const body = document.getElementById('lp-body');
+  if (!activeLead) return;
+  if (idx === 0) body.innerHTML = buildQuoteTab(activeLead);
+  else if (idx === 1) body.innerHTML = buildLeadContactTab(activeLead);
+  else body.innerHTML = buildLeadNotesTab(activeLead);
+}
+
+function calcQuote(lead) {
+  const items = lead.quote_items || [];
+  const subtotal = items.reduce((s, it) => s + (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0), 0);
+  const shipping = parseFloat(lead.shipping_cost) || 0;
+  const grandTotal = subtotal + shipping;
+  const deposit = grandTotal * 0.70;
+  return { subtotal, shipping, grandTotal, deposit };
+}
+
+function buildQuoteTab(lead) {
+  const items = lead.quote_items || [];
+  const { subtotal, shipping, grandTotal, deposit } = calcQuote(lead);
+
+  const rows = items.map((it, i) => {
+    const lineTotal = (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0);
+    return `<tr>
+      <td><input class="quote-input" value="${it.product||''}" placeholder="Product / description"
+        onchange="updateQuoteItem('${lead.id}',${i},'product',this.value)"></td>
+      <td><input class="quote-input num" type="number" min="1" value="${it.qty||1}"
+        oninput="updateQuoteItem('${lead.id}',${i},'qty',this.value)"></td>
+      <td><input class="quote-input num" type="number" min="0" value="${it.unit_cost||''}" placeholder="0"
+        oninput="updateQuoteItem('${lead.id}',${i},'unit_cost',this.value)"></td>
+      <td style="text-align:right;font-weight:600;padding-right:4px">$${lineTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</td>
+      <td><button class="quote-del" onclick="removeQuoteItem('${lead.id}',${i})">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <table class="quote-table">
+      <thead><tr><th>Product</th><th style="width:60px">Qty</th><th style="width:80px">Unit $</th><th style="width:70px;text-align:right">Total</th><th style="width:28px"></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px;font-size:12px">No items yet — add below</td></tr>'}</tbody>
+    </table>
+    <button class="quote-add-btn" onclick="addQuoteItem('${lead.id}')">+ Add Item</button>
+
+    <div class="quote-totals">
+      <div class="quote-total-row"><span>Subtotal</span><span>$${subtotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+      <div class="quote-total-row" style="border-bottom:1px solid var(--border)">
+        <span>Shipping</span>
+        <span style="display:flex;align-items:center;gap:6px">$<input class="quote-input num" type="number" min="0" value="${shipping||''}" placeholder="0" style="width:80px"
+          oninput="saveLeadField('${lead.id}','shipping_cost',parseFloat(this.value)||0)"></span>
+      </div>
+      <div class="quote-total-row grand"><span>Grand Total</span><span>$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+      <div class="quote-total-row deposit"><span>💰 Deposit (70%)</span><span>$${deposit.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+    </div>
+
+    <div class="lp-convert-bar">
+      <button onclick="printQuote('${lead.id}')" style="padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+        🖨️ Print / Export PDF
+      </button>
+      <button onclick="convertLeadToCustomer('${lead.id}')" style="padding:11px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit${grandTotal===0?' opacity:0.5':''}">
+        ✅ Deposit Received → Convert to Customer
+        ${grandTotal > 0 ? `<span style="display:block;font-size:11px;font-weight:400;opacity:0.8;margin-top:2px">Record $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})} deposit (70%)</span>` : ''}
+      </button>
+    </div>`;
+}
+
+function buildLeadContactTab(lead) {
+  return `<div class="lp-contact-grid">
+    <div class="lp-field"><label class="lp-label">Full Name</label>
+      <input class="lp-input" value="${lead.name||''}" onchange="saveLeadField('${lead.id}','name',this.value)"></div>
+    <div class="lp-field"><label class="lp-label">Company</label>
+      <input class="lp-input" value="${lead.company||''}" placeholder="—" onchange="saveLeadField('${lead.id}','company',this.value)"></div>
+    <div class="lp-field"><label class="lp-label">Email</label>
+      <input class="lp-input" type="email" value="${lead.email||''}" placeholder="—" onchange="saveLeadField('${lead.id}','email',this.value)"></div>
+    <div class="lp-field"><label class="lp-label">Phone</label>
+      <input class="lp-input" value="${lead.phone||''}" placeholder="—" onchange="saveLeadField('${lead.id}','phone',this.value)"></div>
+    <div class="lp-field"><label class="lp-label">Source</label>
+      <select class="lp-input" onchange="saveLeadField('${lead.id}','source',this.value)">
+        ${['Web Form','Referral','Email','Phone','Walk-in'].map(s=>`<option${lead.source===s?' selected':''}>${s}</option>`).join('')}
+      </select></div>
+    <div class="lp-field"><label class="lp-label">Interest</label>
+      <select class="lp-input" onchange="saveLeadField('${lead.id}','interest',this.value)">
+        ${['Kitchen Remodel','Bathroom','Vanity','Full Remodel','Other'].map(s=>`<option${lead.interest===s?' selected':''}>${s}</option>`).join('')}
+      </select></div>
+    <div class="lp-field"><label class="lp-label">Budget</label>
+      <input class="lp-input" value="${lead.budget||''}" placeholder="e.g. $25k–$50k" onchange="saveLeadField('${lead.id}','budget',this.value)"></div>
+    <div class="lp-field"><label class="lp-label">Follow-up Date</label>
+      <input class="lp-input" type="date" value="${lead.follow_up||''}" onchange="saveLeadField('${lead.id}','follow_up',this.value)"></div>
+    <div class="lp-field"><label class="lp-label">Status</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
+        ${LEAD_STATUSES.map(s=>`<span class="lead-status-chip${lead.status===s?' sel':''}" onclick="setLeadStatus('${lead.id}','${s}');renderLeadTab(1)">${s}</span>`).join('')}
+      </div></div>
+  </div>`;
+}
+
+function buildLeadNotesTab(lead) {
+  return `<div class="lp-field">
+    <label class="lp-label">Notes / Conversation Log</label>
+    <textarea class="lp-input" rows="12" style="resize:vertical;font-size:13px;line-height:1.5"
+      onchange="saveLeadField('${lead.id}','notes',this.value)"
+      placeholder="Ghi chú cuộc gọi, yêu cầu của khách, lịch sử trao đổi...">${lead.notes||''}</textarea>
+  </div>`;
+}
+
+async function saveLeadField(leadId, field, value) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  l[field] = value;
+  if (activeLead?.id === leadId) {
+    document.getElementById('lp-meta').textContent = (l.company ? l.company + ' · ' : '') + (l.interest || '') + (l.budget ? ' · ' + l.budget : '');
+  }
+  await dbUpdate('leads', {id: leadId}, {[field]: value});
+}
+
+async function addQuoteItem(leadId) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  l.quote_items = l.quote_items || [];
+  l.quote_items.push({product:'', qty:1, unit_cost:0});
+  await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items});
+  if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(0); }
+}
+
+async function removeQuoteItem(leadId, idx) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  l.quote_items.splice(idx, 1);
+  await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items});
+  if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(0); }
+}
+
+async function updateQuoteItem(leadId, idx, field, value) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l || !l.quote_items[idx]) return;
+  l.quote_items[idx][field] = (field === 'qty' || field === 'unit_cost') ? (parseFloat(value)||0) : value;
+  await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items});
+  // Re-render just totals without full re-render to avoid losing focus
+  const { subtotal, shipping, grandTotal, deposit } = calcQuote(l);
+  const totalsEl = document.querySelector('.quote-totals');
+  if (totalsEl) totalsEl.innerHTML = `
+    <div class="quote-total-row"><span>Subtotal</span><span>$${subtotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+    <div class="quote-total-row" style="border-bottom:1px solid var(--border)">
+      <span>Shipping</span>
+      <span style="display:flex;align-items:center;gap:6px">$<input class="quote-input num" type="number" min="0" value="${shipping||''}" placeholder="0" style="width:80px"
+        oninput="saveLeadField('${leadId}','shipping_cost',parseFloat(this.value)||0)"></span>
+    </div>
+    <div class="quote-total-row grand"><span>Grand Total</span><span>$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+    <div class="quote-total-row deposit"><span>💰 Deposit (70%)</span><span>$${deposit.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>`;
+  // update each row total in the table
+  document.querySelectorAll('.quote-table tbody tr').forEach((tr, i) => {
+    const it = l.quote_items[i];
+    if (it) { const td = tr.querySelectorAll('td')[3]; if (td) td.textContent = '$'+((parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0)).toLocaleString('en-US',{minimumFractionDigits:0}); }
+  });
+}
+
+function printQuote(leadId) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  const { subtotal, shipping, grandTotal, deposit } = calcQuote(l);
+  const items = l.quote_items || [];
+  const quoteNum = 'Q-' + l.id.slice(-6).toUpperCase();
+  const today = new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
+
+  document.getElementById('print-area').innerHTML = `
+    <div class="pq-header">
+      <div class="pq-logo">Pacific Craftworks<span>Custom Cabinetry & Stone — Hawaii</span></div>
+      <div class="pq-meta"><strong>QUOTE ${quoteNum}</strong>Date: ${today}<br>Valid for 30 days</div>
+    </div>
+    <div class="pq-to">
+      <div class="pq-to-label">Quote prepared for</div>
+      <div class="pq-to-name">${l.name}${l.company ? ' — ' + l.company : ''}</div>
+      ${l.email ? `<div class="pq-to-detail">✉ ${l.email}</div>` : ''}
+      ${l.phone ? `<div class="pq-to-detail">📞 ${l.phone}</div>` : ''}
+      ${l.interest ? `<div class="pq-to-detail" style="margin-top:4px">Project: <strong>${l.interest}</strong>${l.budget ? ' · Budget: ' + l.budget : ''}</div>` : ''}
+    </div>
+    <table class="pq-table">
+      <thead><tr><th>Product / Description</th><th style="width:60px;text-align:center">Qty</th><th style="width:100px;text-align:right">Unit Cost</th><th style="width:110px;text-align:right">Total</th></tr></thead>
+      <tbody>
+        ${items.length ? items.map(it => {
+          const tot = (parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0);
+          return `<tr>
+            <td>${it.product||'—'}</td>
+            <td class="num">${it.qty||1}</td>
+            <td class="num">$${(parseFloat(it.unit_cost)||0).toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+            <td class="num">$${tot.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="4" style="text-align:center;color:#999">No items</td></tr>'}
+      </tbody>
+    </table>
+    <div class="pq-totals">
+      <div class="pq-tot-row"><span>Subtotal</span><span>$${subtotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+      <div class="pq-tot-row"><span>Shipping</span><span>$${shipping.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+      <div class="pq-tot-row grand"><span>Grand Total</span><span>$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+      <div class="pq-tot-row deposit"><span>Deposit Required (70%)</span><span>$${deposit.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+    </div>
+    ${l.notes ? `<div style="margin-top:32px;padding:14px;background:#F8F8F6;border-left:3px solid #1C2B4A;font-size:12px;color:#444"><strong>Notes:</strong><br>${l.notes}</div>` : ''}
+    <div class="pq-sign">
+      <div class="pq-sign-box"><div class="pq-sign-line"></div><div class="pq-sign-label">Client Signature & Date</div></div>
+      <div class="pq-sign-box"><div class="pq-sign-line"></div><div class="pq-sign-label">Pacific Craftworks Representative</div></div>
+    </div>
+    <div class="pq-footer">Pacific Craftworks · Hawaii · This quote is valid for 30 days from the date above. A 70% deposit is required to begin production.</div>`;
+
+  window.print();
+}
+
 function renderLeads() {
   const q = (document.getElementById('lead-search')?.value || '').toLowerCase();
   const srcFilter = document.getElementById('lead-filter-source')?.value || '';
@@ -2488,16 +2796,15 @@ function renderLeads() {
   const today = new Date().toISOString().split('T')[0];
 
   board.innerHTML = `<div class="leads-grid">` + filtered.map(lead => {
-    const isOverdue = lead.followUp && lead.followUp <= today;
-    const followUpHTML = lead.followUp
-      ? `<div class="lead-followup">${isOverdue ? '🔴' : '🟡'} Follow-up: ${lead.followUp}${isOverdue ? ' — OVERDUE' : ''}</div>`
+    const isOverdue = lead.follow_up && lead.follow_up <= today;
+    const followUpHTML = lead.follow_up
+      ? `<div class="lead-followup">${isOverdue ? '🔴' : '🟡'} Follow-up: ${lead.follow_up}${isOverdue ? ' — OVERDUE' : ''}</div>`
       : '';
 
-    const statusChips = LEAD_STATUSES.map(s =>
-      `<span class="lead-status-chip${lead.status===s?' sel':''}" onclick="setLeadStatus('${lead.id}','${s}')">${s}</span>`
-    ).join('');
+    const { grandTotal, deposit } = calcQuote(lead);
+    const hasQuote = grandTotal > 0;
 
-    return `<div class="lead-card">
+    return `<div class="lead-card" onclick="openLeadPanel('${lead.id}')" style="cursor:pointer">
       <div class="lead-card-header">
         <div>
           <div class="lead-name">${lead.name}</div>
@@ -2505,6 +2812,7 @@ function renderLeads() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span class="lead-source">${lead.source}</span>
+          <span style="font-size:11px;padding:2px 8px;background:${lead.status==='Quoted'?'#EEF2FF':lead.status==='Contacted'?'#FFFBEB':'#F3F4F6'};color:${lead.status==='Quoted'?'#6366F1':lead.status==='Contacted'?'#92400E':'#374151'};border-radius:20px">${lead.status||'New'}</span>
           <div class="card-menu-wrap" onclick="event.stopPropagation()">
             <button class="kebab-btn" onclick="toggleKebab('lead-${lead.id}')">···</button>
             <div class="kebab-dropdown" id="kebab-lead-${lead.id}">
@@ -2515,18 +2823,15 @@ function renderLeads() {
         </div>
       </div>
       <div class="lead-meta">
-        <div class="lead-meta-row">✉️ <strong>${lead.email}</strong></div>
-        <div class="lead-meta-row">📞 ${lead.phone}</div>
-        <div class="lead-meta-row">🏠 ${lead.interest} · ${lead.budget}</div>
+        ${lead.email ? `<div class="lead-meta-row">✉️ ${lead.email}</div>` : ''}
+        ${lead.phone ? `<div class="lead-meta-row">📞 ${lead.phone}</div>` : ''}
+        ${lead.interest ? `<div class="lead-meta-row">🏠 ${lead.interest}${lead.budget ? ' · ' + lead.budget : ''}</div>` : ''}
       </div>
-      ${lead.notes ? `<div class="lead-notes">"${lead.notes}"</div>` : ''}
       ${followUpHTML}
-      <div class="lead-status-row">${statusChips}</div>
-
-      <button class="deposit-confirm-btn" style="width:100%;padding:10px;font-size:13px;border-radius:8px;margin-bottom:8px" onclick="convertLeadToCustomer('${lead.id}')">
-        ✅ Convert → Create Customer & Order
-      </button>
-      <button class="lost-btn" onclick="removeLead('${lead.id}')">✕ Mark as Lost / Remove</button>
+      ${hasQuote ? `<div style="margin-top:8px;padding:8px 10px;background:linear-gradient(135deg,#EEF2FF,#F0FDF4);border-radius:8px;font-size:12px">
+        <div style="font-weight:700;color:#6366F1">💰 Quote: $${grandTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</div>
+        <div style="color:#059669;margin-top:2px">Deposit (70%): $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})}</div>
+      </div>` : `<div style="margin-top:8px;font-size:11px;color:var(--muted)">Click to open quote builder →</div>`}
     </div>`;
   }).join('') + `</div>`;
 }
