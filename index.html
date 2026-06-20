@@ -1476,6 +1476,7 @@ function buildUrgentSection(order, customer) {
           onchange="saveOrderField(${customer.id},'${order.id}','delivery_deadline',this.value)">
       </div>` : ''}
   </div>`;
+}
 
 function buildNotesSection(order, customer) {
   const link = order.drive_link || '';
