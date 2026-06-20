@@ -1025,27 +1025,19 @@ function switchLoginTab(tab) {
 async function doTestLogin() {
   const code = document.getElementById('test-code').value.trim();
   if (!code) { showLoginError('Nhập passcode'); return; }
-  // Verify against Supabase settings table
-  const { data } = await sb.from('settings').select('value').eq('key','test_passcode').single();
-  const correct = data?.value || 'test123';
+  const correct = 'test123';
   if (code !== correct) { showLoginError('Passcode không đúng'); return; }
   isTestMode = true;
-  await startTestMode();
+  startTestMode();
 }
 
-async function startTestMode() {
-  document.getElementById('login-screen').classList.add('hidden');
-  document.getElementById('loading-overlay').classList.remove('hidden');
-  document.getElementById('loading-text').textContent = 'Loading test environment…';
-  await loadAllData(); // loads only is_test=true data
-  document.getElementById('loading-overlay').classList.add('hidden');
-  document.getElementById('app').style.display = 'block';
+function startTestMode() {
+  // Load same sample data as demo, fully local — no Supabase auth needed
+  startDemo();
+  // Override banner to show test mode instead of demo
   const banner = document.getElementById('demo-banner');
-  banner.classList.add('show','test-mode');
-  document.getElementById('banner-text').textContent = '🧪 Test Mode — data riêng, không ảnh hưởng data thật';
-  document.getElementById('toolbar-bar').style.display = 'none';
-  document.getElementById('lead-badge').textContent = leads.length;
-  renderDashboard(); renderBoard();
+  banner.classList.add('test-mode');
+  document.getElementById('banner-text').textContent = '🧪 Test Mode — thử nghiệm tính năng, data không lưu thật';
 }
 
 function startDemo() {
