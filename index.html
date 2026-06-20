@@ -469,6 +469,46 @@
     .table-wrap { padding: 0 12px 12px; }
     .prod-grid { padding: 0 12px 12px; }
   }
+
+  /* URGENT BADGE */
+  .urgent-badge { display:inline-flex;align-items:center;gap:3px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:99px;font-size:9px;font-weight:800;padding:2px 7px;letter-spacing:0.3px; }
+  /* DEPOSIT BOX */
+  .deposit-box { background:white;border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:12px; }
+  .deposit-box.received { background:#F0FDF4;border-color:#86EFAC; }
+  .deposit-box.pending { background:#FFFBEB;border-color:#FDE68A; }
+  .deposit-title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px; }
+  .deposit-input { flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit; }
+  .deadline-tag { display:inline-flex;align-items:center;gap:5px;background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;margin-top:4px; }
+  .deadline-tag.overdue { background:#FEF2F2;border-color:#FECACA;color:#DC2626; }
+  .deadline-tag.ok { background:#F0FDF4;border-color:#86EFAC;color:#065F46; }
+  /* NOTES + DRIVE */
+  .notes-section { margin-bottom:12px; }
+  .notes-label { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:6px; }
+  .drive-input-wrap { display:flex;align-items:center;gap:6px;margin-bottom:6px; }
+  .drive-input { flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;color:var(--brand); }
+  .drive-link-btn { padding:6px 10px;background:var(--brand);color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap; }
+  .order-notes-ta { width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;min-height:60px; }
+  /* FURNITURE SECTION */
+  .furniture-section { margin-bottom:12px; }
+  .furniture-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:8px; }
+  .furniture-table { width:100%;border-collapse:collapse;font-size:12px; }
+  .furniture-table th { text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);padding:4px 6px;border-bottom:1px solid var(--border); }
+  .furniture-table td { padding:4px 6px;vertical-align:middle; }
+  .furniture-table tr:not(:last-child) td { border-bottom:1px solid #F3F2EE; }
+  .furn-input { width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:inherit; }
+  .furn-input.sm { width:60px; }
+  .furn-del { background:none;border:none;color:#EF4444;font-size:14px;cursor:pointer;padding:2px 4px; }
+  .cbm-total { font-size:11px;color:var(--muted);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap; }
+  .cbm-chip { background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px; }
+  /* URGENT SECTION */
+  .urgent-section { display:flex;align-items:center;gap:10px;padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px;margin-bottom:12px; }
+  .urgent-toggle { position:relative;width:36px;height:20px;cursor:pointer;flex-shrink:0; }
+  .urgent-toggle input { opacity:0;width:0;height:0;position:absolute; }
+  .urgent-slider { position:absolute;inset:0;background:#E5E7EB;border-radius:99px;transition:.2s; }
+  .urgent-slider:before { content:'';position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.2s; }
+  .urgent-toggle input:checked + .urgent-slider { background:#EF4444; }
+  .urgent-toggle input:checked + .urgent-slider:before { transform:translateX(16px); }
+  .urgent-weeks-input { width:60px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit; }
 </style>
 </head>
 <body>
@@ -1331,15 +1371,111 @@ function buildOrdersTab(c) {
   return html;
 }
 
+// =====================
+// ORDER DETAIL HELPERS (Supabase-backed, snake_case fields)
+// =====================
+function buildUrgentSection(order, customer) {
+  const isUrgent = order.urgent;
+  return `<div class="urgent-section">
+    <label class="urgent-toggle" title="Mark urgent">
+      <input type="checkbox" ${isUrgent ? 'checked' : ''} onchange="toggleUrgent(${customer.id}, '${order.id}')">
+      <span class="urgent-slider"></span>
+    </label>
+    <span style="font-size:12px;font-weight:600;color:${isUrgent?'#DC2626':'var(--text-2)'}">🚨 Urgent order</span>
+    ${isUrgent ? `<span style="font-size:11px;color:var(--muted)">Deliver in</span>
+      <input class="urgent-weeks-input" type="number" min="1" max="52" value="${order.urgent_weeks || ''}" placeholder="wks"
+        onchange="saveOrderField(${customer.id},'${order.id}','urgent_weeks',parseFloat(this.value)||null)">
+      <span style="font-size:11px;color:var(--muted)">weeks</span>` : ''}
+  </div>`;
+}
+
+function buildNotesSection(order, customer) {
+  const link = order.drive_link || '';
+  return `<div class="notes-section">
+    <div class="notes-label">📁 Google Drive Link</div>
+    <div class="drive-input-wrap">
+      <input class="drive-input" type="url" value="${link}" placeholder="Paste Google Drive folder link..."
+        onchange="saveOrderField(${customer.id},'${order.id}','drive_link',this.value)">
+      ${link ? `<button class="drive-link-btn" onclick="window.open('${link}','_blank')">Open ↗</button>` : ''}
+    </div>
+    <div class="notes-label" style="margin-top:8px">📝 Order Notes</div>
+    <textarea class="order-notes-ta" placeholder="Notes, special instructions..."
+      onchange="saveOrderField(${customer.id},'${order.id}','order_notes',this.value)">${order.order_notes || ''}</textarea>
+  </div>`;
+}
+
+function buildFurnitureSection(order, customer) {
+  const furniture = order.furniture || [];
+  const cabCbm = parseFloat(order.cabinet_cbm) || 0;
+  const furCbm = furniture.reduce((s,f) => s + (parseFloat(f.cbm)||0), 0);
+  const totalCbm = cabCbm + furCbm;
+  const rows = furniture.map((f, i) => `
+    <tr>
+      <td><input class="furn-input" value="${f.name}" placeholder="e.g. Dining table" onchange="updateFurnitureItem(${customer.id},'${order.id}',${i},'name',this.value)"></td>
+      <td><input class="furn-input sm" type="number" min="1" value="${f.qty}" onchange="updateFurnitureItem(${customer.id},'${order.id}',${i},'qty',this.value)"></td>
+      <td><input class="furn-input sm" type="number" min="0" step="0.1" value="${f.cbm}" placeholder="cbm" onchange="updateFurnitureItem(${customer.id},'${order.id}',${i},'cbm',this.value)"></td>
+      <td><button class="furn-del" onclick="removeFurnitureItem(${customer.id},'${order.id}',${i})">✕</button></td>
+    </tr>`).join('');
+  return `<div class="furniture-section">
+    <div class="furniture-header">
+      <div class="notes-label">🪑 Furniture Items</div>
+      <button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="addFurnitureItem(${customer.id},'${order.id}')">+ Add Item</button>
+    </div>
+    ${furniture.length > 0 ? `<table class="furniture-table">
+      <thead><tr><th>Item</th><th>Qty</th><th>CBM</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>` : `<div style="font-size:12px;color:var(--muted);padding:6px 0">No furniture — cabinet only.</div>`}
+    <div class="cbm-total">
+      <span>📦 Cabinet CBM: <input style="width:60px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:inherit" type="number" min="0" step="0.1" value="${order.cabinet_cbm || ''}" placeholder="0"
+        onchange="saveOrderField(${customer.id},'${order.id}','cabinet_cbm',parseFloat(this.value)||null)"> m³</span>
+      ${furniture.length > 0 ? `<span>🪑 Furniture: ${furCbm.toFixed(1)} m³</span>` : ''}
+      ${totalCbm > 0 ? `<span class="cbm-chip">Total: ${totalCbm.toFixed(1)} m³</span>` : `<span style="color:var(--muted);font-size:11px">Enter CBM above to calculate container fill</span>`}
+    </div>
+  </div>`;
+}
+
+function buildDepositSection(order, customer) {
+  const received = order.deposit_received;
+  const today = new Date().toISOString().split('T')[0];
+  if (received) {
+    const dl = order.delivery_deadline;
+    const isOverdue = dl && dl < today;
+    const dlClass = isOverdue ? 'overdue' : (dl && dl <= new Date(Date.now() + 14*24*60*60*1000).toISOString().split('T')[0]) ? '' : 'ok';
+    const daysLeft = dl ? Math.round((new Date(dl) - new Date()) / 86400000) : null;
+    return `<div class="deposit-box received">
+      <div class="deposit-title">✅ Deposit Received</div>
+      <div style="font-size:12px;display:flex;gap:16px;flex-wrap:wrap">
+        <span>📅 Date: <strong>${order.deposit_date || '—'}</strong></span>
+        <span>💵 Amount: <strong>${order.deposit_amount ? '$' + Number(order.deposit_amount).toLocaleString() : '—'}</strong></span>
+      </div>
+      ${dl ? `<div class="deadline-tag ${dlClass}" style="margin-top:8px">
+        ⏰ Delivery deadline: <strong>${dl}</strong>
+        ${daysLeft !== null ? `<span style="margin-left:6px">(${daysLeft > 0 ? daysLeft + ' days left' : Math.abs(daysLeft) + ' days overdue'})</span>` : ''}
+      </div>` : ''}
+    </div>`;
+  } else {
+    return `<div class="deposit-box pending">
+      <div class="deposit-title">⏳ Awaiting Deposit</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Production starts after deposit is confirmed.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:12px;font-weight:600;white-space:nowrap">Deposit amount $</span>
+        <input class="deposit-input" id="dep-amount-${order.id}" type="number" min="0" placeholder="e.g. 10000">
+        <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;white-space:nowrap" onclick="recordDeposit(${customer.id},'${order.id}')">Record Deposit ✓</button>
+      </div>
+    </div>`;
+  }
+}
+
 function buildOrderDetail(order, customer) {
   if (order.stage === 'lead') {
     return `
-      <div class="section-title">Notes</div>
-      <div style="font-size:13px;color:var(--muted);background:white;padding:10px 12px;border-radius:8px;border:1px solid var(--border)">${order.notes || '—'}</div>
+      ${buildDepositSection(order, customer)}
+      ${buildUrgentSection(order, customer)}
+      ${buildNotesSection(order, customer)}
+      ${buildFurnitureSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToCollect(${customer.id}, '${order.id}')">Deposit Received → Start Collecting</button>
-      </div>
-    `;
+        <button class="btn btn-primary" onclick="moveToCollect(${customer.id}, '${order.id}')">Start Collecting Info →</button>
+      </div>`;
   }
 
   if (order.stage === 'collect') {
@@ -1348,13 +1484,15 @@ function buildOrderDetail(order, customer) {
     const pct = Math.round((checkedCount / TOTAL_CHECKS) * 100);
     const allDone = checkedCount === TOTAL_CHECKS;
     const signOff = checked['dr3'];
+    const canPush = allDone && order.deposit_received;
 
-    let html = `
-      <div class="checklist-progress">
-        <div class="cp-label">Info Checklist</div>
-        <div class="cp-bar"><div class="cp-fill" id="cp-fill-${order.id}" style="width:${pct}%"></div></div>
-        <div class="cp-count" id="cp-count-${order.id}">${checkedCount}/${TOTAL_CHECKS}</div>
-      </div>`;
+    let html = buildDepositSection(order, customer);
+    html += buildUrgentSection(order, customer);
+    html += `<div class="checklist-progress">
+      <div class="cp-label">Info Checklist</div>
+      <div class="cp-bar"><div class="cp-fill" id="cp-fill-${order.id}" style="width:${pct}%"></div></div>
+      <div class="cp-count" id="cp-count-${order.id}">${checkedCount}/${TOTAL_CHECKS}</div>
+    </div>`;
 
     const groups = [
       { key: 'dimensions', label: '📐 Dimensions & Finish', items: CHECKLIST.dimensions },
@@ -1362,7 +1500,6 @@ function buildOrderDetail(order, customer) {
       { key: 'stone', label: '🪨 Stone', items: CHECKLIST.stone },
       { key: 'hardware', label: '🔩 Hardware', items: CHECKLIST.hardware },
     ];
-
     groups.forEach(g => {
       html += `<div class="checklist-group"><div class="group-label">${g.label}</div><div class="checklist">`;
       g.items.forEach(item => {
@@ -1375,32 +1512,37 @@ function buildOrderDetail(order, customer) {
       html += `</div></div>`;
     });
 
-    if (!allDone) {
-      html += `<div class="alert-box alert-block">⛔ ${TOTAL_CHECKS - checkedCount} item(s) missing — cannot push to factory yet.</div>`;
+    if (!order.deposit_received) {
+      html += `<div class="alert-box alert-warning">⚠️ Deposit required before pushing to factory.</div>`;
+    } else if (!allDone) {
+      html += `<div class="alert-box alert-block">⛔ ${TOTAL_CHECKS - checkedCount} item(s) missing — complete checklist first.</div>`;
     } else if (!signOff) {
       html += `<div class="alert-box alert-warning">⚠️ All items checked but client hasn't signed off on shop drawing.</div>`;
     } else {
       html += `<div class="alert-box alert-success">✅ All complete — ready to push to factory!</div>`;
     }
 
+    html += buildFurnitureSection(order, customer);
+    html += buildNotesSection(order, customer);
     html += `<div class="action-bar">
-      <button class="btn btn-primary" ${!allDone ? 'disabled' : ''} onclick="pushToFactory(${customer.id}, '${order.id}')">Push to Factory →</button>
-      <button class="btn btn-outline">Save Notes</button>
+      <button class="btn btn-primary" ${!canPush ? 'disabled title="Need deposit + complete checklist"' : ''} onclick="pushToFactory(${customer.id}, '${order.id}')">Push to Factory →</button>
     </div>`;
     return html;
   }
 
   if (order.stage === 'production') {
     return `
+      ${buildDepositSection(order, customer)}
+      ${buildUrgentSection(order, customer)}
       <div class="section-title">Production Timeline</div>
       <div class="timeline">
         <div class="timeline-item">
           <div class="tl-left"><div class="tl-dot done">✓</div><div class="tl-line done"></div></div>
-          <div class="tl-content"><div class="tl-title">Spec sent to factory</div><div class="tl-date">${order.specSent || '—'}</div></div>
+          <div class="tl-content"><div class="tl-title">Spec sent to factory</div><div class="tl-date">${order.spec_sent || '—'}</div></div>
         </div>
         <div class="timeline-item">
           <div class="tl-left"><div class="tl-dot active">⚙</div><div class="tl-line"></div></div>
-          <div class="tl-content"><div class="tl-title">In Production</div><div class="tl-date">Est. complete: ${order.estComplete || '—'}</div></div>
+          <div class="tl-content"><div class="tl-title">In Production</div><div class="tl-date">Est. complete: ${order.est_complete || '—'}</div></div>
         </div>
         <div class="timeline-item">
           <div class="tl-left"><div class="tl-dot pending">○</div><div class="tl-line"></div></div>
@@ -1415,11 +1557,10 @@ function buildOrderDetail(order, customer) {
           <div class="tl-content"><div class="tl-title tl-title pending">Delivered</div><div class="tl-date">ETA: ${order.eta || '—'}</div></div>
         </div>
       </div>
+      ${buildNotesSection(order, customer)}
       <div class="action-bar">
         <button class="btn btn-primary" onclick="markLoaded(${customer.id}, '${order.id}')">Mark as Loaded →</button>
-        <button class="btn btn-outline">Add Factory Note</button>
-      </div>
-    `;
+      </div>`;
   }
 
   if (order.stage === 'shipped') {
@@ -1427,17 +1568,86 @@ function buildOrderDetail(order, customer) {
       <div class="section-title">Shipping Info</div>
       <div class="info-grid">
         <div class="info-item"><div class="info-label">Container #</div><div class="info-value">${order.container || '—'}</div></div>
-        <div class="info-item"><div class="info-label">Load Date</div><div class="info-value">${order.loadDate || '—'}</div></div>
+        <div class="info-item"><div class="info-label">Load Date</div><div class="info-value">${order.load_date || '—'}</div></div>
         <div class="info-item"><div class="info-label">ETA</div><div class="info-value">${order.eta || '—'}</div></div>
         <div class="info-item"><div class="info-label">Balance</div><div class="info-value">$${order.balance?.toLocaleString()}</div></div>
       </div>
       <div class="action-bar">
         <button class="btn btn-primary" onclick="markDone(${customer.id}, '${order.id}')">Mark Delivered ✓</button>
-      </div>
-    `;
+      </div>`;
   }
 
   return `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">✅ Order completed.</div>`;
+}
+
+// =====================
+// ORDER FIELD SAVE (Supabase)
+// =====================
+async function saveOrderField(customerId, orderId, field, value) {
+  const c = customers.find(x => x.id === customerId);
+  if (!c) return;
+  const order = c.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order[field] = value;
+  await dbUpdate('orders', {id: orderId}, {[field]: value});
+}
+
+async function recordDeposit(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const amount = parseFloat(document.getElementById('dep-amount-' + orderId)?.value) || 0;
+  const today = new Date().toISOString().split('T')[0];
+  const dl = new Date(); dl.setDate(dl.getDate() + 84);
+  const deadline = dl.toISOString().split('T')[0];
+  order.deposit_received = true;
+  order.deposit_date = today;
+  order.deposit_amount = amount;
+  order.delivery_deadline = deadline;
+  await dbUpdate('orders', {id: orderId}, {deposit_received: true, deposit_date: today, deposit_amount: amount, delivery_deadline: deadline});
+  renderPanelTab(activePanelTab);
+  showToast('✅ Deposit recorded — deadline set to ' + deadline);
+}
+
+async function toggleUrgent(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.urgent = !order.urgent;
+  if (!order.urgent) order.urgent_weeks = null;
+  await dbUpdate('orders', {id: orderId}, {urgent: order.urgent, urgent_weeks: order.urgent_weeks});
+  renderPanelTab(activePanelTab);
+  renderBoard();
+  setTimeout(() => { const d = document.getElementById('detail-' + orderId); if (d) d.classList.add('open'); }, 10);
+}
+
+async function addFurnitureItem(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.furniture = order.furniture || [];
+  order.furniture.push({name: '', qty: 1, cbm: 0});
+  await dbUpdate('orders', {id: orderId}, {furniture: order.furniture});
+  renderPanelTab(activePanelTab);
+  setTimeout(() => { const d = document.getElementById('detail-' + orderId); if (d) d.classList.add('open'); }, 10);
+}
+
+async function removeFurnitureItem(customerId, orderId, idx) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.furniture.splice(idx, 1);
+  await dbUpdate('orders', {id: orderId}, {furniture: order.furniture});
+  renderPanelTab(activePanelTab);
+  setTimeout(() => { const d = document.getElementById('detail-' + orderId); if (d) d.classList.add('open'); }, 10);
+}
+
+async function updateFurnitureItem(customerId, orderId, idx, field, value) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order || !order.furniture[idx]) return;
+  order.furniture[idx][field] = (field === 'cbm' || field === 'qty') ? (parseFloat(value) || 0) : value;
+  await dbUpdate('orders', {id: orderId}, {furniture: order.furniture});
 }
 
 // =====================
