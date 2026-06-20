@@ -524,6 +524,13 @@
   .quote-totals { background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px; }
   .quote-add-btn { width:100%;padding:8px;border:1.5px dashed var(--border);background:transparent;border-radius:7px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;transition:all 0.12s;margin-bottom:12px; }
   .quote-add-btn:hover { border-color:var(--brand);color:var(--brand); }
+  .ci-section { margin-bottom:18px; }
+  .ci-section-title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border); }
+  .ci-yn-row { display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid var(--surface); }
+  .ci-yn-label { font-size:12px;color:var(--text);flex:1;min-width:0 }
+  .ci-yn-opt { display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;white-space:nowrap }
+  .ci-yn-opt input { cursor:pointer }
+
   .lp-contact-grid { display:flex;flex-direction:column;gap:10px; }
   .lp-field { display:flex;flex-direction:column;gap:4px; }
   .lp-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--muted); }
@@ -851,9 +858,10 @@
       <button class="close-btn" onclick="closeLeadPanel()">✕</button>
     </div>
     <div class="panel-tabs">
-      <div class="panel-tab active" onclick="switchLeadTab(0,this)">💰 Quote</div>
-      <div class="panel-tab" onclick="switchLeadTab(1,this)">👤 Contact</div>
-      <div class="panel-tab" onclick="switchLeadTab(2,this)">📝 Notes</div>
+      <div class="panel-tab active" onclick="switchLeadTab(0,this)">📋 Collect</div>
+      <div class="panel-tab" onclick="switchLeadTab(1,this)">💰 Quote</div>
+      <div class="panel-tab" onclick="switchLeadTab(2,this)">👤 Contact</div>
+      <div class="panel-tab" onclick="switchLeadTab(3,this)">📝 Notes</div>
     </div>
   </div>
   <div class="panel-body" id="lp-body"></div>
@@ -2563,9 +2571,223 @@ function switchLeadTab(idx, el) {
 function renderLeadTab(idx) {
   const body = document.getElementById('lp-body');
   if (!activeLead) return;
-  if (idx === 0) body.innerHTML = buildQuoteTab(activeLead);
-  else if (idx === 1) body.innerHTML = buildLeadContactTab(activeLead);
+  if (idx === 0) body.innerHTML = buildLeadInfoTab(activeLead);
+  else if (idx === 1) body.innerHTML = buildQuoteTab(activeLead);
+  else if (idx === 2) body.innerHTML = buildLeadContactTab(activeLead);
   else body.innerHTML = buildLeadNotesTab(activeLead);
+}
+
+// ---- Collect Info helpers ----
+function getCI(lead) { return lead.collect_info || {}; }
+
+async function saveCI(leadId, field, value) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  if (!l.collect_info) l.collect_info = {};
+  l.collect_info[field] = value;
+  if (activeLead?.id === leadId) activeLead.collect_info = l.collect_info;
+  // Update progress badge without full re-render
+  const prog = collectProgress(l);
+  const bar = document.getElementById('ci-progress-bar');
+  const pct = document.getElementById('ci-progress-pct');
+  if (bar) bar.style.width = prog.pct + '%';
+  if (pct) pct.textContent = prog.filled + '/' + prog.total + ' filled';
+  const readyBtn = document.getElementById('ci-ready-btn');
+  if (readyBtn) readyBtn.style.display = prog.pct >= 80 ? 'block' : 'none';
+  await dbUpdate('leads', {id: leadId}, {collect_info: l.collect_info});
+}
+
+function collectProgress(lead) {
+  const c = lead.collect_info || {};
+  const required = ['box_species','door_species','door_stain','door_finish','door_style',
+    'grain_dir','drawer_species','drawer_style','drawer_slide','hinge',
+    'appl_fridge','appl_cooktop'];
+  const filled = required.filter(f => c[f] && c[f] !== '').length;
+  return { filled, total: required.length, pct: Math.round(filled / required.length * 100) };
+}
+
+function buildLeadInfoTab(lead) {
+  const c = getCI(lead);
+  const prog = collectProgress(lead);
+  const id = lead.id;
+
+  function sel(field, opts, extra='') {
+    return `<select class="lp-input" onchange="saveCI('${id}','${field}',this.value)" ${extra}>
+      <option value="">— select —</option>
+      ${opts.map(o => `<option${c[field]===o?' selected':''}>${o}</option>`).join('')}
+    </select>`;
+  }
+  function inp(field, placeholder='', type='text', extra='') {
+    return `<input class="lp-input" type="${type}" placeholder="${placeholder}" value="${c[field]||''}"
+      onchange="saveCI('${id}','${field}',this.value)" ${extra}>`;
+  }
+  function yn(field, label) {
+    const v = c[field];
+    return `<div class="ci-yn-row">
+      <span class="ci-yn-label">${label}</span>
+      <label class="ci-yn-opt"><input type="radio" name="${id}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="saveCI('${id}','${field}','yes')"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${id}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="saveCI('${id}','${field}','no')"> No</label>
+    </div>`;
+  }
+  function ynDate(field, label) {
+    const v = c[field]; const d = c[field+'_date']||'';
+    return `<div class="ci-yn-row">
+      <span class="ci-yn-label">${label}</span>
+      <label class="ci-yn-opt"><input type="radio" name="${id}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="saveCI('${id}','${field}','yes')"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${id}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="saveCI('${id}','${field}','no')"> No</label>
+      <input class="lp-input" type="date" value="${d}" style="width:130px;margin-left:auto" onchange="saveCI('${id}','${field}_date',this.value)">
+    </div>`;
+  }
+
+  const progressColor = prog.pct >= 80 ? '#059669' : prog.pct >= 50 ? '#D97706' : '#6366F1';
+
+  return `
+  <!-- Progress bar -->
+  <div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <span style="font-size:11px;font-weight:700;color:${progressColor};text-transform:uppercase;letter-spacing:0.4px">Collecting Info</span>
+      <span id="ci-progress-pct" style="font-size:11px;color:var(--muted)">${prog.filled}/${prog.total} filled</span>
+    </div>
+    <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden">
+      <div id="ci-progress-bar" style="height:100%;width:${prog.pct}%;background:${progressColor};border-radius:99px;transition:width 0.3s"></div>
+    </div>
+    <button id="ci-ready-btn" onclick="markReadyToQuote('${id}')"
+      style="display:${prog.pct>=80?'block':'none'};width:100%;margin-top:10px;padding:10px;background:#059669;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+      ✅ Info Complete — Move to Quote
+    </button>
+  </div>
+
+  <!-- CABINET SPECS -->
+  <div class="ci-section">
+    <div class="ci-section-title">🪵 Cabinet Box</div>
+    <div class="lp-contact-grid">
+      <div class="lp-field"><label class="lp-label">Species *</label>
+        ${sel('box_species',['Plywood Birch','MDF','Other'])}</div>
+      <div class="lp-field"><label class="lp-label">Finish</label>
+        ${sel('box_finish',['NC','UV','PU'])}</div>
+      <div class="lp-field"><label class="lp-label">Color Outside</label>
+        ${inp('box_color_outside','Standard')}</div>
+      <div class="lp-field"><label class="lp-label">Color Inside</label>
+        ${inp('box_color_inside','Stain match door faces')}</div>
+    </div>
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">🚪 Cabinet Door / Drawer Face</div>
+    <div class="lp-contact-grid">
+      <div class="lp-field"><label class="lp-label">Species *</label>
+        ${inp('door_species','e.g. Acacia, Oak...')}</div>
+      <div class="lp-field"><label class="lp-label">Color / Stain *</label>
+        ${inp('door_stain','e.g. Sample, White...')}</div>
+      <div class="lp-field"><label class="lp-label">Finish *</label>
+        ${sel('door_finish',['NC','PU','UV','Lacquer'])}</div>
+      <div class="lp-field"><label class="lp-label">Door Style *</label>
+        ${sel('door_style',['Slab','Shaker','Raised Panel','Other'])}</div>
+      <div class="lp-field"><label class="lp-label">Grain Direction *</label>
+        ${sel('grain_dir',['Vertical','Horizontal','Standard'])}</div>
+      <div class="lp-field"><label class="lp-label">Color Sample</label>
+        ${sel('color_sample',['New','Standard'])}</div>
+    </div>
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">📦 Drawer Boxes</div>
+    <div class="lp-contact-grid">
+      <div class="lp-field"><label class="lp-label">Species *</label>
+        ${sel('drawer_species',['Birch','Poplar','MDF','Other'])}</div>
+      <div class="lp-field"><label class="lp-label">Style *</label>
+        ${sel('drawer_style',['Dovetail','Dowel','Other'])}</div>
+      <div class="lp-field"><label class="lp-label">Color / Stain</label>
+        ${inp('drawer_color','Stain match door faces')}</div>
+      <div class="lp-field"><label class="lp-label">Toekick Size</label>
+        ${inp('toekick','4.5" (standard)')}</div>
+    </div>
+  </div>
+
+  <!-- HARDWARE -->
+  <div class="ci-section">
+    <div class="ci-section-title">🔩 Hardware</div>
+    <div class="lp-contact-grid">
+      <div class="lp-field"><label class="lp-label">Drawer Slide *</label>
+        ${sel('drawer_slide',['DTC','Upgrade Blum','Client Supply'])}</div>
+      <div class="lp-field"><label class="lp-label">Cabinet Hinge *</label>
+        ${sel('hinge',['DTC','Upgrade Blum','Client Supply'])}</div>
+      <div class="lp-field"><label class="lp-label">Cabinet Handle</label>
+        ${sel('handle',['Factory Supply','Other Supply','Client Supply'])}</div>
+      <div class="lp-field"><label class="lp-label">Other Hardware</label>
+        ${inp('hardware_other','Notes...')}</div>
+    </div>
+  </div>
+
+  <!-- CHECKLIST -->
+  <div class="ci-section">
+    <div class="ci-section-title">✅ Features Checklist</div>
+    ${yn('upper_overhang','Upper cabinet overhang (doors cover LV)')}
+    ${yn('light_valance','Light Valance')}
+    ${yn('crown_molding','Crown Molding')}
+    ${yn('magic_corner','Magic Corner')}
+    ${yn('roll_trays','Roll-out Trays')}
+    <div class="ci-yn-row">
+      <span class="ci-yn-label">Glass Door</span>
+      <label class="ci-yn-opt"><input type="radio" name="${id}_glass_door" value="yes" ${c.glass_door==='yes'?'checked':''} onchange="saveCI('${id}','glass_door','yes')"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${id}_glass_door" value="no"  ${c.glass_door==='no' ?'checked':''} onchange="saveCI('${id}','glass_door','no')"> No</label>
+      ${c.glass_door==='yes' ? `<select class="lp-input" style="width:120px;margin-left:auto" onchange="saveCI('${id}','glass_type',this.value)">
+        ${['Molded','Etched','Clear','Frosted'].map(t=>`<option${c.glass_type===t?' selected':''}>${t}</option>`).join('')}
+      </select>` : ''}
+    </div>
+  </div>
+
+  <!-- SERVICES -->
+  <div class="ci-section">
+    <div class="ci-section-title">🔧 Services</div>
+    ${ynDate('delivery','Delivery')}
+    ${ynDate('installation','Installation')}
+    ${ynDate('demolition','Demolition')}
+    ${ynDate('plumbing','Plumbing')}
+    ${ynDate('electrical','Electrical')}
+  </div>
+
+  <!-- APPLIANCES -->
+  <div class="ci-section">
+    <div class="ci-section-title">🍳 Appliances (model / dimensions)</div>
+    <div class="lp-contact-grid">
+      <div class="lp-field"><label class="lp-label">Refrigerator *</label>
+        ${inp('appl_fridge','Model, W×H×D...')}</div>
+      <div class="lp-field"><label class="lp-label">Cook Top Type *</label>
+        ${sel('appl_cooktop',['Gas','Electric','Induction','Gas + Griddle','Other'])}</div>
+      <div class="lp-field"><label class="lp-label">Oven</label>
+        ${inp('appl_oven','Model, dimensions...')}</div>
+      <div class="lp-field"><label class="lp-label">Warming Oven</label>
+        ${inp('appl_warming','Model or N/A')}</div>
+      <div class="lp-field"><label class="lp-label">Washing Machine</label>
+        ${inp('appl_washer','Model, W×H×D or N/A')}</div>
+      <div class="lp-field"><label class="lp-label">Baker / Bread Proofer</label>
+        ${inp('appl_baker','Model or N/A')}</div>
+      <div class="lp-field" style="grid-column:1/-1"><label class="lp-label">Other Appliances</label>
+        ${inp('appl_other','Any other appliances to account for...')}</div>
+    </div>
+  </div>
+
+  <!-- GOOGLE DRIVE -->
+  <div class="ci-section" style="margin-bottom:24px">
+    <div class="ci-section-title">🗂 Google Drive — Customer Folder</div>
+    <div class="lp-field">
+      <label class="lp-label">Drive Link</label>
+      <input class="lp-input" type="url" placeholder="https://drive.google.com/..." value="${c.drive_link||''}"
+        onchange="saveCI('${id}','drive_link',this.value)">
+    </div>
+    ${c.drive_link ? `<a href="${c.drive_link}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--brand);text-decoration:none;font-weight:600">
+      📂 Open Folder →</a>` : ''}
+  </div>`;
+}
+
+async function markReadyToQuote(leadId) {
+  await saveLeadField(leadId, 'status', 'Quoted');
+  renderLeads();
+  // Switch to Quote tab
+  activeLeadTab = 1;
+  document.querySelectorAll('#lead-panel .panel-tab').forEach((t,i) => t.classList.toggle('active', i===1));
+  renderLeadTab(1);
 }
 
 function calcQuote(lead) {
