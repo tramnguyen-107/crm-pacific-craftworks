@@ -2523,15 +2523,9 @@ function renderLeads() {
       ${followUpHTML}
       <div class="lead-status-row">${statusChips}</div>
 
-      <!-- Deposit inline row -->
-      <div class="deposit-row">
-        <label>💳 Deposit</label>
-        <input type="number" id="dep-${lead.id}" placeholder="Amount ($)" min="0"
-          onkeydown="if(event.key==='Enter') depositAndConvert('${lead.id}')"
-          value="${lead.depositAmount || ''}">
-        <button class="deposit-confirm-btn" onclick="depositAndConvert('${lead.id}')">Confirm →</button>
-      </div>
-
+      <button class="deposit-confirm-btn" style="width:100%;padding:10px;font-size:13px;border-radius:8px;margin-bottom:8px" onclick="convertLeadToCustomer('${lead.id}')">
+        ✅ Convert → Create Customer & Order
+      </button>
       <button class="lost-btn" onclick="removeLead('${lead.id}')">✕ Mark as Lost / Remove</button>
     </div>`;
   }).join('') + `</div>`;
@@ -2544,31 +2538,19 @@ async function setLeadStatus(leadId, status) {
   await dbUpdate('leads', {id: leadId}, {status});
 }
 
-function depositAndConvert(leadId) {
-  const input = document.getElementById('dep-' + leadId);
-  const amount = parseFloat(input?.value);
-  if (!amount || amount <= 0) {
-    input.style.borderColor = '#EF4444';
-    input.placeholder = 'Enter amount first!';
-    setTimeout(() => { input.style.borderColor = '#86EFAC'; input.placeholder = 'Amount ($)'; }, 1500);
-    return;
-  }
-  convertLeadToCustomer(leadId, amount);
-}
-
-async function convertLeadToCustomer(leadId, depositAmount) {
+async function convertLeadToCustomer(leadId) {
   const l = leads.find(x => x.id === leadId);
   if (!l) return;
-  const today = new Date().toISOString().split('T')[0];
+  if (!confirm(`Convert "${l.name}" to a customer and create their first order?`)) return;
   const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
   if (!newCust) { alert('Error creating customer'); return; }
   const newOId = 'PO-'+String(Date.now()).slice(-6);
-  const newO = await dbInsert('orders', {id:newOId, customer_id:newCust.id, type:l.interest||'Kitchen Remodel', stage:'collect', deposit:depositAmount?`$${depositAmount.toLocaleString()}`:null, deposit_date:today, balance:0, notes:l.notes||'', checked:{}});
+  const newO = await dbInsert('orders', {id:newOId, customer_id:newCust.id, type:l.interest||'Kitchen Remodel', stage:'collect', balance:0, notes:l.notes||'', checked:{}});
   customers.push({...newCust, orders: newO ? [{...newO, checked:{}}] : []});
   leads = leads.filter(x => x.id !== leadId);
   await dbDelete('leads', {id: leadId});
   document.getElementById('lead-badge').textContent = leads.length;
-  showToast(`✅ ${l.name} converted → Pipeline`);
+  showToast(`✅ ${l.name} → Customer created, order in Collecting Info`);
   const pipelineTab = document.querySelector('.tab:nth-child(3)');
   switchView('pipeline', pipelineTab);
   renderBoard();
