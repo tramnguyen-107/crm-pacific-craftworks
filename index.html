@@ -1324,32 +1324,35 @@ function buildCard(customer) {
   const typeClass = { 'Kitchen Remodel': 'kitchen', 'Bathroom': 'bathroom', 'Vanity': 'vanity', 'Full Remodel': 'remodel' };
   const chips = orderTypes.map(t => `<span class="order-chip ${typeClass[t] || 'kitchen'}">${t}</span>`).join('');
 
-  const missingInfo = customer.orders.some(o => {
-    if (o.stage === 'collect') return Object.values(o.checked || {}).filter(Boolean).length < TOTAL_CHECKS;
-    return false;
-  });
   const totalOrders = customer.orders.length;
+  const stageColors = { collect:'#F59E0B', production:'#6366F1', shipped:'#3B82F6', done:'#10B981' };
+  const stageLabels = { collect:'Collecting Info', production:'In Production', shipped:'Shipped', done:'Done' };
 
-  // For production/shipped: show Factory PO + order IDs + ETA
-  let extraHTML = '';
-  if (['production', 'shipped'].includes(customer.stage)) {
-    const prodOrders = customer.orders.filter(o => ['production','shipped'].includes(o.stage));
-    const poLines = prodOrders.map(o => {
-      // Find which Factory PO this order belongs to
-      const fpo = factoryPOs.find(f => f.customerOrders.some(r => r.orderId === o.id));
-      const fpoTag = fpo ? `<span style="font-size:9px;font-weight:700;background:#1C2B4A;color:white;padding:1px 6px;border-radius:4px;margin-left:4px">${fpo.id}</span>` : '';
-      const eta = o.eta ? `<span style="font-size:9px;color:var(--muted)"> · ETA ${o.eta}</span>` : '';
-      return `<div style="font-size:10px;color:var(--brand);font-weight:600;margin-top:3px">${o.id}${fpoTag}${eta}</div>`;
-    }).join('');
+  const poRows = customer.orders.map(o => {
+    const depositAmt = o.deposit_amount ? '$' + Number(o.deposit_amount).toLocaleString() : (o.deposit_received ? 'Received' : '—');
+    const balance = o.balance ? '$' + Number(o.balance).toLocaleString() : '—';
+    const eta = o.eta || '—';
+    const stageColor = stageColors[o.stage] || '#8A8880';
+    const stageLabel = stageLabels[o.stage] || o.stage;
+    const missingInfo = o.stage === 'collect' && Object.values(o.checked || {}).filter(Boolean).length < TOTAL_CHECKS;
+    const fpo = factoryPOs.find(f => (f.customerOrders||[]).some(r => r.orderId === o.id));
+    const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => r.orderId === o.id));
 
-    // Container plan
-    const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => prodOrders.some(o => o.id === r.orderId)));
-    const ctnTag = ctnPlan
-      ? `<div style="font-size:9px;color:#8B5CF6;font-weight:600;margin-top:4px">📦 ${ctnPlan.id} · Load ${ctnPlan.plannedLoadDate}</div>`
-      : `<div style="font-size:9px;color:#F59E0B;font-weight:600;margin-top:4px">📦 No container assigned</div>`;
-
-    extraHTML = `<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px">${poLines}${ctnTag}</div>`;
-  }
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:6px;background:var(--surface)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;font-weight:700;color:var(--brand)">${o.id}</span>
+        <span style="font-size:10px;font-weight:600;color:${stageColor};background:${stageColor}18;padding:2px 7px;border-radius:20px">${stageLabel}${missingInfo?' ⚠️':''}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text);margin-bottom:3px">${o.type}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px;color:var(--muted)">
+        <span>💰 Deposit: <strong style="color:${o.deposit_received?'#059669':'var(--text)'}">${depositAmt}</strong></span>
+        <span>💵 Balance: <strong>${balance}</strong></span>
+        <span>📅 ETA: <strong>${eta}</strong></span>
+        ${fpo ? `<span>🏭 ${fpo.id}</span>` : ''}
+        ${ctnPlan ? `<span style="color:#8B5CF6">📦 ${ctnPlan.id}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 
   const archiveBadge = customer.stage === 'done'
     ? `<div class="card-archive-badge">📁 Archived — Completed</div>` : '';
@@ -1368,10 +1371,9 @@ function buildCard(customer) {
     </div>
     <div class="card-company">${customer.company || customer.email}</div>
     <div class="card-orders">${chips}</div>
-    ${extraHTML}
+    ${poRows}
     <div class="card-footer" style="margin-top:6px">
       <div class="card-count">${totalOrders} order${totalOrders > 1 ? 's' : ''}</div>
-      ${missingInfo ? '<div class="card-alert">⚠️ Missing info</div>' : ''}
     </div>
   `;
   return div;
@@ -1559,7 +1561,7 @@ function buildOrderDetail(order, customer) {
     const pct = Math.round((checkedCount / TOTAL_CHECKS) * 100);
     const allDone = checkedCount === TOTAL_CHECKS;
     const signOff = checked['dr3'];
-    const canPush = allDone && order.deposit_received;
+    const canPush = allDone;
 
     let html = buildDepositSection(order, customer);
     html += buildUrgentSection(order, customer);
@@ -1587,9 +1589,7 @@ function buildOrderDetail(order, customer) {
       html += `</div></div>`;
     });
 
-    if (!order.deposit_received) {
-      html += `<div class="alert-box alert-warning">⚠️ Deposit required before pushing to factory.</div>`;
-    } else if (!allDone) {
+    if (!allDone) {
       html += `<div class="alert-box alert-block">⛔ ${TOTAL_CHECKS - checkedCount} item(s) missing — complete checklist first.</div>`;
     } else if (!signOff) {
       html += `<div class="alert-box alert-warning">⚠️ All items checked but client hasn't signed off on shop drawing.</div>`;
@@ -2153,14 +2153,20 @@ function renderCustomersTable(q = '') {
   tbody.innerHTML = filtered.map(c => {
     const types = [...new Set(c.orders.map(o => o.type))];
     const chips = types.map(t => `<span class="order-chip ${typeClass[t] || 'kitchen'}" style="font-size:10px">${t}</span>`).join(' ');
-    const needsFollowUp = c.stage === 'lead';
-    return `<tr onclick="openPanel(${c.id})">
+    const orderBadges = c.orders.map(o =>
+      `<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">
+        <span style="font-size:10px;font-weight:700;color:var(--brand)">${o.id}</span>
+        <span class="stage-badge ${stageBadge[o.stage]||'badge-collect'}" style="font-size:10px;padding:1px 6px">${stageLabel[o.stage]||o.stage}</span>
+        ${o.eta ? `<span style="font-size:10px;color:var(--muted)">ETA ${o.eta}</span>` : ''}
+      </div>`
+    ).join('');
+    return `<tr onclick="openPanel(${c.id})" style="cursor:pointer">
       <td><div class="name">${c.name}</div><div class="company">${c.company || c.email}</div></td>
       <td><span class="order-count">${c.orders.length}</span></td>
-      <td><span class="stage-badge ${stageBadge[c.stage]}">${stageLabel[c.stage]}</span></td>
+      <td>${orderBadges}</td>
       <td>${chips}</td>
       <td style="color:var(--muted);font-size:12px">${c.source}</td>
-      <td style="font-size:12px;color:${needsFollowUp ? 'var(--collect)' : 'var(--muted)'}">${needsFollowUp ? '⏰ Follow up' : '—'}</td>
+      <td style="font-size:12px;color:var(--muted)">—</td>
     </tr>`;
   }).join('');
 }
@@ -2400,6 +2406,13 @@ function renderContainerView() {
     const barColor = pctM3 >= 90 ? '#10B981' : pctM3 >= 60 ? '#3B82F6' : '#F59E0B';
     const isReady = pctM3 >= 75 || ctn.orderRefs.length >= ctn.targetOrders;
 
+    // Total value in this container
+    const ctnTotalValue = ctn.orderRefs.reduce((sum, ref) => {
+      const cust = customers.find(c => c.id === ref.customerId);
+      const order = cust?.orders.find(o => o.id === ref.orderId);
+      return sum + (order ? (Number(order.balance||0) + Number(order.deposit_amount||0)) : 0);
+    }, 0);
+
     // Orders inside this container
     const orderItemsHTML = ctn.orderRefs.length === 0
       ? `<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">No orders yet — add from pool below</div>`
@@ -2407,13 +2420,15 @@ function renderContainerView() {
           const cust = customers.find(c => c.id === ref.customerId);
           const order = cust?.orders.find(o => o.id === ref.orderId);
           if (!cust || !order) return '';
-          return `<div class="ctn-order-item">
+          const orderTotal = Number(order.balance||0) + Number(order.deposit_amount||0);
+          return `<div class="ctn-order-item" onclick="openPanel(${cust.id})" style="cursor:pointer">
             <div class="co-left">
               <div class="co-po">${order.id}</div>
               <div class="co-cust">👤 ${cust.name}</div>
               <div class="co-type">${order.type} · <span class="co-size">${ref.sizeM3 || '?'} m³</span></div>
+              <div style="font-size:10px;color:#059669;font-weight:600;margin-top:2px">${orderTotal > 0 ? '💵 $'+orderTotal.toLocaleString() : ''}</div>
             </div>
-            <button class="ctn-remove" title="Remove" onclick="removeFromContainer('${ctn.id}','${order.id}')">✕</button>
+            <button class="ctn-remove" title="Remove" onclick="event.stopPropagation();removeFromContainer('${ctn.id}','${order.id}')">✕</button>
           </div>`;
         }).join('');
 
@@ -2440,7 +2455,9 @@ function renderContainerView() {
           <div>
             <div class="ctn-col-id">${ctn.id}</div>
             <div class="ctn-col-name">${ctn.label}</div>
-            <div class="ctn-col-date">📅 Planned load: <strong>${ctn.plannedLoadDate}</strong></div>
+            <div class="ctn-col-date">📅 ETD (load): <strong>${ctn.plannedLoadDate || '—'}</strong></div>
+            <div class="ctn-col-date">🛬 ETA (arrival): <strong>${ctn.eta || ctn.orderRefs.map(r => customers.find(c=>c.id===r.customerId)?.orders.find(o=>o.id===r.orderId)?.eta).filter(Boolean)[0] || '—'}</strong></div>
+            ${ctnTotalValue > 0 ? `<div style="margin-top:6px;font-size:12px;font-weight:700;color:#059669">💵 Total value: $${ctnTotalValue.toLocaleString()}</div>` : ''}
           </div>
           <div class="card-menu-wrap" onclick="event.stopPropagation()">
             <button class="kebab-btn" onclick="toggleKebab('ctn-${ctn.id}')">···</button>
@@ -3063,8 +3080,15 @@ async function convertLeadToCustomer(leadId) {
   if (!confirm(`Convert "${l.name}" to a customer and create their first order?`)) return;
   const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
   if (!newCust) { alert('Error creating customer'); return; }
+  const { grandTotal, deposit } = calcQuote(l);
   const newOId = 'PO-'+String(Date.now()).slice(-6);
-  const newO = await dbInsert('orders', {id:newOId, customer_id:newCust.id, type:l.interest||'Kitchen Remodel', stage:'collect', balance:0, notes:l.notes||'', checked:{}});
+  const today = new Date().toISOString().split('T')[0];
+  const newO = await dbInsert('orders', {
+    id: newOId, customer_id: newCust.id, type: l.interest||'Kitchen Remodel',
+    stage: 'collect', balance: grandTotal - deposit, notes: l.notes||'', checked: {},
+    deposit_received: deposit > 0, deposit_amount: deposit > 0 ? deposit : null,
+    deposit_date: deposit > 0 ? today : null,
+  });
   customers.push({...newCust, orders: newO ? [{...newO, checked:{}}] : []});
   leads = leads.filter(x => x.id !== leadId);
   await dbDelete('leads', {id: leadId});
