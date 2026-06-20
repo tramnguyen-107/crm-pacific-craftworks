@@ -502,6 +502,7 @@
   .cbm-chip { background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px; }
   /* URGENT SECTION */
   .urgent-section { display:flex;align-items:center;gap:10px;padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px;margin-bottom:12px; }
+  .urgent-section.urgent-active { background:#FEF2F2;border-color:#FECACA; }
   .urgent-toggle { position:relative;width:36px;height:20px;cursor:pointer;flex-shrink:0; }
   .urgent-toggle input { opacity:0;width:0;height:0;position:absolute; }
   .urgent-slider { position:absolute;inset:0;background:#E5E7EB;border-radius:99px;transition:.2s; }
@@ -1338,11 +1339,19 @@ function buildCard(customer) {
     const fpo = factoryPOs.find(f => (f.customerOrders||[]).some(r => r.orderId === o.id));
     const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => r.orderId === o.id));
 
-    return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:6px;background:var(--surface)">
+    const isUrgent = o.urgent;
+    const urgentBorder = isUrgent ? 'border:2px solid #EF4444;' : 'border:1px solid var(--border);';
+    const urgentBg = isUrgent ? 'background:#FEF2F2;' : 'background:var(--surface);';
+    return `<div style="${urgentBorder}${urgentBg}border-radius:8px;padding:8px 10px;margin-top:6px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <span style="font-size:11px;font-weight:700;color:var(--brand)">${o.id}</span>
-        <span style="font-size:10px;font-weight:600;color:${stageColor};background:${stageColor}18;padding:2px 7px;border-radius:20px">${stageLabel}${missingInfo?' ⚠️':''}</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          ${isUrgent ? `<span style="font-size:9px;font-weight:800;background:#DC2626;color:white;padding:2px 6px;border-radius:20px;letter-spacing:0.3px">🔴 URGENT</span>` : ''}
+          <span style="font-size:10px;font-weight:600;color:${stageColor};background:${stageColor}18;padding:2px 7px;border-radius:20px">${stageLabel}${missingInfo?' ⚠️':''}</span>
+        </div>
       </div>
+      ${isUrgent && o.delivery_deadline ? `<div style="font-size:11px;font-weight:700;color:#DC2626;margin-bottom:4px">🗓 Deliver by: ${o.delivery_deadline}</div>` : ''}
+      ${isUrgent && !o.delivery_deadline ? `<div style="font-size:11px;font-weight:700;color:#DC2626;margin-bottom:4px">⚠️ Expected delivery date not set!</div>` : ''}
       <div style="font-size:11px;color:var(--text);margin-bottom:3px">${o.type}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px;color:var(--muted)">
         <span>💰 Deposit: <strong style="color:${o.deposit_received?'#059669':'var(--text)'}">${depositAmt}</strong></span>
@@ -1453,18 +1462,20 @@ function buildOrdersTab(c) {
 // =====================
 function buildUrgentSection(order, customer) {
   const isUrgent = order.urgent;
-  return `<div class="urgent-section">
+  return `<div class="urgent-section${isUrgent ? ' urgent-active' : ''}">
     <label class="urgent-toggle" title="Mark urgent">
       <input type="checkbox" ${isUrgent ? 'checked' : ''} onchange="toggleUrgent(${customer.id}, '${order.id}')">
       <span class="urgent-slider"></span>
     </label>
-    <span style="font-size:12px;font-weight:600;color:${isUrgent?'#DC2626':'var(--text-2)'}">🚨 Urgent order</span>
-    ${isUrgent ? `<span style="font-size:11px;color:var(--muted)">Deliver in</span>
-      <input class="urgent-weeks-input" type="number" min="1" max="52" value="${order.urgent_weeks || ''}" placeholder="wks"
-        onchange="saveOrderField(${customer.id},'${order.id}','urgent_weeks',parseFloat(this.value)||null)">
-      <span style="font-size:11px;color:var(--muted)">weeks</span>` : ''}
+    <span style="font-size:12px;font-weight:600;color:${isUrgent?'#DC2626':'var(--muted)'}">🔴 Urgent Order</span>
+    ${isUrgent ? `
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;color:#DC2626;font-weight:600;white-space:nowrap">Expected Delivery *</label>
+        <input type="date" value="${order.delivery_deadline||''}"
+          style="padding:4px 8px;border:1.5px solid #FCA5A5;border-radius:6px;font-size:12px;font-family:inherit;color:#DC2626;font-weight:600"
+          onchange="saveOrderField(${customer.id},'${order.id}','delivery_deadline',this.value)">
+      </div>` : ''}
   </div>`;
-}
 
 function buildNotesSection(order, customer) {
   const link = order.drive_link || '';
@@ -1891,14 +1902,33 @@ function toggleOrder(orderId) {
   detail.classList.toggle('open');
 }
 
-async function toggleCheck(customerId, orderId, checkId) {
+function toggleCheck(customerId, orderId, checkId) {
   const c = customers.find(x => x.id === customerId);
-  const order = c.orders.find(o => o.id === orderId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
   order.checked = order.checked || {};
   order.checked[checkId] = !order.checked[checkId];
-  renderPanelTab(0);
-  setTimeout(() => { const d = document.getElementById('detail-'+orderId); if(d) d.classList.add('open'); }, 10);
-  await dbUpdate('orders', {id: orderId}, {checked: order.checked});
+  const val = order.checked[checkId];
+
+  // Update just the clicked item visually — no full re-render
+  const el = event.currentTarget;
+  el.classList.toggle('checked', val);
+
+  // Update progress bar
+  const checkedCount = Object.values(order.checked).filter(Boolean).length;
+  const pct = Math.round(checkedCount / TOTAL_CHECKS * 100);
+  const fill = document.getElementById('cp-fill-' + orderId);
+  const cnt  = document.getElementById('cp-count-' + orderId);
+  if (fill) fill.style.width = pct + '%';
+  if (cnt)  cnt.textContent = checkedCount + '/' + TOTAL_CHECKS;
+
+  // Update push button state
+  const allDone = checkedCount === TOTAL_CHECKS;
+  document.querySelectorAll('.action-bar .btn-primary').forEach(btn => {
+    if (btn.textContent.includes('Push to Factory')) btn.disabled = !allDone;
+  });
+
+  dbUpdate('orders', {id: orderId}, {checked: order.checked});
 }
 
 async function moveToCollect(customerId, orderId) {
