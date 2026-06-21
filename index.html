@@ -900,9 +900,10 @@
     </div>
     <div class="panel-tabs">
       <div class="panel-tab active" onclick="switchPanelTab(0, this)">Orders</div>
-      <div class="panel-tab" onclick="switchPanelTab(1, this)">Documents</div>
-      <div class="panel-tab" onclick="switchPanelTab(2, this)">Contact</div>
-      <div class="panel-tab" onclick="switchPanelTab(3, this)">History</div>
+      <div class="panel-tab" onclick="switchPanelTab(1, this)">📋 Info</div>
+      <div class="panel-tab" onclick="switchPanelTab(2, this)">Documents</div>
+      <div class="panel-tab" onclick="switchPanelTab(3, this)">Contact</div>
+      <div class="panel-tab" onclick="switchPanelTab(4, this)">History</div>
     </div>
   </div>
   <div class="panel-body" id="panel-body">
@@ -1449,8 +1450,9 @@ function renderPanelTab(idx) {
   const c = customers.find(x => x.id === activeCustomerId);
   const body = document.getElementById('panel-body');
   if      (idx === 0) body.innerHTML = buildOrdersTab(c);
-  else if (idx === 1) buildDocumentsTab(c, body);
-  else if (idx === 2) body.innerHTML = buildContactTab(c);
+  else if (idx === 1) body.innerHTML = buildCollectInfoTab(c);
+  else if (idx === 2) buildDocumentsTab(c, body);
+  else if (idx === 3) body.innerHTML = buildContactTab(c);
   else                body.innerHTML = buildHistoryTab(c);
 }
 
@@ -2024,6 +2026,117 @@ async function deleteDocument(docId, orderId, customerId) {
   if (!confirm('Delete this document?')) return;
   if (!isDemoMode) await sb.from('order_documents').delete().eq('id', docId);
   document.getElementById('doc-'+docId)?.remove();
+}
+
+function buildCollectInfoTab(c) {
+  const ci = c.collect_info || {};
+  const row = (label, val) => {
+    const filled = val && val !== '';
+    return `<div style="display:flex;align-items:baseline;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:14px;flex-shrink:0">${filled ? '✅' : '❌'}</span>
+      <span style="font-size:11px;color:var(--muted);min-width:130px;flex-shrink:0">${label}</span>
+      <span style="font-size:12px;font-weight:${filled?'600':'400'};color:${filled?'var(--text)':'var(--muted)'}">${filled ? val : 'Not filled'}</span>
+    </div>`;
+  };
+  const yn = (label, field) => {
+    const v = ci[field]; const d = ci[field+'_date']||'';
+    const val = v ? (v + (d ? ' — ' + d : '')) : '';
+    return row(label, val);
+  };
+
+  if (!c.collect_info || Object.keys(ci).length === 0) {
+    return `<div style="padding:32px;text-align:center;color:var(--muted)">
+      <div style="font-size:28px;margin-bottom:8px">📋</div>
+      <div style="font-size:13px;font-weight:600">No collect info yet</div>
+      <div style="font-size:12px;margin-top:4px">This data is filled in the Leads panel before conversion.</div>
+    </div>`;
+  }
+
+  const required = ['box_species','door_species','door_stain','door_finish','door_style','grain_dir','drawer_species','drawer_style','drawer_slide','hinge','appl_fridge','appl_cooktop'];
+  const filled = required.filter(f => ci[f] && ci[f] !== '').length;
+  const pct = Math.round(filled / required.length * 100);
+  const progColor = pct >= 80 ? '#059669' : pct >= 50 ? '#D97706' : '#984216';
+
+  return `
+  <div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <span style="font-size:11px;font-weight:700;color:${progColor};text-transform:uppercase;letter-spacing:0.4px">Collect Info</span>
+      <span style="font-size:11px;color:var(--muted)">${filled}/${required.length} key fields</span>
+    </div>
+    <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${progColor};border-radius:99px"></div>
+    </div>
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">🪵 Cabinet Box</div>
+    ${row('Species', ci.box_species)}
+    ${row('Finish', ci.box_finish)}
+    ${row('Color Outside', ci.box_color_outside)}
+    ${row('Color Inside', ci.box_color_inside)}
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">🚪 Door / Drawer Face</div>
+    ${row('Species', ci.door_species)}
+    ${row('Color / Stain', ci.door_stain)}
+    ${row('Finish', ci.door_finish)}
+    ${row('Door Style', ci.door_style)}
+    ${row('Grain Direction', ci.grain_dir)}
+    ${row('Color Sample', ci.color_sample)}
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">📦 Drawer Boxes</div>
+    ${row('Species', ci.drawer_species)}
+    ${row('Style', ci.drawer_style)}
+    ${row('Color / Stain', ci.drawer_color)}
+    ${row('Toekick Size', ci.toekick)}
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">🔩 Hardware</div>
+    ${row('Drawer Slide', ci.drawer_slide)}
+    ${row('Cabinet Hinge', ci.hinge)}
+    ${row('Cabinet Handle', ci.handle)}
+    ${row('Other Hardware', ci.hardware_other)}
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">✅ Features</div>
+    ${yn('Upper Cabinet Overhang', 'upper_overhang')}
+    ${yn('Light Valance', 'light_valance')}
+    ${yn('Crown Molding', 'crown_molding')}
+    ${yn('Magic Corner', 'magic_corner')}
+    ${yn('Roll-out Trays', 'roll_trays')}
+    ${row('Glass Door', ci.glass_door ? ci.glass_door + (ci.glass_type ? ' — ' + ci.glass_type : '') : '')}
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">🔧 Services</div>
+    ${yn('Delivery', 'delivery')}
+    ${yn('Installation', 'installation')}
+    ${yn('Demolition', 'demolition')}
+    ${yn('Plumbing', 'plumbing')}
+    ${yn('Electrical', 'electrical')}
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">🍳 Appliances</div>
+    ${row('Refrigerator', ci.appl_fridge)}
+    ${row('Cook Top', ci.appl_cooktop)}
+    ${row('Oven', ci.appl_oven)}
+    ${row('Warming Oven', ci.appl_warming)}
+    ${row('Washing Machine', ci.appl_washer)}
+    ${row('Baker / Proofer', ci.appl_baker)}
+    ${row('Other', ci.appl_other)}
+  </div>
+
+  ${ci.drive_link ? `<div class="ci-section" style="margin-bottom:16px">
+    <div class="ci-section-title">🗂 Google Drive</div>
+    <a href="${ci.drive_link}" target="_blank" style="font-size:12px;color:var(--brand);font-weight:600;text-decoration:none">📂 Open Customer Folder →</a>
+  </div>` : ''}
+  `;
 }
 
 function buildContactTab(c) {
@@ -3361,7 +3474,7 @@ async function convertLeadToCustomer(leadId) {
   const l = leads.find(x => x.id === leadId);
   if (!l) return;
   if (!confirm(`Convert "${l.name}" to a customer and create their first order?`)) return;
-  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
+  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect', collect_info: l.collect_info||{}});
   if (!newCust) { alert('Error creating customer'); return; }
   const { grandTotal, deposit } = calcQuote(l);
   const newOId = 'PO-'+String(Date.now()).slice(-6);
