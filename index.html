@@ -1637,7 +1637,14 @@ function buildOrderDetail(order, customer) {
       ? `<div class="collect-clock ${dlStatus.cls}">⏱ ${dlStatus.label}${logInHI ? ` <span style="margin-left:auto;font-size:10px;opacity:0.7">Log in: ${logInHI} HI</span>` : ''}</div>`
       : '';
 
-    let html = deadlineBanner + buildDepositSection(order, customer);
+    const depInfo = `<div class="deposit-box received" style="padding:10px 14px">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:12px;font-weight:700;color:#059669">✅ DEPOSIT RECEIVED</span>
+        <span style="font-size:12px">📅 Date: <strong>${order.deposit_date || '—'}</strong></span>
+        <span style="font-size:12px">💵 Amount: <strong>${order.deposit_amount ? '$' + Number(order.deposit_amount).toLocaleString() : '—'}</strong></span>
+      </div>
+    </div>`;
+    let html = deadlineBanner + depInfo;
     html += buildUrgentSection(order, customer);
     html += `<div class="checklist-progress">
       <div class="cp-label">Info Checklist</div>
