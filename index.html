@@ -1301,6 +1301,8 @@ function renderBoard() {
         setTimeout(() => card.classList.add('drag-ghost'), 0);
       };
       card.ondragend = () => { card.classList.remove('dragging','drag-ghost'); };
+      card.ondragover = e => { e.preventDefault(); e.stopPropagation(); col.classList.add('drag-over'); };
+      card.ondrop = e => { e.preventDefault(); e.stopPropagation(); col.classList.remove('drag-over'); dropCard(e, stage); };
       col.appendChild(card);
     });
 
@@ -1495,18 +1497,27 @@ function buildOrdersTab(c) {
 // =====================
 function buildUrgentSection(order, customer) {
   const isUrgent = order.urgent;
-  const deadlineVal = order.delivery_deadline || order.eta || '';
-  return `<div class="urgent-section${isUrgent ? ' urgent-active' : ''}" id="urgent-${order.id}">
-    <label class="urgent-toggle" title="Mark urgent">
-      <input type="checkbox" ${isUrgent ? 'checked' : ''} onchange="toggleUrgent(${customer.id}, '${order.id}', this)">
-      <span class="urgent-slider"></span>
-    </label>
-    <span style="font-size:12px;font-weight:600;color:${isUrgent?'#DC2626':'var(--muted)'}">🔴 Urgent Order</span>
-    <div id="urgent-date-${order.id}" style="margin-left:auto;display:flex;align-items:center;gap:6px;${isUrgent?'':'display:none!important'}">
-      <label style="font-size:11px;color:#DC2626;font-weight:600;white-space:nowrap">Expected Delivery *</label>
-      <input type="date" value="${deadlineVal}"
-        style="padding:4px 8px;border:1.5px solid #FCA5A5;border-radius:6px;font-size:12px;font-family:inherit;color:#DC2626;font-weight:600"
-        onchange="saveOrderField(${customer.id},'${order.id}','delivery_deadline',this.value)">
+  const borderStyle = isUrgent ? 'border:2px solid #EF4444;border-radius:10px;overflow:hidden;margin-bottom:12px' : 'border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px';
+  const bgStyle = isUrgent ? 'background:#FEF2F2' : 'background:var(--white)';
+  const headerBg = isUrgent ? 'background:#EF4444;padding:6px 12px' : 'display:none';
+  return `<div id="urgent-${order.id}" style="${borderStyle}">
+    ${isUrgent ? `<div style="${headerBg}">
+      <span style="font-size:11px;font-weight:800;color:white;letter-spacing:0.5px;text-transform:uppercase">🚨 URGENT ORDER</span>
+    </div>` : ''}
+    <div style="${bgStyle};display:flex;align-items:center;gap:10px;padding:10px 12px;flex-wrap:wrap">
+      <label class="urgent-toggle" title="Mark urgent">
+        <input type="checkbox" ${isUrgent ? 'checked' : ''} onchange="toggleUrgent(${customer.id}, '${order.id}')">
+        <span class="urgent-slider"></span>
+      </label>
+      <span style="font-size:12px;font-weight:${isUrgent?'700':'500'};color:${isUrgent?'#DC2626':'var(--muted)'}">
+        ${isUrgent ? 'Urgent — must deliver by:' : 'Mark as Urgent'}
+      </span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;color:${isUrgent?'#DC2626':'var(--muted)'};font-weight:600;white-space:nowrap">Expected Delivery</label>
+        <input type="date" value="${order.delivery_deadline||''}"
+          style="padding:4px 8px;border:1.5px solid ${isUrgent?'#FCA5A5':'var(--border)'};border-radius:6px;font-size:12px;font-family:inherit;color:${isUrgent?'#DC2626':'var(--text)'};font-weight:600;background:white"
+          onchange="saveDeadlineAndETA(${customer.id},'${order.id}',this.value)">
+      </div>
     </div>
   </div>`;
 }
@@ -1635,7 +1646,7 @@ function buildOrderDetail(order, customer) {
       html += `<div class="checklist-group"><div class="group-label">${g.label}</div><div class="checklist">`;
       g.items.forEach(item => {
         const isChecked = checked[item.id];
-        html += `<div class="check-item ${isChecked ? 'checked' : ''}" onclick="toggleCheck(${customer.id}, '${order.id}', '${item.id}')">
+        html += `<div class="check-item ${isChecked ? 'checked' : ''}" onclick="toggleCheck(${customer.id}, '${order.id}', '${item.id}', this)">
           <div class="check-box"><span class="check-tick">✓</span></div>
           <div class="check-label">${item.label}</div>
         </div>`;
@@ -1787,6 +1798,19 @@ function buildOrderDetail(order, customer) {
 // =====================
 // ORDER FIELD SAVE (Supabase)
 // =====================
+async function saveDeadlineAndETA(customerId, orderId, date) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.delivery_deadline = date;
+  order.eta = date;
+  await dbUpdate('orders', {id: orderId}, {delivery_deadline: date, eta: date});
+  renderBoard();
+  // Update sub-header in panel without full re-render
+  const sub = document.querySelector(`#order-item-${orderId} .order-item-sub`);
+  if (sub) sub.textContent = `Balance: $${Number(order.balance||0).toLocaleString()} · ETA ${date}`;
+}
+
 async function saveOrderField(customerId, orderId, field, value) {
   const c = customers.find(x => x.id === customerId);
   if (!c) return;
@@ -1840,32 +1864,26 @@ async function recordDeposit(customerId, orderId) {
     deposit_received: true, deposit_date: today, deposit_amount: amount,
     eta, log_in_date: now.toISOString(), collect_deadline: collectDeadline
   });
-  renderPanelTab(activePanelTab);
+  renderBoard();
+  activePanelTab = 0;
+  renderPanelTab(0);
   showToast(`✅ Deposit recorded — ETA ${eta} · 24h collect window starts now`);
 }
 
-async function toggleUrgent(customerId, orderId, checkbox) {
+async function toggleUrgent(customerId, orderId) {
   const c = customers.find(x => x.id === customerId);
   const order = c?.orders.find(o => o.id === orderId);
   if (!order) return;
   order.urgent = !order.urgent;
-  if (!order.urgent) order.urgent_weeks = null;
-
-  await dbUpdate('orders', {id: orderId}, {urgent: order.urgent, urgent_weeks: order.urgent_weeks});
-
-  // Update DOM directly — no full re-render so accordion stays open
-  const section = document.getElementById('urgent-' + orderId);
-  const dateRow = document.getElementById('urgent-date-' + orderId);
-  const label = section?.querySelector('span');
-  if (section) section.classList.toggle('urgent-active', order.urgent);
-  if (label) label.style.color = order.urgent ? '#DC2626' : 'var(--muted)';
-  if (dateRow) {
-    dateRow.style.display = order.urgent ? 'flex' : 'none';
-    const inp = dateRow.querySelector('input[type=date]');
-    if (inp && order.delivery_deadline) inp.value = order.delivery_deadline;
-  }
-
+  await dbUpdate('orders', {id: orderId}, {urgent: order.urgent});
   renderBoard();
+  activePanelTab = 0;
+  document.querySelectorAll('#panel .panel-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+  renderPanelTab(0);
+  setTimeout(() => {
+    const d = document.getElementById('detail-' + orderId);
+    if (d) d.classList.add('open');
+  }, 20);
 }
 
 async function addFurnitureItem(customerId, orderId) {
@@ -2174,7 +2192,7 @@ function toggleOrder(orderId) {
   detail.classList.toggle('open');
 }
 
-function toggleCheck(customerId, orderId, checkId) {
+function toggleCheck(customerId, orderId, checkId, el) {
   const c = customers.find(x => x.id === customerId);
   const order = c?.orders.find(o => o.id === orderId);
   if (!order) return;
@@ -2182,8 +2200,6 @@ function toggleCheck(customerId, orderId, checkId) {
   order.checked[checkId] = !order.checked[checkId];
   const val = order.checked[checkId];
 
-  // Update just the clicked item visually — no full re-render
-  const el = event.currentTarget;
   el.classList.toggle('checked', val);
 
   // Update progress bar
