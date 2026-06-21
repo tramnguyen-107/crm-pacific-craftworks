@@ -168,9 +168,16 @@
   .col-shipped .column-header { background: var(--shipped-bg); }
   .col-shipped .col-title { color: var(--shipped); }
   .col-shipped .col-count { background: var(--shipped); color: white; }
+  .col-delivery .column-header { background: #F5F3FF; }
+  .col-delivery .col-title { color: #7C3AED; }
+  .col-delivery .col-count { background: #7C3AED; color: white; }
   .col-done .column-header { background: var(--done-bg); }
   .col-done .col-title { color: var(--done); }
   .col-done .col-count { background: var(--done); color: white; }
+  .collect-clock { display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:8px;margin-bottom:10px;font-size:12px;font-weight:600; }
+  .collect-clock.ok { background:#F0FDF4;color:#065F46;border:1px solid #BBF7D0; }
+  .collect-clock.warn { background:#FFFBEB;color:#92400E;border:1px solid #FDE68A; }
+  .collect-clock.overdue { background:#FEF2F2;color:#991B1B;border:1px solid #FECACA; }
 
   /* CUSTOMER CARD */
   .customer-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; cursor: pointer; box-shadow: var(--shadow-sm); transition: all 0.15s; }
@@ -757,6 +764,10 @@
     <div class="column-header"><div class="col-title">🚢 Loaded / Shipped</div><div class="col-count" id="count-shipped">0</div></div>
     <div class="column-body" id="col-shipped"></div>
   </div>
+  <div class="column col-delivery" id="col-delivery-wrap">
+    <div class="column-header"><div class="col-title">🚛 Delivery</div><div class="col-count" id="count-delivery">0</div></div>
+    <div class="column-body" id="col-delivery"></div>
+  </div>
   <div class="column col-done" id="col-done-wrap" style="display:none">
     <div class="column-header"><div class="col-title">✅ Done / Archive</div><div class="col-count" id="count-done">0</div></div>
     <div class="column-body" id="col-done"></div>
@@ -1204,9 +1215,9 @@ function renderBoard() {
   const filterType  = document.getElementById('filter-type')?.value || '';
   const searchQ     = (document.getElementById('search-input')?.value || '').toLowerCase();
 
-  const activeStages = ['collect','production','shipped'];
-  const colIds   = { lead:'col-lead', collect:'col-collect', production:'col-production', shipped:'col-shipped', done:'col-done' };
-  const countIds = { lead:'count-lead', collect:'count-collect', production:'count-production', shipped:'count-shipped', done:'count-done' };
+  const activeStages = ['collect','production','shipped','delivery'];
+  const colIds   = { lead:'col-lead', collect:'col-collect', production:'col-production', shipped:'col-shipped', delivery:'col-delivery', done:'col-done' };
+  const countIds = { lead:'count-lead', collect:'count-collect', production:'count-production', shipped:'count-shipped', delivery:'count-delivery', done:'count-done' };
 
   // Show/hide archive column
   document.getElementById('col-done-wrap').style.display = showArchived ? '' : 'none';
@@ -1326,8 +1337,8 @@ function buildCard(customer) {
   const chips = orderTypes.map(t => `<span class="order-chip ${typeClass[t] || 'kitchen'}">${t}</span>`).join('');
 
   const totalOrders = customer.orders.length;
-  const stageColors = { collect:'#F59E0B', production:'#6366F1', shipped:'#3B82F6', done:'#10B981' };
-  const stageLabels = { collect:'Collecting Info', production:'In Production', shipped:'Shipped', done:'Done' };
+  const stageColors = { collect:'#F59E0B', production:'#6366F1', shipped:'#3B82F6', delivery:'#7C3AED', done:'#10B981' };
+  const stageLabels = { collect:'Collecting Info', production:'In Production', shipped:'Shipped', delivery:'Delivery', done:'Done' };
 
   const poRows = customer.orders.map(o => {
     const depositAmt = o.deposit_amount ? '$' + Number(o.deposit_amount).toLocaleString() : (o.deposit_received ? 'Received' : '—');
@@ -1352,13 +1363,17 @@ function buildCard(customer) {
       </div>
       ${isUrgent && o.delivery_deadline ? `<div style="font-size:11px;font-weight:700;color:#DC2626;margin-bottom:4px">🗓 Deliver by: ${o.delivery_deadline}</div>` : ''}
       ${isUrgent && !o.delivery_deadline ? `<div style="font-size:11px;font-weight:700;color:#DC2626;margin-bottom:4px">⚠️ Expected delivery date not set!</div>` : ''}
+      ${o.stage==='collect' && o.collect_deadline ? (() => { const s=collectDeadlineStatus(o); return s?`<div class="collect-clock ${s.cls}" style="margin-bottom:4px;font-size:10px">${s.label}</div>`:''; })() : ''}
       <div style="font-size:11px;color:var(--text);margin-bottom:3px">${o.type}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px;color:var(--muted)">
         <span>💰 Deposit: <strong style="color:${o.deposit_received?'#059669':'var(--text)'}">${depositAmt}</strong></span>
         <span>💵 Balance: <strong>${balance}</strong></span>
         <span>📅 ETA: <strong>${eta}</strong></span>
+        ${o.log_in_date ? `<span>🕐 Log in: <strong>${new Date(o.log_in_date).toLocaleDateString('en-US',{timeZone:'Pacific/Honolulu',month:'short',day:'numeric'})}</strong></span>` : ''}
         ${fpo ? `<span>🏭 ${fpo.id}</span>` : ''}
         ${ctnPlan ? `<span style="color:#8B5CF6">📦 ${ctnPlan.id}</span>` : ''}
+        ${o.stage==='delivery' ? `<span style="color:${o.trucking_assigned?'#059669':'#DC2626'}">🚛 ${o.trucking_assigned?'Trucking ✓':'No trucking!'}</span>` : ''}
+        ${o.stage==='delivery' ? `<span style="color:${o.install_date?'#059669':'#7C3AED'}">🔧 ${o.install_date?'Install: '+o.install_date:'No install date'}</span>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -1575,7 +1590,16 @@ function buildOrderDetail(order, customer) {
     const signOff = checked['dr3'];
     const canPush = allDone;
 
-    let html = buildDepositSection(order, customer);
+    // Collect deadline countdown
+    const dlStatus = collectDeadlineStatus(order);
+    const logInHI = order.log_in_date
+      ? new Date(order.log_in_date).toLocaleString('en-US',{timeZone:'Pacific/Honolulu',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+      : null;
+    const deadlineBanner = dlStatus
+      ? `<div class="collect-clock ${dlStatus.cls}">⏱ ${dlStatus.label}${logInHI ? ` <span style="margin-left:auto;font-size:10px;opacity:0.7">Log in: ${logInHI} HI</span>` : ''}</div>`
+      : '';
+
+    let html = deadlineBanner + buildDepositSection(order, customer);
     html += buildUrgentSection(order, customer);
     html += `<div class="checklist-progress">
       <div class="cp-label">Info Checklist</div>
@@ -1652,15 +1676,85 @@ function buildOrderDetail(order, customer) {
 
   if (order.stage === 'shipped') {
     return `
-      <div class="section-title">Shipping Info</div>
+      <div class="section-title">🚢 Shipping Info</div>
       <div class="info-grid">
         <div class="info-item"><div class="info-label">Container #</div><div class="info-value">${order.container || '—'}</div></div>
         <div class="info-item"><div class="info-label">Load Date</div><div class="info-value">${order.load_date || '—'}</div></div>
-        <div class="info-item"><div class="info-label">ETA</div><div class="info-value">${order.eta || '—'}</div></div>
-        <div class="info-item"><div class="info-label">Balance</div><div class="info-value">$${order.balance?.toLocaleString()}</div></div>
+        <div class="info-item"><div class="info-label">ETA (Hawaii)</div><div class="info-value">${order.eta || '—'}</div></div>
+        <div class="info-item"><div class="info-label">Balance</div><div class="info-value">$${(order.balance||0).toLocaleString()}</div></div>
       </div>
+      <div class="lp-field" style="margin:10px 0">
+        <label class="lp-label">Container Tracking #</label>
+        <input class="lp-input" type="text" placeholder="e.g. MSCU1234567" value="${order.container_tracking||''}"
+          onchange="saveOrderField(${customer.id},'${order.id}','container_tracking',this.value)">
+      </div>
+      <div class="lp-field" style="margin-bottom:14px">
+        <label class="lp-label">Port Arrival Date (estimated)</label>
+        <input class="lp-input" type="date" value="${order.port_arrival_date||''}"
+          onchange="saveOrderField(${customer.id},'${order.id}','port_arrival_date',this.value)">
+      </div>
+      ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="markDone(${customer.id}, '${order.id}')">Mark Delivered ✓</button>
+        <button class="btn btn-primary" onclick="markPortArrival(${customer.id},'${order.id}')">🚛 Container Arrived at Port →</button>
+      </div>`;
+  }
+
+  if (order.stage === 'delivery') {
+    const truckOk = order.trucking_assigned;
+    const installOk = order.install_date && order.installer_name;
+    const canDone = truckOk && installOk && order.install_confirmed;
+    return `
+      <div class="section-title">🚛 Trucking — Pick Up Container</div>
+      <div style="padding:10px 12px;background:${truckOk?'#F0FDF4':'#FEF9C3'};border:1px solid ${truckOk?'#BBF7D0':'#FDE68A'};border-radius:8px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:${truckOk?'#065F46':'#92400E'};margin-bottom:8px">${truckOk?'✅ Trucking Assigned':'⚠️ Trucking not yet assigned'}</div>
+        <div class="lp-contact-grid">
+          <div class="lp-field"><label class="lp-label">Trucking Company</label>
+            <input class="lp-input" type="text" placeholder="Company name" value="${order.trucking_company||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','trucking_company',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Pick Up Date</label>
+            <input class="lp-input" type="date" value="${order.trucking_date||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','trucking_date',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Pick Up Time</label>
+            <input class="lp-input" type="time" value="${order.trucking_time||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','trucking_time',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Container Tracking #</label>
+            <input class="lp-input" type="text" placeholder="MSCU1234567" value="${order.container_tracking||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','container_tracking',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Port Arrival Date</label>
+            <input class="lp-input" type="date" value="${order.port_arrival_date||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','port_arrival_date',this.value)"></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
+          <input type="checkbox" ${truckOk?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','trucking_assigned',this.checked)">
+          Mark trucking as assigned ✓
+        </label>
+      </div>
+
+      <div class="section-title">📅 Installation Scheduling</div>
+      <div style="padding:10px 12px;background:${installOk?'#F0FDF4':'#F5F3FF'};border:1px solid ${installOk?'#BBF7D0':'#DDD6FE'};border-radius:8px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:${installOk?'#065F46':'#5B21B6'};margin-bottom:8px">${installOk?'✅ Installation Scheduled':'🗓 Schedule Installation'}</div>
+        <div class="lp-contact-grid">
+          <div class="lp-field"><label class="lp-label">Installer / Crew</label>
+            <input class="lp-input" type="text" placeholder="Name or company" value="${order.installer_name||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','installer_name',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Install Date</label>
+            <input class="lp-input" type="date" value="${order.install_date||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','install_date',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Install Time</label>
+            <input class="lp-input" type="time" value="${order.install_time||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','install_time',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Customer Phone</label>
+            <input class="lp-input" type="text" placeholder="Confirm with customer" value="${customer.phone||''}" readonly style="background:var(--surface)"></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
+          <input type="checkbox" ${order.install_confirmed?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','install_confirmed',this.checked)">
+          Customer confirmed installation date ✓
+        </label>
+      </div>
+
+      ${buildNotesSection(order, customer)}
+      <div class="action-bar">
+        <button class="btn btn-primary" ${!canDone?'disabled title="Assign trucking + schedule installation + customer confirm first"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Mark as Delivered & Done</button>
       </div>`;
   }
 
@@ -1679,21 +1773,52 @@ async function saveOrderField(customerId, orderId, field, value) {
   await dbUpdate('orders', {id: orderId}, {[field]: value});
 }
 
+function hawaiiNow() {
+  // Returns current date/time in Hawaii (Pacific/Honolulu, UTC-10, no DST)
+  return new Date(new Date().toLocaleString('en-US', {timeZone: 'Pacific/Honolulu'}));
+}
+function hawaiiDateStr(d) {
+  const h = d || hawaiiNow();
+  return h.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().split('T')[0];
+}
+function collectDeadlineStatus(order) {
+  if (!order.collect_deadline) return null;
+  const now = new Date();
+  const dl = new Date(order.collect_deadline);
+  const msLeft = dl - now;
+  const hLeft = msLeft / 3600000;
+  if (hLeft < 0) return { cls:'overdue', label:`⏰ OVERDUE by ${Math.abs(Math.round(hLeft))}h — complete ASAP!` };
+  if (hLeft < 4) return { cls:'warn', label:`⚠️ ${Math.floor(hLeft)}h ${Math.round((hLeft%1)*60)}min left to complete collecting info` };
+  return { cls:'ok', label:`✅ ${Math.floor(hLeft)}h ${Math.round((hLeft%1)*60)}min remaining (deadline: ${dl.toLocaleString('en-US',{timeZone:'Pacific/Honolulu',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})})` };
+}
+
 async function recordDeposit(customerId, orderId) {
   const c = customers.find(x => x.id === customerId);
   const order = c?.orders.find(o => o.id === orderId);
   if (!order) return;
   const amount = parseFloat(document.getElementById('dep-amount-' + orderId)?.value) || 0;
-  const today = new Date().toISOString().split('T')[0];
-  const dl = new Date(); dl.setDate(dl.getDate() + 84);
-  const deadline = dl.toISOString().split('T')[0];
+  const now = new Date();
+  const hi = hawaiiNow();
+  const today = hawaiiDateStr(hi);
+  const eta = addDays(today, 84);                          // ETA = deposit + 12 weeks
+  const collectDeadline = new Date(now.getTime() + 24*3600*1000).toISOString(); // +24h from now (UTC)
   order.deposit_received = true;
   order.deposit_date = today;
   order.deposit_amount = amount;
-  order.delivery_deadline = deadline;
-  await dbUpdate('orders', {id: orderId}, {deposit_received: true, deposit_date: today, deposit_amount: amount, delivery_deadline: deadline});
+  order.eta = eta;
+  order.log_in_date = now.toISOString();
+  order.collect_deadline = collectDeadline;
+  await dbUpdate('orders', {id: orderId}, {
+    deposit_received: true, deposit_date: today, deposit_amount: amount,
+    eta, log_in_date: now.toISOString(), collect_deadline: collectDeadline
+  });
   renderPanelTab(activePanelTab);
-  showToast('✅ Deposit recorded — deadline set to ' + deadline);
+  showToast(`✅ Deposit recorded — ETA ${eta} · 24h collect window starts now`);
 }
 
 async function toggleUrgent(customerId, orderId) {
@@ -1974,6 +2099,20 @@ async function markLoaded(customerId, orderId) {
   ]);
 }
 
+async function markPortArrival(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.stage = 'delivery';
+  c.stage = 'delivery';
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {stage: 'delivery'}),
+    dbUpdate('customers', {id: customerId}, {stage: 'delivery'})
+  ]);
+  renderBoard(); renderPanelTab(activePanelTab);
+  showToast('🚛 Container arrived — setup trucking & installation');
+}
+
 async function markDone(customerId, orderId) {
   const c = customers.find(x => x.id === customerId);
   const order = c.orders.find(o => o.id === orderId);
@@ -2174,8 +2313,8 @@ function onSearch(val) {
 // =====================
 function renderCustomersTable(q = '') {
   const tbody = document.getElementById('customers-tbody');
-  const stageLabel = { lead: 'Lead', collect: 'Collecting Info', production: 'In Production', shipped: 'Shipped', done: 'Done' };
-  const stageBadge = { lead: 'badge-lead', collect: 'badge-collect', production: 'badge-production', shipped: 'badge-shipped', done: 'badge-done' };
+  const stageLabel = { lead: 'Lead', collect: 'Collecting Info', production: 'In Production', shipped: 'Shipped', delivery: 'Delivery', done: 'Done' };
+  const stageBadge = { lead: 'badge-lead', collect: 'badge-collect', production: 'badge-production', shipped: 'badge-shipped', delivery: 'badge-shipped', done: 'badge-done' };
   const typeClass = { 'Kitchen Remodel': 'kitchen', 'Bathroom': 'bathroom', 'Vanity': 'vanity', 'Full Remodel': 'remodel' };
 
   let filtered = customers;
