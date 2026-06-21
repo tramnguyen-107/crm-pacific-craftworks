@@ -1700,61 +1700,66 @@ function buildOrderDetail(order, customer) {
   }
 
   if (order.stage === 'delivery') {
-    const truckOk = order.trucking_assigned;
+    const warehouseOk = order.warehouse_arrived;
     const installOk = order.install_date && order.installer_name;
-    const canDone = truckOk && installOk && order.install_confirmed;
+    const canDone = warehouseOk && installOk && order.install_confirmed;
+
+    // Find container trucking info
+    const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => r.orderId === order.id));
+
     return `
-      <div class="section-title">🚛 Trucking — Pick Up Container</div>
-      <div style="padding:10px 12px;background:${truckOk?'#F0FDF4':'#FEF9C3'};border:1px solid ${truckOk?'#BBF7D0':'#FDE68A'};border-radius:8px;margin-bottom:12px">
-        <div style="font-size:12px;font-weight:700;color:${truckOk?'#065F46':'#92400E'};margin-bottom:8px">${truckOk?'✅ Trucking Assigned':'⚠️ Trucking not yet assigned'}</div>
+      <!-- Trucking ref (read-only, managed in Containers tab) -->
+      <div style="padding:10px 12px;background:#F8FAFF;border:1px solid var(--border);border-radius:8px;margin-bottom:12px;font-size:12px">
+        <div style="font-weight:700;color:var(--brand);margin-bottom:4px">🚛 Trucking (managed in Containers tab)</div>
+        ${ctnPlan ? `
+          <div style="display:flex;gap:12px;flex-wrap:wrap;color:var(--muted)">
+            <span>📦 ${ctnPlan.id}</span>
+            <span>Company: <strong>${ctnPlan.trucking_company||'—'}</strong></span>
+            <span>Pick up: <strong>${ctnPlan.trucking_pickup_date||'—'}</strong>${ctnPlan.trucking_pickup_time?' '+ctnPlan.trucking_pickup_time:''}</span>
+            <span style="color:${ctnPlan.trucking_confirmed?'#059669':'#D97706'}">${ctnPlan.trucking_confirmed?'✅ Picked up':'⏳ Awaiting pick up'}</span>
+          </div>` : '<span style="color:var(--muted)">No container assigned</span>'}
+      </div>
+
+      <!-- Section 1: Warehouse Arrival -->
+      <div class="section-title">🏭 Warehouse Arrival</div>
+      <div style="padding:10px 12px;background:${warehouseOk?'#F0FDF4':'#FFFBEB'};border:1px solid ${warehouseOk?'#BBF7D0':'#FDE68A'};border-radius:8px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:${warehouseOk?'#065F46':'#92400E'};margin-bottom:8px">${warehouseOk?'✅ Arrived at Warehouse':'⏳ Waiting for warehouse arrival'}</div>
         <div class="lp-contact-grid">
-          <div class="lp-field"><label class="lp-label">Trucking Company</label>
-            <input class="lp-input" type="text" placeholder="Company name" value="${order.trucking_company||''}"
-              onchange="saveOrderField(${customer.id},'${order.id}','trucking_company',this.value)"></div>
-          <div class="lp-field"><label class="lp-label">Pick Up Date</label>
-            <input class="lp-input" type="date" value="${order.trucking_date||''}"
-              onchange="saveOrderField(${customer.id},'${order.id}','trucking_date',this.value)"></div>
-          <div class="lp-field"><label class="lp-label">Pick Up Time</label>
-            <input class="lp-input" type="time" value="${order.trucking_time||''}"
-              onchange="saveOrderField(${customer.id},'${order.id}','trucking_time',this.value)"></div>
-          <div class="lp-field"><label class="lp-label">Container Tracking #</label>
-            <input class="lp-input" type="text" placeholder="MSCU1234567" value="${order.container_tracking||''}"
-              onchange="saveOrderField(${customer.id},'${order.id}','container_tracking',this.value)"></div>
-          <div class="lp-field"><label class="lp-label">Port Arrival Date</label>
-            <input class="lp-input" type="date" value="${order.port_arrival_date||''}"
-              onchange="saveOrderField(${customer.id},'${order.id}','port_arrival_date',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Arrival Date</label>
+            <input class="lp-input" type="date" value="${order.warehouse_arrival_date||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','warehouse_arrival_date',this.value)"></div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
-          <input type="checkbox" ${truckOk?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','trucking_assigned',this.checked)">
-          Mark trucking as assigned ✓
+          <input type="checkbox" ${warehouseOk?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','warehouse_arrived',this.checked)">
+          ✅ Items arrived at warehouse — verified
         </label>
       </div>
 
-      <div class="section-title">📅 Installation Scheduling</div>
-      <div style="padding:10px 12px;background:${installOk?'#F0FDF4':'#F5F3FF'};border:1px solid ${installOk?'#BBF7D0':'#DDD6FE'};border-radius:8px;margin-bottom:12px">
-        <div style="font-size:12px;font-weight:700;color:${installOk?'#065F46':'#5B21B6'};margin-bottom:8px">${installOk?'✅ Installation Scheduled':'🗓 Schedule Installation'}</div>
+      <!-- Section 2: Installation (unlocks after warehouse) -->
+      <div class="section-title" style="color:${warehouseOk?'var(--text)':'var(--muted)'}">📅 Installation Scheduling ${warehouseOk?'':'— complete warehouse arrival first'}</div>
+      <div style="padding:10px 12px;background:${!warehouseOk?'var(--surface)':installOk?'#F0FDF4':'#F5F3FF'};border:1px solid ${!warehouseOk?'var(--border)':installOk?'#BBF7D0':'#DDD6FE'};border-radius:8px;margin-bottom:12px;${!warehouseOk?'opacity:0.5;pointer-events:none':''}">
         <div class="lp-contact-grid">
-          <div class="lp-field"><label class="lp-label">Installer / Crew</label>
+          <div class="lp-field"><label class="lp-label">Installer / Crew *</label>
             <input class="lp-input" type="text" placeholder="Name or company" value="${order.installer_name||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','installer_name',this.value)"></div>
-          <div class="lp-field"><label class="lp-label">Install Date</label>
+          <div class="lp-field"><label class="lp-label">Install Date *</label>
             <input class="lp-input" type="date" value="${order.install_date||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_date',this.value)"></div>
           <div class="lp-field"><label class="lp-label">Install Time</label>
             <input class="lp-input" type="time" value="${order.install_time||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_time',this.value)"></div>
           <div class="lp-field"><label class="lp-label">Customer Phone</label>
-            <input class="lp-input" type="text" placeholder="Confirm with customer" value="${customer.phone||''}" readonly style="background:var(--surface)"></div>
+            <input class="lp-input" type="text" value="${customer.phone||''}" readonly style="background:var(--surface);color:var(--muted)"></div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
           <input type="checkbox" ${order.install_confirmed?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','install_confirmed',this.checked)">
-          Customer confirmed installation date ✓
+          Customer confirmed installation ✓
         </label>
       </div>
 
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" ${!canDone?'disabled title="Assign trucking + schedule installation + customer confirm first"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Mark as Delivered & Done</button>
+        <button class="btn btn-primary" ${!canDone?'disabled title="Warehouse arrival + installation + customer confirm required"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Mark as Delivered & Done</button>
       </div>`;
   }
 
@@ -2097,6 +2102,44 @@ async function markLoaded(customerId, orderId) {
     dbUpdate('orders', {id: orderId}, {stage: 'shipped', load_date: today, container: ctnNum}),
     allShipped ? dbUpdate('customers', {id: customerId}, {stage: 'shipped'}) : Promise.resolve()
   ]);
+}
+
+async function saveCtnField(ctnId, field, value) {
+  const ctn = containerPlans.find(c => c.id === ctnId);
+  if (!ctn) return;
+  ctn[field] = value;
+  await dbUpdate('container_plans', {id: ctnId}, {[field]: value});
+}
+
+async function markTruckingAssigned(ctnId) {
+  const ctn = containerPlans.find(c => c.id === ctnId);
+  if (!ctn) return;
+  if (!ctn.trucking_assigned) {
+    // First click: mark assigned
+    ctn.trucking_assigned = true;
+    await dbUpdate('container_plans', {id: ctnId}, {trucking_assigned: true});
+    renderContainerView();
+    showToast('📋 Trucking assigned — click again when container is picked up');
+    return;
+  }
+  // Second click: mark picked up → move all POs to delivery
+  if (!confirm('Mark container as picked up by trucking? All POs in this container will move to Delivery stage.')) return;
+  ctn.trucking_confirmed = true;
+  await dbUpdate('container_plans', {id: ctnId}, {trucking_confirmed: true});
+  for (const ref of ctn.orderRefs) {
+    const cust = customers.find(c => c.id === ref.customerId);
+    const order = cust?.orders.find(o => o.id === ref.orderId);
+    if (order && order.stage === 'shipped') {
+      order.stage = 'delivery';
+      await dbUpdate('orders', {id: order.id}, {stage: 'delivery'});
+    }
+    if (cust && cust.orders.every(o => ['delivery','done'].includes(o.stage))) {
+      cust.stage = 'delivery';
+      await dbUpdate('customers', {id: cust.id}, {stage: 'delivery'});
+    }
+  }
+  renderContainerView(); renderBoard();
+  showToast('🚛 Container picked up — all POs moved to Delivery');
 }
 
 async function markPortArrival(customerId, orderId) {
@@ -2655,6 +2698,36 @@ function renderContainerView() {
         <div class="ctn-ready-badge" style="background:${readyBg};color:${readyColor};border:1px solid ${isReady ? '#86EFAC' : '#FDE68A'}">
           ${readyText}
         </div>
+      </div>
+
+      <!-- TRUCKING SECTION -->
+      <div style="padding:12px 14px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:${ctn.trucking_confirmed?'#059669':'#92400E'};margin-bottom:8px">
+          🚛 Trucking — ${ctn.trucking_confirmed ? '✅ Picked Up' : ctn.trucking_assigned ? '⏳ Assigned, awaiting pick up' : '⚠️ Not assigned yet'}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Tracking #</div>
+            <input class="lp-input" style="font-size:11px;padding:4px 8px" type="text" placeholder="MSCU1234567" value="${ctn.container_tracking||''}"
+              onchange="saveCtnField('${ctn.id}','container_tracking',this.value)"></div>
+          <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Port Arrival Date</div>
+            <input class="lp-input" style="font-size:11px;padding:4px 8px" type="date" value="${ctn.port_arrival_date||''}"
+              onchange="saveCtnField('${ctn.id}','port_arrival_date',this.value)"></div>
+          <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Trucking Company</div>
+            <input class="lp-input" style="font-size:11px;padding:4px 8px" type="text" placeholder="Company name" value="${ctn.trucking_company||''}"
+              onchange="saveCtnField('${ctn.id}','trucking_company',this.value)"></div>
+          <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Pick Up Date</div>
+            <input class="lp-input" style="font-size:11px;padding:4px 8px" type="date" value="${ctn.trucking_pickup_date||''}"
+              onchange="saveCtnField('${ctn.id}','trucking_pickup_date',this.value)"></div>
+          <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Pick Up Time</div>
+            <input class="lp-input" style="font-size:11px;padding:4px 8px" type="time" value="${ctn.trucking_pickup_time||''}"
+              onchange="saveCtnField('${ctn.id}','trucking_pickup_time',this.value)"></div>
+        </div>
+        ${!ctn.trucking_confirmed
+          ? `<button onclick="markTruckingAssigned('${ctn.id}')" style="width:100%;padding:8px;background:${ctn.trucking_assigned?'#059669':'#D97706'};color:white;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:4px">
+              ${ctn.trucking_assigned ? '🚛 Mark Container Picked Up ✓ → Move all POs to Delivery' : '📋 Mark Trucking Assigned'}
+            </button>`
+          : `<div style="padding:8px 12px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;font-size:12px;font-weight:600;color:#065F46;text-align:center">✅ Container Picked Up — all POs in Delivery stage</div>`
+        }
       </div>
 
       <div class="ctn-orders-section">
