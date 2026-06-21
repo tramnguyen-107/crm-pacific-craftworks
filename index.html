@@ -1425,6 +1425,15 @@ function buildCard(customer) {
 // =====================
 // PANEL
 // =====================
+// Delegated checklist click — attached once, survives innerHTML re-renders
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('panel').addEventListener('click', e => {
+    const item = e.target.closest('.check-item[data-cid]');
+    if (!item) return;
+    toggleCheck(item.dataset.cid, item.dataset.oid, item.dataset.chk, item);
+  });
+});
+
 function openPanel(customerId) {
   activeCustomerId = customerId;
   const c = customers.find(x => x.id === customerId);
@@ -1646,7 +1655,7 @@ function buildOrderDetail(order, customer) {
       html += `<div class="checklist-group"><div class="group-label">${g.label}</div><div class="checklist">`;
       g.items.forEach(item => {
         const isChecked = checked[item.id];
-        html += `<div class="check-item ${isChecked ? 'checked' : ''}" onclick="toggleCheck(${customer.id}, '${order.id}', '${item.id}', this)">
+        html += `<div class="check-item ${isChecked ? 'checked' : ''}" data-cid="${customer.id}" data-oid="${order.id}" data-chk="${item.id}">
           <div class="check-box"><span class="check-tick">✓</span></div>
           <div class="check-label">${item.label}</div>
         </div>`;
@@ -2193,9 +2202,9 @@ function toggleOrder(orderId) {
 }
 
 function toggleCheck(customerId, orderId, checkId, el) {
-  const c = customers.find(x => x.id === customerId);
+  const c = customers.find(x => x.id == customerId); // == intentional: handles int/string mismatch
   const order = c?.orders.find(o => o.id === orderId);
-  if (!order) return;
+  if (!order) { console.warn('toggleCheck: order not found', customerId, orderId); return; }
   order.checked = order.checked || {};
   order.checked[checkId] = !order.checked[checkId];
   const val = order.checked[checkId];
