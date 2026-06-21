@@ -180,7 +180,10 @@
   .collect-clock.overdue { background:#FEF2F2;color:#991B1B;border:1px solid #FECACA; }
 
   /* CUSTOMER CARD */
-  .customer-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; cursor: pointer; box-shadow: var(--shadow-sm); transition: all 0.15s; }
+  .customer-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; cursor: grab; box-shadow: var(--shadow-sm); transition: all 0.15s; }
+  .customer-card:active { cursor: grabbing; }
+  .customer-card.drag-ghost { opacity: 0.4; }
+  .column-body.drag-over { background: rgba(99,102,241,0.06); outline: 2px dashed #6366F1; outline-offset: -4px; border-radius: 8px; }
   .customer-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); border-color: var(--border-strong); }
   .card-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
   .card-company { font-size: 11px; color: var(--muted); margin-bottom: 7px; }
@@ -1281,9 +1284,22 @@ function renderBoard() {
     document.getElementById(countIds[stage]).textContent = total;
 
     const limit = colExpanded[stage] ? total : COL_LIMIT;
+    // Drag & drop — column as drop zone
+    col.ondragover = e => { e.preventDefault(); col.classList.add('drag-over'); };
+    col.ondragleave = () => col.classList.remove('drag-over');
+    col.ondrop = e => { e.preventDefault(); col.classList.remove('drag-over'); dropCard(e, stage); };
+
     stageCustomers.slice(0, limit).forEach(c => {
       const card = buildCard(c);
       if (stage === 'done') card.classList.add('archive-card');
+      card.draggable = true;
+      card.dataset.customerId = c.id;
+      card.ondragstart = e => {
+        e.dataTransfer.setData('customerId', c.id);
+        card.classList.add('dragging');
+        setTimeout(() => card.classList.add('drag-ghost'), 0);
+      };
+      card.ondragend = () => { card.classList.remove('dragging','drag-ghost'); };
       col.appendChild(card);
     });
 
@@ -2140,6 +2156,15 @@ async function markTruckingAssigned(ctnId) {
   }
   renderContainerView(); renderBoard();
   showToast('🚛 Container picked up — all POs moved to Delivery');
+}
+
+async function dropCard(e, newStage) {
+  const customerId = parseInt(e.dataTransfer.getData('customerId'));
+  const c = customers.find(x => x.id === customerId);
+  if (!c || c.stage === newStage) return;
+  c.stage = newStage;
+  await dbUpdate('customers', {id: customerId}, {stage: newStage});
+  renderBoard();
 }
 
 async function markPortArrival(customerId, orderId) {
