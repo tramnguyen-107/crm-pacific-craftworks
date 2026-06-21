@@ -1849,12 +1849,7 @@ async function toggleUrgent(customerId, orderId, checkbox) {
   order.urgent = !order.urgent;
   if (!order.urgent) order.urgent_weeks = null;
 
-  // Auto-fill delivery_deadline from ETA when turning urgent ON
-  if (order.urgent && !order.delivery_deadline && order.eta) {
-    order.delivery_deadline = order.eta;
-  }
-
-  await dbUpdate('orders', {id: orderId}, {urgent: order.urgent, urgent_weeks: order.urgent_weeks, delivery_deadline: order.delivery_deadline});
+  await dbUpdate('orders', {id: orderId}, {urgent: order.urgent, urgent_weeks: order.urgent_weeks});
 
   // Update DOM directly — no full re-render so accordion stays open
   const section = document.getElementById('urgent-' + orderId);
@@ -1864,10 +1859,8 @@ async function toggleUrgent(customerId, orderId, checkbox) {
   if (label) label.style.color = order.urgent ? '#DC2626' : 'var(--muted)';
   if (dateRow) {
     dateRow.style.display = order.urgent ? 'flex' : 'none';
-    if (order.urgent && order.delivery_deadline) {
-      const inp = dateRow.querySelector('input[type=date]');
-      if (inp) inp.value = order.delivery_deadline;
-    }
+    const inp = dateRow.querySelector('input[type=date]');
+    if (inp && order.delivery_deadline) inp.value = order.delivery_deadline;
   }
 
   renderBoard();
