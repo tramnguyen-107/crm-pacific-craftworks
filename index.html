@@ -1493,19 +1493,19 @@ function buildOrdersTab(c) {
 // =====================
 function buildUrgentSection(order, customer) {
   const isUrgent = order.urgent;
-  return `<div class="urgent-section${isUrgent ? ' urgent-active' : ''}">
+  const deadlineVal = order.delivery_deadline || order.eta || '';
+  return `<div class="urgent-section${isUrgent ? ' urgent-active' : ''}" id="urgent-${order.id}">
     <label class="urgent-toggle" title="Mark urgent">
-      <input type="checkbox" ${isUrgent ? 'checked' : ''} onchange="toggleUrgent(${customer.id}, '${order.id}')">
+      <input type="checkbox" ${isUrgent ? 'checked' : ''} onchange="toggleUrgent(${customer.id}, '${order.id}', this)">
       <span class="urgent-slider"></span>
     </label>
     <span style="font-size:12px;font-weight:600;color:${isUrgent?'#DC2626':'var(--muted)'}">🔴 Urgent Order</span>
-    ${isUrgent ? `
-      <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-        <label style="font-size:11px;color:#DC2626;font-weight:600;white-space:nowrap">Expected Delivery *</label>
-        <input type="date" value="${order.delivery_deadline||''}"
-          style="padding:4px 8px;border:1.5px solid #FCA5A5;border-radius:6px;font-size:12px;font-family:inherit;color:#DC2626;font-weight:600"
-          onchange="saveOrderField(${customer.id},'${order.id}','delivery_deadline',this.value)">
-      </div>` : ''}
+    <div id="urgent-date-${order.id}" style="margin-left:auto;display:flex;align-items:center;gap:6px;${isUrgent?'':'display:none!important'}">
+      <label style="font-size:11px;color:#DC2626;font-weight:600;white-space:nowrap">Expected Delivery *</label>
+      <input type="date" value="${deadlineVal}"
+        style="padding:4px 8px;border:1.5px solid #FCA5A5;border-radius:6px;font-size:12px;font-family:inherit;color:#DC2626;font-weight:600"
+        onchange="saveOrderField(${customer.id},'${order.id}','delivery_deadline',this.value)">
+    </div>
   </div>`;
 }
 
@@ -1842,16 +1842,35 @@ async function recordDeposit(customerId, orderId) {
   showToast(`✅ Deposit recorded — ETA ${eta} · 24h collect window starts now`);
 }
 
-async function toggleUrgent(customerId, orderId) {
+async function toggleUrgent(customerId, orderId, checkbox) {
   const c = customers.find(x => x.id === customerId);
   const order = c?.orders.find(o => o.id === orderId);
   if (!order) return;
   order.urgent = !order.urgent;
   if (!order.urgent) order.urgent_weeks = null;
-  await dbUpdate('orders', {id: orderId}, {urgent: order.urgent, urgent_weeks: order.urgent_weeks});
-  renderPanelTab(activePanelTab);
+
+  // Auto-fill delivery_deadline from ETA when turning urgent ON
+  if (order.urgent && !order.delivery_deadline && order.eta) {
+    order.delivery_deadline = order.eta;
+  }
+
+  await dbUpdate('orders', {id: orderId}, {urgent: order.urgent, urgent_weeks: order.urgent_weeks, delivery_deadline: order.delivery_deadline});
+
+  // Update DOM directly — no full re-render so accordion stays open
+  const section = document.getElementById('urgent-' + orderId);
+  const dateRow = document.getElementById('urgent-date-' + orderId);
+  const label = section?.querySelector('span');
+  if (section) section.classList.toggle('urgent-active', order.urgent);
+  if (label) label.style.color = order.urgent ? '#DC2626' : 'var(--muted)';
+  if (dateRow) {
+    dateRow.style.display = order.urgent ? 'flex' : 'none';
+    if (order.urgent && order.delivery_deadline) {
+      const inp = dateRow.querySelector('input[type=date]');
+      if (inp) inp.value = order.delivery_deadline;
+    }
+  }
+
   renderBoard();
-  setTimeout(() => { const d = document.getElementById('detail-' + orderId); if (d) d.classList.add('open'); }, 10);
 }
 
 async function addFurnitureItem(customerId, orderId) {
