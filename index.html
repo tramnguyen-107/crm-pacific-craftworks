@@ -3277,6 +3277,12 @@ function buildQuoteTab(lead) {
       <div class="quote-total-row deposit"><span>💰 Deposit (70%)</span><span id="qt-deposit">$${deposit.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
     </div>
 
+    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button onclick="saveQuote('${lead.id}')" style="padding:9px 20px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">
+        💾 Save Quote
+      </button>
+    </div>
+
     <div class="lp-convert-bar">
       <button onclick="printQuote('${lead.id}')" style="padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
         🖨️ Print / Export PDF
@@ -3357,7 +3363,7 @@ async function addQuoteItem(leadId) {
   l.quote_items = l.quote_items || [];
   l.quote_items.push({product:'', qty:1, unit_cost:0});
   await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items});
-  if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(0); }
+  if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(activeLeadTab); }
 }
 
 async function removeQuoteItem(leadId, idx) {
@@ -3365,7 +3371,7 @@ async function removeQuoteItem(leadId, idx) {
   if (!l) return;
   l.quote_items.splice(idx, 1);
   await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items});
-  if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(0); }
+  if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(activeLeadTab); }
 }
 
 async function updateQuoteItem(leadId, idx, field, value) {
@@ -3388,6 +3394,13 @@ async function updateQuoteItem(leadId, idx, field, value) {
   // update convert button deposit text
   const cvtSpan = document.querySelector('.lp-convert-bar .cvt-deposit-label');
   if (cvtSpan) cvtSpan.textContent = `Record $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})} deposit (70%)`;
+}
+
+async function saveQuote(leadId) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items || [], shipping_cost: l.shipping_cost || 0});
+  showToast('✅ Quote saved!');
 }
 
 function printQuote(leadId) {
