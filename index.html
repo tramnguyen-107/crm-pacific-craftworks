@@ -3271,7 +3271,7 @@ function buildQuoteTab(lead) {
       <div class="quote-total-row" style="border-bottom:1px solid var(--border)">
         <span>Shipping</span>
         <span style="display:flex;align-items:center;gap:6px">$<input class="quote-input num" type="number" min="0" value="${shipping||''}" placeholder="0" style="width:80px"
-          oninput="saveLeadField('${lead.id}','shipping_cost',parseFloat(this.value)||0)"></span>
+          oninput="updateShipping('${lead.id}',this.value)"></span>
       </div>
       <div class="quote-total-row grand"><span>Grand Total</span><span>$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
       <div class="quote-total-row deposit"><span>💰 Deposit (70%)</span><span>$${deposit.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
@@ -3336,6 +3336,27 @@ async function saveLeadField(leadId, field, value) {
   await dbUpdate('leads', {id: leadId}, {[field]: value});
 }
 
+function updateShipping(leadId, value) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  l.shipping_cost = parseFloat(value) || 0;
+  dbUpdate('leads', {id: leadId}, {shipping_cost: l.shipping_cost});
+  const { subtotal, shipping, grandTotal, deposit } = calcQuote(l);
+  const totalsEl = document.querySelector('.quote-totals');
+  if (!totalsEl) return;
+  totalsEl.innerHTML = `
+    <div class="quote-total-row"><span>Subtotal</span><span>$${subtotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+    <div class="quote-total-row" style="border-bottom:1px solid var(--border)">
+      <span>Shipping</span>
+      <span style="display:flex;align-items:center;gap:6px">$<input class="quote-input num" type="number" min="0" value="${shipping||''}" placeholder="0" style="width:80px"
+        oninput="updateShipping('${leadId}',this.value)"></span>
+    </div>
+    <div class="quote-total-row grand"><span>Grand Total</span><span>$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+    <div class="quote-total-row deposit"><span>💰 Deposit (70%)</span><span>$${deposit.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>`;
+  const cvtSpan = document.querySelector('.lp-convert-bar .cvt-deposit-label');
+  if (cvtSpan) cvtSpan.textContent = `Record $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})} deposit (70%)`;
+}
+
 async function addQuoteItem(leadId) {
   const l = leads.find(x => x.id === leadId);
   if (!l) return;
@@ -3366,7 +3387,7 @@ async function updateQuoteItem(leadId, idx, field, value) {
     <div class="quote-total-row" style="border-bottom:1px solid var(--border)">
       <span>Shipping</span>
       <span style="display:flex;align-items:center;gap:6px">$<input class="quote-input num" type="number" min="0" value="${shipping||''}" placeholder="0" style="width:80px"
-        oninput="saveLeadField('${leadId}','shipping_cost',parseFloat(this.value)||0)"></span>
+        oninput="updateShipping('${leadId}',this.value)"></span>
     </div>
     <div class="quote-total-row grand"><span>Grand Total</span><span>$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
     <div class="quote-total-row deposit"><span>💰 Deposit (70%)</span><span>$${deposit.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>`;
