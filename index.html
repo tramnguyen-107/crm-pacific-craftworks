@@ -216,6 +216,13 @@
   .panel-tab { padding: 5px 14px; font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
   .panel-tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
   .panel-body { padding: 16px 20px; }
+  .po-bar { display:flex; align-items:center; gap:6px; padding:10px 16px 2px; overflow-x:auto; flex-wrap:wrap; }
+  .po-chip { display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; border:1.5px solid var(--border); background:var(--surface); color:var(--text-2); white-space:nowrap; transition:all 0.15s; }
+  .po-chip.active { background:var(--brand); color:white; border-color:var(--brand); }
+  .po-chip .po-x { opacity:0.5; font-size:10px; line-height:1; cursor:pointer; margin-left:2px; }
+  .po-chip.active .po-x { opacity:0.7; }
+  .po-chip .po-x:hover { opacity:1; }
+  .po-add { padding:5px 10px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; border:1.5px dashed var(--border-strong); background:transparent; color:var(--brand); font-family:inherit; }
 
   /* ORDERS IN PANEL */
   .order-list { display: flex; flex-direction: column; gap: 9px; }
@@ -872,6 +879,7 @@
       </div>
       <button class="close-btn" onclick="closeLeadPanel()">✕</button>
     </div>
+    <div id="lp-po-bar" class="po-bar"></div>
     <div class="panel-tabs">
       <div class="panel-tab active" onclick="switchLeadTab(0,this)">📋 Collect</div>
       <div class="panel-tab" onclick="switchLeadTab(1,this)">💰 Quote</div>
@@ -2986,13 +2994,84 @@ async function confirmAddContainer() {
 // =====================
 let activeLead = null;
 let activeLeadTab = 0;
+let activeLeadPOId = null;
+
+function ensureLeadPOs(lead) {
+  if (!lead.lead_pos || !lead.lead_pos.length) {
+    // Migrate existing flat data into first PO
+    lead.lead_pos = [{
+      id: 'po_' + Date.now(),
+      name: 'PO #1',
+      quote_items: lead.quote_items || [],
+      shipping_cost: lead.shipping_cost || 0,
+      collect_info: lead.collect_info || {}
+    }];
+    dbUpdate('leads', {id: lead.id}, {lead_pos: lead.lead_pos});
+  }
+}
+
+function getActivePO(lead) {
+  if (!lead?.lead_pos?.length) return null;
+  return lead.lead_pos.find(p => p.id === activeLeadPOId) || lead.lead_pos[0];
+}
+
+function renderPOBar() {
+  const bar = document.getElementById('lp-po-bar');
+  if (!bar || !activeLead) return;
+  const pos = activeLead.lead_pos || [];
+  bar.innerHTML = pos.map((po, i) => {
+    const isActive = po.id === activeLeadPOId;
+    const canDel = pos.length > 1;
+    return `<div class="po-chip${isActive ? ' active' : ''}" onclick="switchLeadPO('${po.id}')">
+      ${po.name}
+      ${canDel ? `<span class="po-x" onclick="event.stopPropagation();deleteLeadPO('${activeLead.id}','${po.id}')">✕</span>` : ''}
+    </div>`;
+  }).join('') +
+  `<button class="po-add" onclick="addLeadPO('${activeLead.id}')">＋ New PO</button>`;
+}
+
+function switchLeadPO(poId) {
+  activeLeadPOId = poId;
+  renderPOBar();
+  renderLeadTab(activeLeadTab);
+}
+
+async function addLeadPO(leadId) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  const num = l.lead_pos.length + 1;
+  const newPO = { id: 'po_' + Date.now(), name: 'PO #' + num, quote_items: [], shipping_cost: 0, collect_info: {} };
+  l.lead_pos.push(newPO);
+  if (activeLead?.id === leadId) activeLead = l;
+  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  activeLeadPOId = newPO.id;
+  renderPOBar();
+  renderLeadTab(activeLeadTab);
+}
+
+async function deleteLeadPO(leadId, poId) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l || l.lead_pos.length <= 1) return;
+  const po = l.lead_pos.find(p => p.id === poId);
+  const hasItems = po?.quote_items?.length > 0;
+  if (hasItems && !confirm(`Delete "${po.name}"? It has ${po.quote_items.length} quote item(s).`)) return;
+  l.lead_pos = l.lead_pos.filter(p => p.id !== poId);
+  if (activeLead?.id === leadId) activeLead = l;
+  if (activeLeadPOId === poId) activeLeadPOId = l.lead_pos[0].id;
+  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  renderPOBar();
+  renderLeadTab(activeLeadTab);
+}
 
 function openLeadPanel(leadId) {
   activeLead = leads.find(x => x.id === leadId);
   if (!activeLead) return;
+  ensureLeadPOs(activeLead);
+  activeLeadPOId = activeLead.lead_pos[0].id;
   activeLeadTab = 0;
   document.getElementById('lp-name').textContent = activeLead.name;
   document.getElementById('lp-meta').textContent = (activeLead.company ? activeLead.company + ' · ' : '') + (activeLead.interest || '') + (activeLead.budget ? ' · ' + activeLead.budget : '');
+  renderPOBar();
   renderLeadTab(0);
   document.getElementById('lead-panel').classList.add('open');
   document.getElementById('lead-overlay').classList.add('open');
@@ -3002,6 +3081,7 @@ function closeLeadPanel() {
   document.getElementById('lead-panel').classList.remove('open');
   document.getElementById('lead-overlay').classList.remove('open');
   activeLead = null;
+  activeLeadPOId = null;
 }
 
 function switchLeadTab(idx, el) {
@@ -3013,34 +3093,37 @@ function switchLeadTab(idx, el) {
 function renderLeadTab(idx) {
   const body = document.getElementById('lp-body');
   if (!activeLead) return;
-  if (idx === 0) body.innerHTML = buildLeadInfoTab(activeLead);
-  else if (idx === 1) body.innerHTML = buildQuoteTab(activeLead);
+  const po = getActivePO(activeLead);
+  if (idx === 0) body.innerHTML = buildLeadInfoTab(activeLead, po);
+  else if (idx === 1) body.innerHTML = buildQuoteTab(activeLead, po);
   else if (idx === 2) body.innerHTML = buildLeadContactTab(activeLead);
   else body.innerHTML = buildLeadNotesTab(activeLead);
 }
 
 // ---- Collect Info helpers ----
-function getCI(lead) { return lead.collect_info || {}; }
+function getCI(po) { return po?.collect_info || {}; }
 
-async function saveCI(leadId, field, value) {
+async function saveCI(leadId, poId, field, value) {
   const l = leads.find(x => x.id === leadId);
   if (!l) return;
-  if (!l.collect_info) l.collect_info = {};
-  l.collect_info[field] = value;
-  if (activeLead?.id === leadId) activeLead.collect_info = l.collect_info;
+  const po = l.lead_pos?.find(p => p.id === poId);
+  if (!po) return;
+  if (!po.collect_info) po.collect_info = {};
+  po.collect_info[field] = value;
+  if (activeLead?.id === leadId) activeLead = l;
   // Update progress badge without full re-render
-  const prog = collectProgress(l);
+  const prog = collectProgress(po);
   const bar = document.getElementById('ci-progress-bar');
   const pct = document.getElementById('ci-progress-pct');
   if (bar) bar.style.width = prog.pct + '%';
   if (pct) pct.textContent = prog.filled + '/' + prog.total + ' filled';
   const readyBtn = document.getElementById('ci-ready-btn');
   if (readyBtn) readyBtn.style.display = prog.pct >= 80 ? 'block' : 'none';
-  await dbUpdate('leads', {id: leadId}, {collect_info: l.collect_info});
+  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
 }
 
-function collectProgress(lead) {
-  const c = lead.collect_info || {};
+function collectProgress(po) {
+  const c = po?.collect_info || {};
   const required = ['box_species','door_species','door_stain','door_finish','door_style',
     'grain_dir','drawer_species','drawer_style','drawer_slide','hinge',
     'appl_fridge','appl_cooktop'];
@@ -3048,36 +3131,38 @@ function collectProgress(lead) {
   return { filled, total: required.length, pct: Math.round(filled / required.length * 100) };
 }
 
-function buildLeadInfoTab(lead) {
-  const c = getCI(lead);
-  const prog = collectProgress(lead);
+function buildLeadInfoTab(lead, po) {
+  if (!po) return '<div style="padding:20px;color:var(--muted)">No PO selected.</div>';
+  const c = getCI(po);
+  const prog = collectProgress(po);
   const id = lead.id;
+  const pid = po.id;
 
   function sel(field, opts, extra='') {
-    return `<select class="lp-input" onchange="saveCI('${id}','${field}',this.value)" ${extra}>
+    return `<select class="lp-input" onchange="saveCI('${id}','${pid}','${field}',this.value)" ${extra}>
       <option value="">— select —</option>
       ${opts.map(o => `<option${c[field]===o?' selected':''}>${o}</option>`).join('')}
     </select>`;
   }
   function inp(field, placeholder='', type='text', extra='') {
     return `<input class="lp-input" type="${type}" placeholder="${placeholder}" value="${c[field]||''}"
-      onchange="saveCI('${id}','${field}',this.value)" ${extra}>`;
+      onchange="saveCI('${id}','${pid}','${field}',this.value)" ${extra}>`;
   }
   function yn(field, label) {
     const v = c[field];
     return `<div class="ci-yn-row">
       <span class="ci-yn-label">${label}</span>
-      <label class="ci-yn-opt"><input type="radio" name="${id}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="saveCI('${id}','${field}','yes')"> Yes</label>
-      <label class="ci-yn-opt"><input type="radio" name="${id}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="saveCI('${id}','${field}','no')"> No</label>
+      <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="saveCI('${id}','${pid}','${field}','yes')"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="saveCI('${id}','${pid}','${field}','no')"> No</label>
     </div>`;
   }
   function ynDate(field, label) {
     const v = c[field]; const d = c[field+'_date']||'';
     return `<div class="ci-yn-row">
       <span class="ci-yn-label">${label}</span>
-      <label class="ci-yn-opt"><input type="radio" name="${id}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="saveCI('${id}','${field}','yes')"> Yes</label>
-      <label class="ci-yn-opt"><input type="radio" name="${id}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="saveCI('${id}','${field}','no')"> No</label>
-      <input class="lp-input" type="date" value="${d}" style="width:130px;margin-left:auto" onchange="saveCI('${id}','${field}_date',this.value)">
+      <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="saveCI('${id}','${pid}','${field}','yes')"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="saveCI('${id}','${pid}','${field}','no')"> No</label>
+      <input class="lp-input" type="date" value="${d}" style="width:130px;margin-left:auto" onchange="saveCI('${id}','${pid}','${field}_date',this.value)">
     </div>`;
   }
 
@@ -3171,9 +3256,9 @@ function buildLeadInfoTab(lead) {
     ${yn('roll_trays','Roll-out Trays')}
     <div class="ci-yn-row">
       <span class="ci-yn-label">Glass Door</span>
-      <label class="ci-yn-opt"><input type="radio" name="${id}_glass_door" value="yes" ${c.glass_door==='yes'?'checked':''} onchange="saveCI('${id}','glass_door','yes')"> Yes</label>
-      <label class="ci-yn-opt"><input type="radio" name="${id}_glass_door" value="no"  ${c.glass_door==='no' ?'checked':''} onchange="saveCI('${id}','glass_door','no')"> No</label>
-      ${c.glass_door==='yes' ? `<select class="lp-input" style="width:120px;margin-left:auto" onchange="saveCI('${id}','glass_type',this.value)">
+      <label class="ci-yn-opt"><input type="radio" name="${pid}_glass_door" value="yes" ${c.glass_door==='yes'?'checked':''} onchange="saveCI('${id}','${pid}','glass_door','yes')"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${pid}_glass_door" value="no"  ${c.glass_door==='no' ?'checked':''} onchange="saveCI('${id}','${pid}','glass_door','no')"> No</label>
+      ${c.glass_door==='yes' ? `<select class="lp-input" style="width:120px;margin-left:auto" onchange="saveCI('${id}','${pid}','glass_type',this.value)">
         ${['Molded','Etched','Clear','Frosted'].map(t=>`<option${c.glass_type===t?' selected':''}>${t}</option>`).join('')}
       </select>` : ''}
     </div>
@@ -3232,30 +3317,31 @@ async function markReadyToQuote(leadId) {
   renderLeadTab(1);
 }
 
-function calcQuote(lead) {
-  const items = lead.quote_items || [];
+function calcQuote(po) {
+  const items = po?.quote_items || [];
   const subtotal = items.reduce((s, it) => s + (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0), 0);
-  const shipping = parseFloat(lead.shipping_cost) || 0;
+  const shipping = parseFloat(po?.shipping_cost) || 0;
   const grandTotal = subtotal + shipping;
   const deposit = grandTotal * 0.70;
   return { subtotal, shipping, grandTotal, deposit };
 }
 
-function buildQuoteTab(lead) {
-  const items = lead.quote_items || [];
-  const { subtotal, shipping, grandTotal, deposit } = calcQuote(lead);
+function buildQuoteTab(lead, po) {
+  if (!po) return '<div style="padding:20px;color:var(--muted)">No PO selected.</div>';
+  const items = po.quote_items || [];
+  const { subtotal, shipping, grandTotal, deposit } = calcQuote(po);
 
   const rows = items.map((it, i) => {
     const lineTotal = (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0);
     return `<tr>
       <td><input class="quote-input" value="${it.product||''}" placeholder="Product / description"
-        onchange="updateQuoteItem('${lead.id}',${i},'product',this.value)"></td>
+        onchange="updateQuoteItem('${lead.id}','${po.id}',${i},'product',this.value)"></td>
       <td><input class="quote-input num" type="number" min="1" value="${it.qty||1}"
-        oninput="updateQuoteItem('${lead.id}',${i},'qty',this.value)"></td>
+        oninput="updateQuoteItem('${lead.id}','${po.id}',${i},'qty',this.value)"></td>
       <td><input class="quote-input num" type="number" min="0" value="${it.unit_cost||''}" placeholder="0"
-        oninput="updateQuoteItem('${lead.id}',${i},'unit_cost',this.value)"></td>
+        oninput="updateQuoteItem('${lead.id}','${po.id}',${i},'unit_cost',this.value)"></td>
       <td style="text-align:right;font-weight:600;padding-right:4px">$${lineTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</td>
-      <td><button class="quote-del" onclick="removeQuoteItem('${lead.id}',${i})">✕</button></td>
+      <td><button class="quote-del" onclick="removeQuoteItem('${lead.id}','${po.id}',${i})">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -3264,30 +3350,30 @@ function buildQuoteTab(lead) {
       <thead><tr><th>Product</th><th style="width:60px">Qty</th><th style="width:80px">Unit $</th><th style="width:70px;text-align:right">Total</th><th style="width:28px"></th></tr></thead>
       <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px;font-size:12px">No items yet — add below</td></tr>'}</tbody>
     </table>
-    <button class="quote-add-btn" onclick="addQuoteItem('${lead.id}')">+ Add Item</button>
+    <button class="quote-add-btn" onclick="addQuoteItem('${lead.id}','${po.id}')">+ Add Item</button>
 
     <div class="quote-totals">
       <div class="quote-total-row"><span>Subtotal</span><span id="qt-subtotal">$${subtotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
       <div class="quote-total-row" style="border-bottom:1px solid var(--border)">
         <span>Shipping</span>
         <span style="display:flex;align-items:center;gap:6px">$<input class="quote-input num" type="number" min="0" value="${shipping||''}" placeholder="0" style="width:80px"
-          oninput="updateShipping('${lead.id}',this.value)"></span>
+          oninput="updateShipping('${lead.id}','${po.id}',this.value)"></span>
       </div>
       <div class="quote-total-row grand"><span>Grand Total</span><span id="qt-grand">$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
       <div class="quote-total-row deposit"><span>💰 Deposit (70%)</span><span id="qt-deposit">$${deposit.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
     </div>
 
     <div style="display:flex;justify-content:flex-end;margin-top:8px">
-      <button onclick="saveQuote('${lead.id}')" style="padding:9px 20px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">
+      <button onclick="saveQuote('${lead.id}','${po.id}')" style="padding:9px 20px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">
         💾 Save Quote
       </button>
     </div>
 
     <div class="lp-convert-bar">
-      <button onclick="printQuote('${lead.id}')" style="padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+      <button onclick="printQuote('${lead.id}','${po.id}')" style="padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
         🖨️ Print / Export PDF
       </button>
-      <button onclick="convertLeadToCustomer('${lead.id}')" style="padding:11px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit${grandTotal===0?' opacity:0.5':''}">
+      <button onclick="convertLeadToCustomer('${lead.id}','${po.id}')" style="padding:11px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit${grandTotal===0?' opacity:0.5':''}">
         ✅ Deposit Received → Convert to Customer
         ${grandTotal > 0 ? `<span class="cvt-deposit-label" style="display:block;font-size:11px;font-weight:400;opacity:0.8;margin-top:2px">Record $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})} deposit (70%)</span>` : ''}
       </button>
@@ -3342,12 +3428,13 @@ async function saveLeadField(leadId, field, value) {
   await dbUpdate('leads', {id: leadId}, {[field]: value});
 }
 
-function updateShipping(leadId, value) {
+function updateShipping(leadId, poId, value) {
   const l = leads.find(x => x.id === leadId);
-  if (!l) return;
-  l.shipping_cost = parseFloat(value) || 0;
-  dbUpdate('leads', {id: leadId}, {shipping_cost: l.shipping_cost});
-  const { subtotal, grandTotal, deposit } = calcQuote(l);
+  const po = l?.lead_pos?.find(p => p.id === poId);
+  if (!po) return;
+  po.shipping_cost = parseFloat(value) || 0;
+  dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  const { subtotal, grandTotal, deposit } = calcQuote(po);
   const fmt = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2});
   const el = id => document.getElementById(id);
   if (el('qt-subtotal')) el('qt-subtotal').textContent = fmt(subtotal);
@@ -3357,57 +3444,58 @@ function updateShipping(leadId, value) {
   if (cvtSpan) cvtSpan.textContent = `Record $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})} deposit (70%)`;
 }
 
-async function addQuoteItem(leadId) {
+async function addQuoteItem(leadId, poId) {
   const l = leads.find(x => x.id === leadId);
-  if (!l) return;
-  l.quote_items = l.quote_items || [];
-  l.quote_items.push({product:'', qty:1, unit_cost:0});
-  await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items});
+  const po = l?.lead_pos?.find(p => p.id === poId);
+  if (!po) return;
+  po.quote_items = po.quote_items || [];
+  po.quote_items.push({product:'', qty:1, unit_cost:0});
+  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
   if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(activeLeadTab); }
 }
 
-async function removeQuoteItem(leadId, idx) {
+async function removeQuoteItem(leadId, poId, idx) {
   const l = leads.find(x => x.id === leadId);
-  if (!l) return;
-  l.quote_items.splice(idx, 1);
-  await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items});
+  const po = l?.lead_pos?.find(p => p.id === poId);
+  if (!po) return;
+  po.quote_items.splice(idx, 1);
+  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
   if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(activeLeadTab); }
 }
 
-async function updateQuoteItem(leadId, idx, field, value) {
+async function updateQuoteItem(leadId, poId, idx, field, value) {
   const l = leads.find(x => x.id === leadId);
-  if (!l || !l.quote_items[idx]) return;
-  l.quote_items[idx][field] = (field === 'qty' || field === 'unit_cost') ? (parseFloat(value)||0) : value;
-  await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items});
-  // Re-render just totals without full re-render to avoid losing focus
-  const { subtotal, grandTotal, deposit } = calcQuote(l);
+  const po = l?.lead_pos?.find(p => p.id === poId);
+  if (!po || !po.quote_items[idx]) return;
+  po.quote_items[idx][field] = (field === 'qty' || field === 'unit_cost') ? (parseFloat(value)||0) : value;
+  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  const { subtotal, grandTotal, deposit } = calcQuote(po);
   const fmt2 = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2});
   const el2 = id => document.getElementById(id);
   if (el2('qt-subtotal')) el2('qt-subtotal').textContent = fmt2(subtotal);
   if (el2('qt-grand'))    el2('qt-grand').textContent    = fmt2(grandTotal);
   if (el2('qt-deposit'))  el2('qt-deposit').textContent  = fmt2(deposit);
-  // update each row total in the table
   document.querySelectorAll('.quote-table tbody tr').forEach((tr, i) => {
-    const it = l.quote_items[i];
+    const it = po.quote_items[i];
     if (it) { const td = tr.querySelectorAll('td')[3]; if (td) td.textContent = '$'+((parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0)).toLocaleString('en-US',{minimumFractionDigits:0}); }
   });
-  // update convert button deposit text
   const cvtSpan = document.querySelector('.lp-convert-bar .cvt-deposit-label');
   if (cvtSpan) cvtSpan.textContent = `Record $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})} deposit (70%)`;
 }
 
-async function saveQuote(leadId) {
+async function saveQuote(leadId, poId) {
   const l = leads.find(x => x.id === leadId);
   if (!l) return;
-  await dbUpdate('leads', {id: leadId}, {quote_items: l.quote_items || [], shipping_cost: l.shipping_cost || 0});
+  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
   showToast('✅ Quote saved!');
 }
 
-function printQuote(leadId) {
+function printQuote(leadId, poId) {
   const l = leads.find(x => x.id === leadId);
   if (!l) return;
-  const { subtotal, shipping, grandTotal, deposit } = calcQuote(l);
-  const items = l.quote_items || [];
+  const po = l.lead_pos?.find(p => p.id === poId) || getActivePO(l);
+  const { subtotal, shipping, grandTotal, deposit } = calcQuote(po);
+  const items = po?.quote_items || [];
   const quoteNum = 'Q-' + l.id.slice(-6).toUpperCase();
   const today = new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
 
@@ -3525,13 +3613,14 @@ async function setLeadStatus(leadId, status) {
   await dbUpdate('leads', {id: leadId}, {status});
 }
 
-async function convertLeadToCustomer(leadId) {
+async function convertLeadToCustomer(leadId, poId) {
   const l = leads.find(x => x.id === leadId);
   if (!l) return;
-  if (!confirm(`Convert "${l.name}" to a customer and create their first order?`)) return;
-  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect', collect_info: l.collect_info||{}});
+  const po = l.lead_pos?.find(p => p.id === poId) || getActivePO(l);
+  if (!confirm(`Convert "${l.name}" — ${po?.name || 'PO'} to a customer order?`)) return;
+  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect', collect_info: po?.collect_info||{}});
   if (!newCust) { alert('Error creating customer'); return; }
-  const { grandTotal, deposit } = calcQuote(l);
+  const { grandTotal, deposit } = calcQuote(po);
   const newOId = 'PO-'+String(Date.now()).slice(-6);
   const today = new Date().toISOString().split('T')[0];
   const newO = await dbInsert('orders', {
