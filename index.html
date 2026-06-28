@@ -3736,7 +3736,7 @@ async function convertLeadToCustomer(leadId, poId) {
   };
   if (!confirm(`Convert "${l.name}" to a customer and create their order?`)) return;
   const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect', collect_info: po.collect_info||{}});
-  if (!newCust) { alert('Error creating customer'); return; }
+  if (!newCust) { alert('Error creating customer — check browser console'); return; }
   const { grandTotal, deposit } = calcQuote(po);
   const newOId = 'PO-'+String(Date.now()).slice(-6);
   const today = new Date().toISOString().split('T')[0];
@@ -3745,12 +3745,20 @@ async function convertLeadToCustomer(leadId, poId) {
     stage: 'collect', balance: grandTotal - deposit, notes: l.notes||'', checked: {},
     deposit_received: deposit > 0, deposit_amount: deposit > 0 ? deposit : null,
     deposit_date: deposit > 0 ? today : null,
+    collect_info: po.collect_info || {},
+    quote_items: po.quote_items || [],
+    shipping_cost: po.shipping_cost || 0,
   });
-  customers.push({...newCust, orders: newO ? [{...newO, checked:{}}] : []});
+  if (!newO) {
+    // Don't delete lead — let user retry
+    alert('❌ Order creation failed — customer was created but order was not. Check browser console (F12) for the Supabase error, then try again.');
+    return;
+  }
+  customers.push({...newCust, orders: [{...newO, checked:{}}]});
   leads = leads.filter(x => x.id !== leadId);
   await dbDelete('leads', {id: leadId});
   document.getElementById('lead-badge').textContent = leads.length;
-  showToast(`✅ ${l.name} → Customer created, order in Collecting Info`);
+  showToast(`✅ ${l.name} → Customer + Order created`);
   const pipelineTab = document.querySelector('.tab:nth-child(3)');
   switchView('pipeline', pipelineTab);
   renderBoard();
