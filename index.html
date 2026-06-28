@@ -904,7 +904,10 @@
         <div class="customer-name" id="panel-name">—</div>
         <div class="customer-meta" id="panel-meta">—</div>
       </div>
-      <button class="close-btn" onclick="closePanel()">✕</button>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button onclick="deleteCustomerFromPanel()" title="Delete customer" style="background:none;border:1px solid #EF4444;color:#EF4444;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Delete</button>
+        <button class="close-btn" onclick="closePanel()">✕</button>
+      </div>
     </div>
     <div class="panel-tabs">
       <div class="panel-tab active" onclick="switchPanelTab(0, this)">Orders</div>
@@ -3892,6 +3895,18 @@ async function deleteOrder(customerId, orderId) {
   renderPanelTab(0);
   showToast('Order ' + orderId + ' deleted');
   await dbDelete('orders', {id: orderId});
+}
+
+async function deleteCustomerFromPanel() {
+  if (!activeCustomerId) return;
+  const c = customers.find(x => x.id === activeCustomerId);
+  if (!c) return;
+  if (!confirm(`Delete customer "${c.name}" and all their orders? This cannot be undone.`)) return;
+  closePanel();
+  customers = customers.filter(x => x.id !== activeCustomerId);
+  renderBoard(); renderDashboard();
+  await dbDelete('customers', {id: activeCustomerId});
+  showToast('Customer deleted');
 }
 
 // --- Customer ---
