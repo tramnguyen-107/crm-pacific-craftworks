@@ -3616,9 +3616,14 @@ async function setLeadStatus(leadId, status) {
 async function convertLeadToCustomer(leadId, poId) {
   const l = leads.find(x => x.id === leadId);
   if (!l) return;
-  const po = l.lead_pos?.find(p => p.id === poId) || getActivePO(l);
-  if (!confirm(`Convert "${l.name}" — ${po?.name || 'PO'} to a customer order?`)) return;
-  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect', collect_info: po?.collect_info||{}});
+  // Use active PO if available, fall back to lead's flat data for backward compat
+  const po = (l.lead_pos?.find(p => p.id === poId)) || getActivePO(l) || {
+    quote_items: l.quote_items || [],
+    shipping_cost: l.shipping_cost || 0,
+    collect_info: l.collect_info || {}
+  };
+  if (!confirm(`Convert "${l.name}" to a customer and create their order?`)) return;
+  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect', collect_info: po.collect_info||{}});
   if (!newCust) { alert('Error creating customer'); return; }
   const { grandTotal, deposit } = calcQuote(po);
   const newOId = 'PO-'+String(Date.now()).slice(-6);
