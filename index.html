@@ -2485,6 +2485,7 @@ function getDraft(customerId) {
 function openAddOrder(customerId) {
   const c = customers.find(x => x.id === customerId);
   if (!c) return;
+  closePanel(); // close customer panel so lead panel appears on top
   const poNum = (c.orders?.length || 0) + 1;
   const virtualId = '_new_' + Date.now();
   const virtualLead = {
