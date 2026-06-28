@@ -3145,8 +3145,13 @@ function openLeadPanel(leadId) {
   document.getElementById('lead-overlay').classList.add('open');
 }
 
-function closeLeadPanel() {
-  // Clean up virtual leads (add order mode) when panel closes without saving
+function closeLeadPanel(force) {
+  // Warn before discarding unsaved new order
+  if (activeLead?._forCustomer && !force) {
+    const po = getActivePO(activeLead);
+    const hasData = (po?.quote_items?.length > 0) || Object.keys(po?.collect_info || {}).some(k => po.collect_info[k]);
+    if (hasData && !confirm('Thoát ra sẽ mất dữ liệu đang nhập. Bạn chắc chưa?')) return;
+  }
   if (activeLead?._forCustomer) {
     leads = leads.filter(x => x.id !== activeLead.id);
   }
