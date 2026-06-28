@@ -1153,7 +1153,7 @@ async function dbInsert(table, data) {
   const testTables = ['customers','leads','orders']
   const payload = (isTestMode && testTables.includes(table)) ? { ...data, is_test: true } : data
   const { data: r, error } = await sb.from(table).insert(payload).select().single()
-  if (error) console.error('Insert error', table, error)
+  if (error) { console.error('Insert error', table, JSON.stringify(error), JSON.stringify(payload)); }
   return r
 }
 async function dbUpdate(table, match, data) {
@@ -2405,23 +2405,76 @@ function closeAddCustomer() {
   delete document.getElementById('add-modal').dataset.isLead;
 }
 
-async function openAddOrder(customerId) {
+function openAddOrder(customerId) {
   const c = customers.find(x => x.id === customerId);
   if (!c) return;
-  const type = prompt('Order type (e.g. Kitchen Remodel, Bathroom, Vanity...):', 'Kitchen Remodel');
-  if (!type) return;
+  // Count existing orders to determine next PO number for this customer
+  const poNum = (c.orders?.length || 0) + 1;
+  const virtualId = '_new_' + Date.now();
+  const virtualLead = {
+    id: virtualId,
+    name: c.name,
+    company: c.company || '',
+    email: c.email || '',
+    phone: c.phone || '',
+    source: c.source || '',
+    interest: 'Kitchen Remodel',
+    notes: '',
+    _forCustomer: customerId,
+    _poNum: poNum,
+    lead_pos: [{
+      id: 'po_' + Date.now(),
+      name: 'PO #' + poNum,
+      quote_items: [],
+      shipping_cost: 0,
+      collect_info: {}
+    }]
+  };
+  leads.push(virtualLead);
+  activeLead = virtualLead;
+  activeLeadPOId = virtualLead.lead_pos[0].id;
+  activeLeadTab = 0;
+  document.getElementById('lp-name').textContent = c.name + ' — New Order';
+  document.getElementById('lp-meta').textContent = 'PO #' + poNum + (c.company ? ' · ' + c.company : '');
+  renderPOBar();
+  renderLeadTab(0);
+  document.getElementById('lead-panel').classList.add('open');
+  document.getElementById('lead-overlay').classList.add('open');
+}
+
+async function addOrderFromLead(virtualLeadId, poId) {
+  const vl = leads.find(x => x.id === virtualLeadId);
+  if (!vl || !vl._forCustomer) return;
+  const po = vl.lead_pos?.find(p => p.id === poId) || vl.lead_pos?.[0];
+  const c = customers.find(x => x.id === vl._forCustomer);
+  if (!c || !po) return;
+  const { grandTotal, deposit } = calcQuote(po);
   const newOId = 'PO-' + String(Date.now()).slice(-6);
   const newO = await dbInsert('orders', {
-    id: newOId, customer_id: customerId, type,
-    stage: 'collect', balance: 0, notes: '', checked: {},
-    deposit_received: false
+    id: newOId,
+    customer_id: vl._forCustomer,
+    type: vl.interest || 'Kitchen Remodel',
+    stage: 'collect',
+    balance: grandTotal > 0 ? grandTotal - deposit : 0,
+    notes: vl.notes || '',
+    checked: {},
+    deposit_received: false,
+    collect_info: po.collect_info || {},
+    quote_items: po.quote_items || [],
+    shipping_cost: po.shipping_cost || 0,
   });
-  if (!newO) { alert('Error creating order'); return; }
+  if (!newO) { alert('Error creating order — check browser console for Supabase error'); return; }
   if (!c.orders) c.orders = [];
   c.orders.push({...newO, checked: {}});
+  // Remove virtual lead from memory
+  leads = leads.filter(x => x.id !== virtualLeadId);
+  activeLead = null;
+  activeLeadPOId = null;
+  document.getElementById('lead-panel').classList.remove('open');
+  document.getElementById('lead-overlay').classList.remove('open');
   renderBoard();
-  showToast('✅ Order ' + newOId + ' created');
-  setTimeout(() => openPanel(customerId), 200);
+  showToast('✅ ' + newOId + ' added to pipeline for ' + c.name);
+  setTimeout(() => openPanel(vl._forCustomer), 200);
 }
 
 // =====================
@@ -3042,7 +3095,7 @@ function renderPOBar() {
       ${canDel ? `<span class="po-x" onclick="event.stopPropagation();deleteLeadPO('${activeLead.id}','${po.id}')">✕</span>` : ''}
     </div>`;
   }).join('') +
-  `<button class="po-add" onclick="addLeadPO('${activeLead.id}')">＋ New PO</button>`;
+  (activeLead._forCustomer ? '' : `<button class="po-add" onclick="addLeadPO('${activeLead.id}')">＋ New PO</button>`);
 }
 
 function switchLeadPO(poId) {
@@ -3093,6 +3146,10 @@ function openLeadPanel(leadId) {
 }
 
 function closeLeadPanel() {
+  // Clean up virtual leads (add order mode) when panel closes without saving
+  if (activeLead?._forCustomer) {
+    leads = leads.filter(x => x.id !== activeLead.id);
+  }
   document.getElementById('lead-panel').classList.remove('open');
   document.getElementById('lead-overlay').classList.remove('open');
   activeLead = null;
@@ -3134,7 +3191,7 @@ async function saveCI(leadId, poId, field, value) {
   if (pct) pct.textContent = prog.filled + '/' + prog.total + ' filled';
   const readyBtn = document.getElementById('ci-ready-btn');
   if (readyBtn) readyBtn.style.display = prog.pct >= 80 ? 'block' : 'none';
-  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
 }
 
 function collectProgress(po) {
@@ -3388,10 +3445,15 @@ function buildQuoteTab(lead, po) {
       <button onclick="printQuote('${lead.id}','${po.id}')" style="padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
         🖨️ Print / Export PDF
       </button>
-      <button onclick="convertLeadToCustomer('${lead.id}','${po.id}')" style="padding:11px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit${grandTotal===0?' opacity:0.5':''}">
-        ✅ Deposit Received → Convert to Customer
-        ${grandTotal > 0 ? `<span class="cvt-deposit-label" style="display:block;font-size:11px;font-weight:400;opacity:0.8;margin-top:2px">Record $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})} deposit (75%)</span>` : ''}
-      </button>
+      ${lead._forCustomer
+        ? `<button onclick="addOrderFromLead('${lead.id}','${po.id}')" style="padding:11px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+          ✅ Add to Pipeline
+          ${grandTotal > 0 ? `<span class="cvt-deposit-label" style="display:block;font-size:11px;font-weight:400;opacity:0.8;margin-top:2px">Grand Total: $${grandTotal.toLocaleString('en-US',{minimumFractionDigits:0})} · Deposit: $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})}</span>` : ''}
+        </button>`
+        : `<button onclick="convertLeadToCustomer('${lead.id}','${po.id}')" style="padding:11px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit${grandTotal===0?' opacity:0.5':''}">
+          ✅ Deposit Received → Convert to Customer
+          ${grandTotal > 0 ? `<span class="cvt-deposit-label" style="display:block;font-size:11px;font-weight:400;opacity:0.8;margin-top:2px">Record $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})} deposit (75%)</span>` : ''}
+        </button>`}
     </div>`;
 }
 
@@ -3440,7 +3502,7 @@ async function saveLeadField(leadId, field, value) {
   if (activeLead?.id === leadId) {
     document.getElementById('lp-meta').textContent = (l.company ? l.company + ' · ' : '') + (l.interest || '') + (l.budget ? ' · ' + l.budget : '');
   }
-  await dbUpdate('leads', {id: leadId}, {[field]: value});
+  if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {[field]: value});
 }
 
 function updateShipping(leadId, poId, value) {
@@ -3448,7 +3510,7 @@ function updateShipping(leadId, poId, value) {
   const po = l?.lead_pos?.find(p => p.id === poId);
   if (!po) return;
   po.shipping_cost = parseFloat(value) || 0;
-  dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  if (!leadId.startsWith('_new_')) dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
   const { subtotal, grandTotal, deposit } = calcQuote(po);
   const fmt = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2});
   const el = id => document.getElementById(id);
@@ -3465,7 +3527,7 @@ async function addQuoteItem(leadId, poId) {
   if (!po) return;
   po.quote_items = po.quote_items || [];
   po.quote_items.push({product:'', qty:1, unit_cost:0});
-  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
   if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(activeLeadTab); }
 }
 
@@ -3474,7 +3536,7 @@ async function removeQuoteItem(leadId, poId, idx) {
   const po = l?.lead_pos?.find(p => p.id === poId);
   if (!po) return;
   po.quote_items.splice(idx, 1);
-  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
   if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(activeLeadTab); }
 }
 
@@ -3483,7 +3545,7 @@ async function updateQuoteItem(leadId, poId, idx, field, value) {
   const po = l?.lead_pos?.find(p => p.id === poId);
   if (!po || !po.quote_items[idx]) return;
   po.quote_items[idx][field] = (field === 'qty' || field === 'unit_cost') ? (parseFloat(value)||0) : value;
-  await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
   const { subtotal, grandTotal, deposit } = calcQuote(po);
   const fmt2 = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2});
   const el2 = id => document.getElementById(id);
