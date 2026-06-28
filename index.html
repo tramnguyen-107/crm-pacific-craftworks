@@ -1496,6 +1496,7 @@ function buildOrdersTab(c) {
         <div class="order-item-right">
           <span class="stage-badge ${stageBadge[order.stage]}">${stageLabel[order.stage]}</span>
           ${order.stage === 'collect' ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ''}
+          <button onclick="event.stopPropagation();deleteOrder(${c.id},'${order.id}')" title="Delete order" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px;border-radius:4px;line-height:1" onmouseover="this.style.color='#EF4444'" onmouseout="this.style.color='var(--muted)'">🗑</button>
         </div>
       </div>
       <div class="order-detail ${i === 0 ? 'open' : ''}" id="detail-${order.id}">
@@ -3875,6 +3876,23 @@ function toggleKebab(id) {
 document.addEventListener('click', () => {
   document.querySelectorAll('.kebab-dropdown.open').forEach(d => d.classList.remove('open'));
 });
+
+// --- Order ---
+async function deleteOrder(customerId, orderId) {
+  if (!confirm(`Delete order ${orderId}? This cannot be undone.\n(Customer will NOT be deleted.)`)) return;
+  const c = customers.find(x => x.id === customerId);
+  if (!c) return;
+  c.orders = c.orders.filter(o => o.id !== orderId);
+  // Update customer stage based on remaining orders
+  if (c.orders.length === 0) {
+    c.stage = 'collect';
+    await dbUpdate('customers', {id: customerId}, {stage: 'collect'});
+  }
+  renderBoard();
+  renderPanelTab(0);
+  showToast('Order ' + orderId + ' deleted');
+  await dbDelete('orders', {id: orderId});
+}
 
 // --- Customer ---
 async function deleteCustomer(id) {
