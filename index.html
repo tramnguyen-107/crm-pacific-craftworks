@@ -2405,10 +2405,22 @@ function closeAddCustomer() {
   delete document.getElementById('add-modal').dataset.isLead;
 }
 
+// ---- Draft helpers (localStorage) ----
+function draftKey(customerId) { return 'add_order_draft_' + customerId; }
+function saveDraft(vl) {
+  if (!vl?._forCustomer) return;
+  localStorage.setItem(draftKey(vl._forCustomer), JSON.stringify({
+    interest: vl.interest, notes: vl.notes, _poNum: vl._poNum, lead_pos: vl.lead_pos
+  }));
+}
+function clearDraft(customerId) { localStorage.removeItem(draftKey(customerId)); }
+function getDraft(customerId) {
+  try { return JSON.parse(localStorage.getItem(draftKey(customerId))); } catch { return null; }
+}
+
 function openAddOrder(customerId) {
   const c = customers.find(x => x.id === customerId);
   if (!c) return;
-  // Count existing orders to determine next PO number for this customer
   const poNum = (c.orders?.length || 0) + 1;
   const virtualId = '_new_' + Date.now();
   const virtualLead = {
@@ -2430,12 +2442,24 @@ function openAddOrder(customerId) {
       collect_info: {}
     }]
   };
+  // Restore draft if available
+  const draft = getDraft(customerId);
+  if (draft) {
+    if (confirm('Bạn có draft chưa lưu từ lần trước. Restore không?')) {
+      virtualLead.interest = draft.interest || virtualLead.interest;
+      virtualLead.notes = draft.notes || '';
+      virtualLead._poNum = draft._poNum || poNum;
+      if (draft.lead_pos?.length) virtualLead.lead_pos = draft.lead_pos;
+    } else {
+      clearDraft(customerId);
+    }
+  }
   leads.push(virtualLead);
   activeLead = virtualLead;
   activeLeadPOId = virtualLead.lead_pos[0].id;
   activeLeadTab = 0;
   document.getElementById('lp-name').textContent = c.name + ' — New Order';
-  document.getElementById('lp-meta').textContent = 'PO #' + poNum + (c.company ? ' · ' + c.company : '');
+  document.getElementById('lp-meta').textContent = 'PO #' + virtualLead._poNum + (c.company ? ' · ' + c.company : '');
   renderPOBar();
   renderLeadTab(0);
   document.getElementById('lead-panel').classList.add('open');
@@ -2464,9 +2488,9 @@ async function addOrderFromLead(virtualLeadId, poId) {
     shipping_cost: po.shipping_cost || 0,
   });
   if (!newO) { alert('Error creating order — check browser console for Supabase error'); return; }
+  clearDraft(vl._forCustomer);
   if (!c.orders) c.orders = [];
   c.orders.push({...newO, checked: {}});
-  // Remove virtual lead from memory
   leads = leads.filter(x => x.id !== virtualLeadId);
   activeLead = null;
   activeLeadPOId = null;
@@ -3197,6 +3221,7 @@ async function saveCI(leadId, poId, field, value) {
   const readyBtn = document.getElementById('ci-ready-btn');
   if (readyBtn) readyBtn.style.display = prog.pct >= 80 ? 'block' : 'none';
   if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  else saveDraft(l);
 }
 
 function collectProgress(po) {
@@ -3508,6 +3533,7 @@ async function saveLeadField(leadId, field, value) {
     document.getElementById('lp-meta').textContent = (l.company ? l.company + ' · ' : '') + (l.interest || '') + (l.budget ? ' · ' + l.budget : '');
   }
   if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {[field]: value});
+  else saveDraft(l);
 }
 
 function updateShipping(leadId, poId, value) {
@@ -3516,6 +3542,7 @@ function updateShipping(leadId, poId, value) {
   if (!po) return;
   po.shipping_cost = parseFloat(value) || 0;
   if (!leadId.startsWith('_new_')) dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  else saveDraft(l);
   const { subtotal, grandTotal, deposit } = calcQuote(po);
   const fmt = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2});
   const el = id => document.getElementById(id);
@@ -3533,6 +3560,7 @@ async function addQuoteItem(leadId, poId) {
   po.quote_items = po.quote_items || [];
   po.quote_items.push({product:'', qty:1, unit_cost:0});
   if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  else saveDraft(l);
   if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(activeLeadTab); }
 }
 
@@ -3542,6 +3570,7 @@ async function removeQuoteItem(leadId, poId, idx) {
   if (!po) return;
   po.quote_items.splice(idx, 1);
   if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  else saveDraft(l);
   if (activeLead?.id === leadId) { activeLead = l; renderLeadTab(activeLeadTab); }
 }
 
@@ -3551,6 +3580,7 @@ async function updateQuoteItem(leadId, poId, idx, field, value) {
   if (!po || !po.quote_items[idx]) return;
   po.quote_items[idx][field] = (field === 'qty' || field === 'unit_cost') ? (parseFloat(value)||0) : value;
   if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
+  else saveDraft(l);
   const { subtotal, grandTotal, deposit } = calcQuote(po);
   const fmt2 = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2});
   const el2 = id => document.getElementById(id);
