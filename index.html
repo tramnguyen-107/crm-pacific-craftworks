@@ -2405,8 +2405,23 @@ function closeAddCustomer() {
   delete document.getElementById('add-modal').dataset.isLead;
 }
 
-function openAddOrder(customerId) {
-  alert('Add Order flow — will be built in full version');
+async function openAddOrder(customerId) {
+  const c = customers.find(x => x.id === customerId);
+  if (!c) return;
+  const type = prompt('Order type (e.g. Kitchen Remodel, Bathroom, Vanity...):', 'Kitchen Remodel');
+  if (!type) return;
+  const newOId = 'PO-' + String(Date.now()).slice(-6);
+  const newO = await dbInsert('orders', {
+    id: newOId, customer_id: customerId, type,
+    stage: 'collect', balance: 0, notes: '', checked: {},
+    deposit_received: false
+  });
+  if (!newO) { alert('Error creating order'); return; }
+  if (!c.orders) c.orders = [];
+  c.orders.push({...newO, checked: {}});
+  renderBoard();
+  showToast('✅ Order ' + newOId + ' created');
+  setTimeout(() => openPanel(customerId), 200);
 }
 
 // =====================
