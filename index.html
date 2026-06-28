@@ -654,7 +654,8 @@
   <div class="logo"><div class="logo-mark">🪵</div>Pacific Craftworks <span>/ CRM</span></div>
   <div class="nav-right">
     <button class="nav-btn" onclick="openAddLead()">+ New Lead</button>
-    <button class="nav-btn primary" onclick="openAddCustomer()">+ New Customer</button>
+    <button class="nav-btn" onclick="openAddCustomer()">+ New Customer</button>
+    <button class="nav-btn primary" onclick="openNewOrderModal()">+ New Order</button>
     <button class="nav-btn" onclick="doLogout()" style="opacity:0.6" title="Sign out">↪ Logout</button>
   </div>
 </nav>
@@ -879,8 +880,15 @@
       </div>
       <button class="close-btn" onclick="closeLeadPanel()">✕</button>
     </div>
+    <div id="lp-project-bar" style="display:none;padding:8px 16px 4px;gap:8px;display:none">
+      <input id="lp-project-name" class="lp-input" placeholder="Project Name (e.g. Kona Main Kitchen)" style="font-size:13px;font-weight:600">
+      <select id="lp-project-type" class="lp-input" style="font-size:12px;margin-top:4px">
+        <option value="">— Project Type —</option>
+        <option>Kitchen Remodel</option><option>Bathroom</option><option>Vanity</option><option>Full Remodel</option><option>Other</option>
+      </select>
+    </div>
     <div id="lp-po-bar" class="po-bar"></div>
-    <div class="panel-tabs">
+    <div class="panel-tabs" id="lp-tabs">
       <div class="panel-tab active" onclick="switchLeadTab(0,this)">📋 Collect</div>
       <div class="panel-tab" onclick="switchLeadTab(1,this)">💰 Quote</div>
       <div class="panel-tab" onclick="switchLeadTab(2,this)">👤 Contact</div>
@@ -968,6 +976,35 @@
 </div>
 
 <!-- ADD CONTAINER MODAL -->
+<div class="modal-overlay" id="new-order-modal" onclick="if(event.target===this)closeNewOrderModal()">
+  <div class="modal" style="width:420px">
+    <div class="modal-title">New Order</div>
+    <div class="form-group">
+      <label class="form-label">Create order for…</label>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button id="nom-tab-cust" onclick="nomSwitchTab('customer')" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--brand);background:var(--brand);color:white;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">Customer</button>
+        <button id="nom-tab-lead" onclick="nomSwitchTab('lead')" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text);font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Lead</button>
+      </div>
+      <div id="nom-customer-group">
+        <label class="form-label">Select Customer</label>
+        <select id="nom-customer-select" class="form-input" style="margin-bottom:0">
+          <option value="">— Choose customer —</option>
+        </select>
+      </div>
+      <div id="nom-lead-group" style="display:none">
+        <label class="form-label">Select Lead</label>
+        <select id="nom-lead-select" class="form-input" style="margin-bottom:0">
+          <option value="">— Choose lead —</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:18px">
+      <button class="btn" onclick="closeNewOrderModal()" style="flex:1">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmNewOrder()" style="flex:1">Next →</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="container-modal">
   <div class="modal" style="width:400px">
     <div class="modal-title">New Container</div>
@@ -1252,61 +1289,47 @@ function renderBoard() {
     const col = document.getElementById(colIds[stage]);
     col.innerHTML = '';
 
-    let stageCustomers = customers.filter(c => {
-      if (stage === 'done') return c.stage === 'done';
-      return c.stage === stage;
+    // Collect all orders for this stage (order-based pipeline)
+    const toVN = str => { if (!str) return null; const d = new Date(str); return isNaN(d) ? null : new Date(d.getTime() + 7*3600000); };
+    let stageOrders = [];
+    customers.forEach(c => {
+      (c.orders || []).forEach(o => {
+        if (stage === 'done' ? o.stage === 'done' : o.stage === stage) {
+          stageOrders.push({ order: o, customer: c });
+        }
+      });
     });
 
-    // Apply filters — match against orders' ETA dates and types
-    stageCustomers = stageCustomers.filter(c => {
-      // search
-      if (searchQ && !c.name.toLowerCase().includes(searchQ) && !c.company.toLowerCase().includes(searchQ) && !c.orders.some(o => o.id.toLowerCase().includes(searchQ))) return false;
-      // type filter
-      if (filterType && !c.orders.some(o => o.type === filterType)) return false;
-      // date filters — theo ngày tạo đơn hàng (created_at, GMT+7)
+    // Apply filters
+    stageOrders = stageOrders.filter(({ order: o, customer: c }) => {
+      if (searchQ && !c.name.toLowerCase().includes(searchQ) &&
+          !(o.project_name||'').toLowerCase().includes(searchQ) &&
+          !o.id.toLowerCase().includes(searchQ)) return false;
+      if (filterType && o.type !== filterType) return false;
       if (filterYear || (filterMonth !== '' && filterMonth !== undefined)) {
-        const toVN = str => {
-          if (!str) return null;
-          const d = new Date(str);
-          return isNaN(d) ? null : new Date(d.getTime() + 7 * 3600000);
-        };
-        // Dùng created_at của order, fallback về created_at của customer
-        const hasMatch = c.orders.length > 0
-          ? c.orders.some(o => {
-              const d = toVN(o.created_at) || toVN(c.created_at);
-              if (!d) return false;
-              if (filterYear && String(d.getFullYear()) !== filterYear) return false;
-              if (filterMonth !== '' && filterMonth !== undefined && d.getMonth() !== parseInt(filterMonth)) return false;
-              return true;
-            })
-          : (() => {
-              const d = toVN(c.created_at);
-              if (!d) return false;
-              if (filterYear && String(d.getFullYear()) !== filterYear) return false;
-              if (filterMonth !== '' && filterMonth !== undefined && d.getMonth() !== parseInt(filterMonth)) return false;
-              return true;
-            })();
-        if (!hasMatch) return false;
+        const d = toVN(o.created_at) || toVN(c.created_at);
+        if (!d) return false;
+        if (filterYear && String(d.getFullYear()) !== filterYear) return false;
+        if (filterMonth !== '' && filterMonth !== undefined && d.getMonth() !== parseInt(filterMonth)) return false;
       }
       return true;
     });
 
-    const total = stageCustomers.length;
+    const total = stageOrders.length;
     document.getElementById(countIds[stage]).textContent = total;
 
     const limit = colExpanded[stage] ? total : COL_LIMIT;
-    // Drag & drop — column as drop zone
     col.ondragover = e => { e.preventDefault(); col.classList.add('drag-over'); };
     col.ondragleave = () => col.classList.remove('drag-over');
     col.ondrop = e => { e.preventDefault(); col.classList.remove('drag-over'); dropCard(e, stage); };
 
-    stageCustomers.slice(0, limit).forEach(c => {
-      const card = buildCard(c);
+    stageOrders.slice(0, limit).forEach(({ order, customer }) => {
+      const card = buildOrderCard(order, customer);
       if (stage === 'done') card.classList.add('archive-card');
       card.draggable = true;
-      card.dataset.customerId = c.id;
       card.ondragstart = e => {
-        e.dataTransfer.setData('customerId', c.id);
+        e.dataTransfer.setData('orderId', order.id);
+        e.dataTransfer.setData('customerId', customer.id);
         card.classList.add('dragging');
         setTimeout(() => card.classList.add('drag-ghost'), 0);
       };
@@ -1427,6 +1450,50 @@ function buildCard(customer) {
     ${poRows}
     <div class="card-footer" style="margin-top:6px">
       <div class="card-count">${totalOrders} order${totalOrders > 1 ? 's' : ''}</div>
+    </div>
+  `;
+  return div;
+}
+
+function buildOrderCard(order, customer) {
+  const div = document.createElement('div');
+  div.className = 'customer-card';
+  div.onclick = () => { openPanel(customer.id); };
+
+  const stageColors = { collect:'#B86B10', production:'#78898F', shipped:'#7C3AED', delivery:'#984216', done:'#8D957E' };
+  const stageLabels = { collect:'Collecting Info', production:'In Production', shipped:'Shipped', delivery:'Delivery', done:'Done' };
+  const depositAmt = order.deposit_amount ? '$' + Number(order.deposit_amount).toLocaleString() : (order.deposit_received ? 'Received' : '—');
+  const balance = order.balance ? '$' + Number(order.balance).toLocaleString() : '—';
+  const eta = order.eta || '—';
+  const stageColor = stageColors[order.stage] || '#78898F';
+  const stageLabel = stageLabels[order.stage] || order.stage;
+  const isUrgent = order.urgent;
+  const missingInfo = order.stage === 'collect' && Object.values(order.checked || {}).filter(Boolean).length < TOTAL_CHECKS;
+  const fpo = factoryPOs.find(f => (f.customerOrders||[]).some(r => r.orderId === order.id));
+  const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => r.orderId === order.id));
+  const projectName = order.project_name || order.id;
+  const archiveBadge = order.stage === 'done' ? `<div class="card-archive-badge">📁 Archived — Completed</div>` : '';
+
+  div.innerHTML = `
+    ${archiveBadge}
+    ${isUrgent ? `<div style="font-size:10px;font-weight:800;background:#DC2626;color:white;padding:3px 8px;border-radius:20px;margin-bottom:6px;display:inline-block;letter-spacing:0.3px">🔴 URGENT</div>` : ''}
+    <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:2px">${projectName}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${customer.name}${customer.company ? ' · ' + customer.company : ''}</div>
+    ${isUrgent && order.delivery_deadline ? `<div style="font-size:11px;font-weight:700;color:#DC2626;margin-bottom:4px">🗓 Deliver by: ${order.delivery_deadline}</div>` : ''}
+    ${order.stage==='collect' && order.collect_deadline ? (() => { const s=collectDeadlineStatus(order); return s?`<div class="collect-clock ${s.cls}" style="margin-bottom:4px;font-size:10px">${s.label}</div>`:''; })() : ''}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:10px;font-weight:600;color:${stageColor};background:${stageColor}18;padding:2px 7px;border-radius:20px">${stageLabel}${missingInfo?' ⚠️':''}</span>
+      <span style="font-size:10px;color:var(--muted)">${order.id}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px;color:var(--muted)">
+      <span>💰 Deposit: <strong style="color:${order.deposit_received?'#059669':'var(--text)'}">${depositAmt}</strong></span>
+      <span>💵 Balance: <strong>${balance}</strong></span>
+      <span>📅 ETA: <strong>${eta}</strong></span>
+      ${order.log_in_date ? `<span>🕐 Log in: <strong>${new Date(order.log_in_date).toLocaleDateString('en-US',{timeZone:'Pacific/Honolulu',month:'short',day:'numeric'})}</strong></span>` : ''}
+      ${fpo ? `<span>🏭 ${fpo.id}</span>` : ''}
+      ${ctnPlan ? `<span style="color:#8B5CF6">📦 ${ctnPlan.id}</span>` : ''}
+      ${order.stage==='delivery' ? `<span style="color:${order.trucking_assigned?'#059669':'#DC2626'}">🚛 ${order.trucking_assigned?'Trucking ✓':'No trucking!'}</span>` : ''}
+      ${order.stage==='delivery' ? `<span style="color:${order.install_date?'#059669':'#7C3AED'}">🔧 ${order.install_date?'Install: '+order.install_date:'No install date'}</span>` : ''}
     </div>
   `;
   return div;
@@ -1705,14 +1772,7 @@ function buildOrderDetail(order, customer) {
       ? `<div class="collect-clock ${dlStatus.cls}">⏱ ${dlStatus.label}${logInHI ? ` <span style="margin-left:auto;font-size:10px;opacity:0.7">Log in: ${logInHI} HI</span>` : ''}</div>`
       : '';
 
-    const depInfo = `<div class="deposit-box received" style="padding:10px 14px">
-      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
-        <span style="font-size:12px;font-weight:700;color:#059669">✅ DEPOSIT RECEIVED</span>
-        <span style="font-size:12px">📅 Date: <strong>${order.deposit_date || '—'}</strong></span>
-        <span style="font-size:12px">💵 Amount: <strong>${order.deposit_amount ? '$' + Number(order.deposit_amount).toLocaleString() : '—'}</strong></span>
-      </div>
-    </div>`;
-    let html = deadlineBanner + depInfo;
+    let html = deadlineBanner + buildDepositSection(order, customer);
     html += buildOrderQuoteSection(order);
     html += buildOrderSpecsSection(order);
     html += buildUrgentSection(order, customer);
@@ -2388,12 +2448,24 @@ async function markTruckingAssigned(ctnId) {
 }
 
 async function dropCard(e, newStage) {
+  const orderId = e.dataTransfer.getData('orderId');
   const customerId = parseInt(e.dataTransfer.getData('customerId'));
   const c = customers.find(x => x.id === customerId);
-  if (!c || c.stage === newStage) return;
-  c.stage = newStage;
-  await dbUpdate('customers', {id: customerId}, {stage: newStage});
+  if (!c) return;
+  const order = c.orders.find(o => o.id === orderId);
+  if (!order || order.stage === newStage) return;
+  order.stage = newStage;
+  const allDone = c.orders.every(o => o.stage === 'done');
+  const anyStage = s => c.orders.some(o => o.stage === s);
+  // Customer stage = most advanced order stage
+  const stageOrder = ['collect','production','shipped','delivery','done'];
+  const maxStage = stageOrder.slice().reverse().find(s => anyStage(s)) || 'collect';
+  c.stage = maxStage;
   renderBoard();
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {stage: newStage}),
+    dbUpdate('customers', {id: customerId}, {stage: maxStage})
+  ]);
 }
 
 async function markPortArrival(customerId, orderId) {
@@ -2426,6 +2498,51 @@ async function markDone(customerId, orderId) {
 // =====================
 // ADD CUSTOMER / ORDER
 // =====================
+let _nomTab = 'customer';
+function openNewOrderModal() {
+  _nomTab = 'customer';
+  const custSel = document.getElementById('nom-customer-select');
+  custSel.innerHTML = '<option value="">— Choose customer —</option>' +
+    [...customers].sort((a,b)=>a.name.localeCompare(b.name))
+      .map(c => `<option value="${c.id}">${c.name}${c.company?' ('+c.company+')':''}</option>`).join('');
+  const leadSel = document.getElementById('nom-lead-select');
+  leadSel.innerHTML = '<option value="">— Choose lead —</option>' +
+    [...leads].filter(l=>!l.id.startsWith('_new_')).sort((a,b)=>a.name.localeCompare(b.name))
+      .map(l => `<option value="${l.id}">${l.name}${l.company?' ('+l.company+')':''}</option>`).join('');
+  nomSwitchTab('customer');
+  document.getElementById('new-order-modal').classList.add('open');
+}
+function closeNewOrderModal() {
+  document.getElementById('new-order-modal').classList.remove('open');
+}
+function nomSwitchTab(tab) {
+  _nomTab = tab;
+  document.getElementById('nom-customer-group').style.display = tab==='customer' ? '' : 'none';
+  document.getElementById('nom-lead-group').style.display = tab==='lead' ? '' : 'none';
+  const bc = document.getElementById('nom-tab-cust');
+  const bl = document.getElementById('nom-tab-lead');
+  if (tab==='customer') {
+    bc.style.background='var(--brand)'; bc.style.color='white'; bc.style.borderColor='var(--brand)';
+    bl.style.background='var(--surface)'; bl.style.color='var(--text)'; bl.style.borderColor='var(--border)';
+  } else {
+    bl.style.background='var(--brand)'; bl.style.color='white'; bl.style.borderColor='var(--brand)';
+    bc.style.background='var(--surface)'; bc.style.color='var(--text)'; bc.style.borderColor='var(--border)';
+  }
+}
+function confirmNewOrder() {
+  if (_nomTab === 'customer') {
+    const id = parseInt(document.getElementById('nom-customer-select').value);
+    if (!id) { alert('Please select a customer'); return; }
+    closeNewOrderModal();
+    openAddOrder(id);
+  } else {
+    const id = document.getElementById('nom-lead-select').value;
+    if (!id) { alert('Please select a lead'); return; }
+    closeNewOrderModal();
+    openAddOrderFromLead(id);
+  }
+}
+
 function openAddCustomer(stage) {
   document.getElementById('add-modal').classList.add('open');
 }
@@ -2520,11 +2637,68 @@ function openAddOrder(customerId) {
     }
   }
   leads.push(virtualLead);
+  _openOrderPanel(virtualLead, c);
+}
+
+function _openOrderPanel(virtualLead, c) {
   activeLead = virtualLead;
   activeLeadPOId = virtualLead.lead_pos[0].id;
   activeLeadTab = 0;
   document.getElementById('lp-name').textContent = c.name + ' — New Order';
   document.getElementById('lp-meta').textContent = 'PO #' + virtualLead._poNum + (c.company ? ' · ' + c.company : '');
+  // Show project bar + full tabs for order mode
+  const pb = document.getElementById('lp-project-bar');
+  pb.style.display = 'flex';
+  pb.style.flexDirection = 'column';
+  document.getElementById('lp-project-name').value = virtualLead.project_name || '';
+  document.getElementById('lp-project-type').value = virtualLead.interest || '';
+  document.getElementById('lp-po-bar').style.display = '';
+  document.getElementById('lp-tabs').innerHTML = `
+    <div class="panel-tab active" onclick="switchLeadTab(0,this)">📋 Collect</div>
+    <div class="panel-tab" onclick="switchLeadTab(1,this)">💰 Quote</div>
+    <div class="panel-tab" onclick="switchLeadTab(2,this)">📝 Notes</div>`;
+  renderPOBar();
+  renderLeadTab(0);
+  document.getElementById('lead-panel').classList.add('open');
+  document.getElementById('lead-overlay').classList.add('open');
+}
+
+function openAddOrderFromLead(leadId) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  // Convert real lead to virtual lead for order creation
+  const existingCust = customers.find(c => c.name === l.name && c.email === l.email);
+  if (existingCust) {
+    openAddOrder(existingCust.id);
+    return;
+  }
+  // No existing customer — create virtual order panel from lead data
+  const poNum = 1;
+  const virtualId = '_new_' + Date.now();
+  const virtualLead = {
+    id: virtualId,
+    name: l.name, company: l.company||'', email: l.email||'', phone: l.phone||'',
+    source: l.source||'', interest: l.interest||'', notes: l.notes||'',
+    _forCustomer: null, _fromLead: leadId, _poNum: poNum,
+    project_name: '',
+    lead_pos: [{ id: 'po_'+Date.now(), name: 'PO #1', quote_items:[], shipping_cost:0, collect_info:{} }]
+  };
+  leads.push(virtualLead);
+  closeLeadPanel();
+  activeLead = virtualLead;
+  activeLeadPOId = virtualLead.lead_pos[0].id;
+  activeLeadTab = 0;
+  document.getElementById('lp-name').textContent = l.name + ' — New Order';
+  document.getElementById('lp-meta').textContent = 'From Lead · ' + (l.interest || '');
+  const pb = document.getElementById('lp-project-bar');
+  pb.style.display = 'flex'; pb.style.flexDirection = 'column';
+  document.getElementById('lp-project-name').value = '';
+  document.getElementById('lp-project-type').value = l.interest || '';
+  document.getElementById('lp-po-bar').style.display = '';
+  document.getElementById('lp-tabs').innerHTML = `
+    <div class="panel-tab active" onclick="switchLeadTab(0,this)">📋 Collect</div>
+    <div class="panel-tab" onclick="switchLeadTab(1,this)">💰 Quote</div>
+    <div class="panel-tab" onclick="switchLeadTab(2,this)">📝 Notes</div>`;
   renderPOBar();
   renderLeadTab(0);
   document.getElementById('lead-panel').classList.add('open');
@@ -2533,37 +2707,69 @@ function openAddOrder(customerId) {
 
 async function addOrderFromLead(virtualLeadId, poId) {
   const vl = leads.find(x => x.id === virtualLeadId);
-  if (!vl || !vl._forCustomer) return;
+  if (!vl) return;
   const po = vl.lead_pos?.find(p => p.id === poId) || vl.lead_pos?.[0];
-  const c = customers.find(x => x.id === vl._forCustomer);
-  if (!c || !po) return;
+  if (!po) return;
+
+  // Read project name/type from panel inputs
+  const projectName = document.getElementById('lp-project-name')?.value?.trim() || '';
+  const projectType = document.getElementById('lp-project-type')?.value || vl.interest || 'Kitchen Remodel';
+
   const { grandTotal, deposit } = calcQuote(po);
   const newOId = 'PO-' + String(Date.now()).slice(-6);
-  const newO = await dbInsert('orders', {
-    id: newOId,
-    customer_id: vl._forCustomer,
-    type: vl.interest || 'Kitchen Remodel',
-    stage: 'collect',
-    balance: grandTotal > 0 ? grandTotal - deposit : 0,
-    notes: vl.notes || '',
-    checked: {},
-    deposit_received: false,
-    collect_info: po.collect_info || {},
-    quote_items: po.quote_items || [],
-    shipping_cost: po.shipping_cost || 0,
-  });
-  if (!newO) { alert('Error creating order — check browser console for Supabase error'); return; }
-  clearDraft(vl._forCustomer);
-  if (!c.orders) c.orders = [];
-  c.orders.push({...newO, checked: {}});
-  leads = leads.filter(x => x.id !== virtualLeadId);
-  activeLead = null;
-  activeLeadPOId = null;
-  document.getElementById('lead-panel').classList.remove('open');
-  document.getElementById('lead-overlay').classList.remove('open');
-  renderBoard();
-  showToast('✅ ' + newOId + ' added to pipeline for ' + c.name);
-  setTimeout(() => openPanel(vl._forCustomer), 200);
+
+  // Case 1: Adding order to existing customer
+  if (vl._forCustomer) {
+    const c = customers.find(x => x.id === vl._forCustomer);
+    if (!c) return;
+    const newO = await dbInsert('orders', {
+      id: newOId, customer_id: vl._forCustomer, type: projectType,
+      project_name: projectName, stage: 'collect',
+      balance: grandTotal > 0 ? grandTotal - deposit : 0,
+      notes: vl.notes || '', checked: {}, deposit_received: false,
+      collect_info: po.collect_info || {}, quote_items: po.quote_items || [], shipping_cost: po.shipping_cost || 0,
+    });
+    if (!newO) { alert('Error creating order — check browser console'); return; }
+    clearDraft(vl._forCustomer);
+    if (!c.orders) c.orders = [];
+    c.orders.push({...newO, checked: {}});
+    leads = leads.filter(x => x.id !== virtualLeadId);
+    activeLead = null; activeLeadPOId = null;
+    document.getElementById('lead-panel').classList.remove('open');
+    document.getElementById('lead-overlay').classList.remove('open');
+    renderBoard();
+    showToast('✅ ' + (projectName || newOId) + ' added to pipeline');
+    setTimeout(() => openPanel(vl._forCustomer), 200);
+    return;
+  }
+
+  // Case 2: Creating from a lead — need to create customer first
+  if (vl._fromLead) {
+    const l = leads.find(x => x.id === vl._fromLead);
+    if (!l) return;
+    if (!confirm(`Convert "${l.name}" to a customer and create order "${projectName || newOId}"?`)) return;
+    const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
+    if (!newCust) { alert('Error creating customer'); return; }
+    const newO = await dbInsert('orders', {
+      id: newOId, customer_id: newCust.id, type: projectType,
+      project_name: projectName, stage: 'collect',
+      balance: grandTotal > 0 ? grandTotal - deposit : 0,
+      notes: vl.notes || '', checked: {}, deposit_received: false,
+      collect_info: po.collect_info || {}, quote_items: po.quote_items || [], shipping_cost: po.shipping_cost || 0,
+    });
+    if (!newO) { alert('Error creating order — customer was created but order failed'); return; }
+    customers.push({...newCust, orders: [{...newO, checked:{}}]});
+    // Delete original lead
+    leads = leads.filter(x => x.id !== vl._fromLead && x.id !== virtualLeadId);
+    await dbDelete('leads', {id: vl._fromLead});
+    document.getElementById('lead-badge').textContent = leads.filter(x => !x.id.startsWith('_new_')).length;
+    activeLead = null; activeLeadPOId = null;
+    document.getElementById('lead-panel').classList.remove('open');
+    document.getElementById('lead-overlay').classList.remove('open');
+    renderBoard();
+    showToast('✅ ' + l.name + ' → Customer + ' + (projectName || newOId) + ' created');
+    setTimeout(() => openPanel(newCust.id), 200);
+  }
 }
 
 // =====================
@@ -3223,12 +3429,15 @@ async function deleteLeadPO(leadId, poId) {
 function openLeadPanel(leadId) {
   activeLead = leads.find(x => x.id === leadId);
   if (!activeLead) return;
-  ensureLeadPOs(activeLead);
-  activeLeadPOId = activeLead.lead_pos[0].id;
   activeLeadTab = 0;
   document.getElementById('lp-name').textContent = activeLead.name;
   document.getElementById('lp-meta').textContent = (activeLead.company ? activeLead.company + ' · ' : '') + (activeLead.interest || '') + (activeLead.budget ? ' · ' + activeLead.budget : '');
-  renderPOBar();
+  // Real lead: simplified tabs — Contact + Notes only
+  document.getElementById('lp-project-bar').style.display = 'none';
+  document.getElementById('lp-po-bar').style.display = 'none';
+  document.getElementById('lp-tabs').innerHTML = `
+    <div class="panel-tab active" onclick="switchLeadTab(0,this)">👤 Contact</div>
+    <div class="panel-tab" onclick="switchLeadTab(1,this)">📝 Notes</div>`;
   renderLeadTab(0);
   document.getElementById('lead-panel').classList.add('open');
   document.getElementById('lead-overlay').classList.add('open');
@@ -3259,11 +3468,25 @@ function switchLeadTab(idx, el) {
 function renderLeadTab(idx) {
   const body = document.getElementById('lp-body');
   if (!activeLead) return;
-  const po = getActivePO(activeLead);
-  if (idx === 0) body.innerHTML = buildLeadInfoTab(activeLead, po);
-  else if (idx === 1) body.innerHTML = buildQuoteTab(activeLead, po);
-  else if (idx === 2) body.innerHTML = buildLeadContactTab(activeLead);
-  else body.innerHTML = buildLeadNotesTab(activeLead);
+  if (activeLead._forCustomer) {
+    // Virtual lead (Add Order mode): Collect | Quote | Notes
+    const po = getActivePO(activeLead);
+    if (idx === 0) body.innerHTML = buildLeadInfoTab(activeLead, po);
+    else if (idx === 1) body.innerHTML = buildQuoteTab(activeLead, po);
+    else body.innerHTML = buildLeadNotesTab(activeLead);
+  } else {
+    // Real lead: Contact | Notes + Create Order button
+    if (idx === 0) body.innerHTML = buildLeadContactTab(activeLead) + buildCreateOrderBtn(activeLead.id);
+    else body.innerHTML = buildLeadNotesTab(activeLead) + buildCreateOrderBtn(activeLead.id);
+  }
+}
+
+function buildCreateOrderBtn(leadId) {
+  return `<div style="padding:16px 0 4px">
+    <button onclick="openAddOrderFromLead('${leadId}')" style="width:100%;padding:12px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+      📦 Create Order →
+    </button>
+  </div>`;
 }
 
 // ---- Collect Info helpers ----
