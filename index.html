@@ -1696,7 +1696,7 @@ function buildOrderDetail(order, customer) {
 
   if (order.stage === 'production') {
     return `
-      ${buildDepositSection(order, customer)}
+      ${order.deposit_received ? buildDepositSection(order, customer) : ''}
       ${buildUrgentSection(order, customer)}
       <div class="section-title">Production Timeline</div>
       <div class="timeline">
