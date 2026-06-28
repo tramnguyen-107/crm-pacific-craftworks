@@ -908,10 +908,9 @@
     </div>
     <div class="panel-tabs">
       <div class="panel-tab active" onclick="switchPanelTab(0, this)">Orders</div>
-      <div class="panel-tab" onclick="switchPanelTab(1, this)">📋 Info</div>
-      <div class="panel-tab" onclick="switchPanelTab(2, this)">Documents</div>
-      <div class="panel-tab" onclick="switchPanelTab(3, this)">Contact</div>
-      <div class="panel-tab" onclick="switchPanelTab(4, this)">History</div>
+      <div class="panel-tab" onclick="switchPanelTab(1, this)">Documents</div>
+      <div class="panel-tab" onclick="switchPanelTab(2, this)">Contact</div>
+      <div class="panel-tab" onclick="switchPanelTab(3, this)">History</div>
     </div>
   </div>
   <div class="panel-body" id="panel-body">
@@ -1469,9 +1468,8 @@ function renderPanelTab(idx) {
   const c = customers.find(x => x.id === activeCustomerId);
   const body = document.getElementById('panel-body');
   if      (idx === 0) body.innerHTML = buildOrdersTab(c);
-  else if (idx === 1) body.innerHTML = buildCollectInfoTab(c);
-  else if (idx === 2) buildDocumentsTab(c, body);
-  else if (idx === 3) body.innerHTML = buildContactTab(c);
+  else if (idx === 1) buildDocumentsTab(c, body);
+  else if (idx === 2) body.innerHTML = buildContactTab(c);
   else                body.innerHTML = buildHistoryTab(c);
 }
 
@@ -1616,6 +1614,64 @@ function buildDepositSection(order, customer) {
   }
 }
 
+function buildOrderQuoteSection(order) {
+  const items = order.quote_items || [];
+  const shipping = parseFloat(order.shipping_cost) || 0;
+  if (items.length === 0 && shipping === 0) return '';
+  const subtotal = items.reduce((s, it) => s + (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0), 0);
+  const grandTotal = subtotal + shipping;
+  const deposit = grandTotal * 0.75;
+  return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">
+    <div style="background:var(--surface);padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2)">💰 Quote</span>
+      <span style="font-size:12px;font-weight:700;color:var(--brand)">Total: $${grandTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</span>
+    </div>
+    <div style="padding:8px 12px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:4px 0;font-weight:600;color:var(--muted)">Item</th>
+          <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:40px">Qty</th>
+          <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:80px">Unit</th>
+          <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:70px">Total</th>
+        </tr></thead>
+        <tbody>${items.map(it => {
+          const lt = (parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0);
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:4px 0">${it.product||'—'}</td>
+            <td style="text-align:right;padding:4px 0">${it.qty||1}</td>
+            <td style="text-align:right;padding:4px 0">$${(parseFloat(it.unit_cost)||0).toLocaleString()}</td>
+            <td style="text-align:right;padding:4px 0;font-weight:600">$${lt.toLocaleString()}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+      ${shipping > 0 ? `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--muted)">Shipping</span><span>$${shipping.toLocaleString()}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;padding:6px 0 2px;font-size:13px;font-weight:700"><span>Grand Total</span><span>$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0 4px;font-size:12px;color:#059669;font-weight:600"><span>Deposit 75%</span><span>$${deposit.toLocaleString('en-US',{minimumFractionDigits:0})}</span></div>
+    </div>
+  </div>`;
+}
+
+function buildOrderSpecsSection(order) {
+  const ci = order.collect_info || {};
+  if (Object.keys(ci).filter(k => ci[k]).length === 0) return '';
+  const row = (label, val) => val ? `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--muted);min-width:130px;flex-shrink:0">${label}</span><span style="font-weight:600">${val}</span></div>` : '';
+  return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">
+    <div style="background:var(--surface);padding:8px 12px">
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2)">📋 PO Specs</span>
+    </div>
+    <div style="padding:8px 12px">
+      ${row('Box Species', ci.box_species)}${row('Box Finish', ci.box_finish)}
+      ${row('Color Outside', ci.box_color_outside)}${row('Color Inside', ci.box_color_inside)}
+      ${row('Door Species', ci.door_species)}${row('Door Style', ci.door_style)}
+      ${row('Door Stain', ci.door_stain)}${row('Door Finish', ci.door_finish)}
+      ${row('Grain Direction', ci.grain_dir)}${row('Color Sample', ci.color_sample)}
+      ${row('Drawer Species', ci.drawer_species)}${row('Drawer Style', ci.drawer_style)}
+      ${row('Drawer Slide', ci.drawer_slide)}${row('Hinge', ci.hinge)}
+      ${row('Fridge', ci.appl_fridge)}${row('Cooktop', ci.appl_cooktop)}
+    </div>
+  </div>`;
+}
+
 function buildOrderDetail(order, customer) {
   if (order.stage === 'lead') {
     return `
@@ -1653,6 +1709,8 @@ function buildOrderDetail(order, customer) {
       </div>
     </div>`;
     let html = deadlineBanner + depInfo;
+    html += buildOrderQuoteSection(order);
+    html += buildOrderSpecsSection(order);
     html += buildUrgentSection(order, customer);
     html += `<div class="checklist-progress">
       <div class="cp-label">Info Checklist</div>
@@ -1697,6 +1755,8 @@ function buildOrderDetail(order, customer) {
   if (order.stage === 'production') {
     return `
       ${order.deposit_received ? buildDepositSection(order, customer) : ''}
+      ${buildOrderQuoteSection(order)}
+      ${buildOrderSpecsSection(order)}
       ${buildUrgentSection(order, customer)}
       <div class="section-title">Production Timeline</div>
       <div class="timeline">
@@ -3735,7 +3795,7 @@ async function convertLeadToCustomer(leadId, poId) {
     collect_info: l.collect_info || {}
   };
   if (!confirm(`Convert "${l.name}" to a customer and create their order?`)) return;
-  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect', collect_info: po.collect_info||{}});
+  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
   if (!newCust) { alert('Error creating customer — check browser console'); return; }
   const { grandTotal, deposit } = calcQuote(po);
   const newOId = 'PO-'+String(Date.now()).slice(-6);
