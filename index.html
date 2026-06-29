@@ -3221,15 +3221,13 @@ function renderProductionView() {
       if (!cust || !order) return '';
       const tClass = typeClass[order.type] || 'kitchen';
       return `
-        <div class="fac-order-row" onclick="event.stopPropagation(); openPanel(${cust.id})">
-          <div class="fac-order-left">
-            <div class="fac-order-po">${order.id}</div>
-            <div class="fac-order-type">${order.type}</div>
+        <div class="fac-order-row" onclick="event.stopPropagation(); openPanel(${cust.id})" style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="fac-order-po">${order.project_name || order.id} <span style="font-size:10px;color:var(--muted);font-weight:400">${order.id}</span></div>
+            <div class="fac-order-type">👤 ${cust.name}${order.destination?' · 📍'+order.destination:''}</div>
           </div>
-          <div class="fac-order-right">
-            <span class="fac-order-customer">👤 ${cust.name}${cust.company ? ' · ' + cust.company : ''}</span>
-            <span class="order-chip ${tClass}" style="font-size:10px">${order.type}</span>
-          </div>
+          <button onclick="event.stopPropagation();removeOrderFromFPO('${fpo.id}','${order.id}')"
+            style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px" title="Unlink">✕</button>
         </div>`;
     }).join('');
 
@@ -3284,6 +3282,31 @@ function renderProductionView() {
 
       <div class="fac-orders-label">📦 Customer Orders in this Factory PO (${fpo.customerOrders.length})</div>
       ${orderRowsHTML}
+
+      ${(() => {
+        // Pool: production orders not yet in any Factory PO, optionally filtered by factory
+        const inAnyFPO = new Set(factoryPOs.flatMap(f => (f.customerOrders||[]).map(r => r.orderId || r.order_id)));
+        const pool = customers.flatMap(c => (c.orders||[])
+          .filter(o => o.stage === 'production' && !inAnyFPO.has(o.id))
+          .map(o => ({customer: c, order: o}))
+        );
+        if (pool.length === 0) return '';
+        return `<div style="margin-top:8px;border-top:1px dashed var(--border);padding-top:8px">
+          <div class="fac-orders-label" style="color:#6366F1">+ Link customer order</div>
+          ${pool.map(({customer, order}) => {
+            const factoryMismatch = fpo.factory_name && order.factory_name && fpo.factory_name !== order.factory_name;
+            return `<div onclick="event.stopPropagation();${factoryMismatch ? `showToast('❌ Factory mismatch: order is ${order.factory_name}')` : `addOrderToFPO('${fpo.id}',${customer.id},'${order.id}')`}"
+              style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border:1px solid ${factoryMismatch?'#FCA5A5':'var(--border)'};border-radius:7px;margin-bottom:5px;cursor:${factoryMismatch?'not-allowed':'pointer'};background:${factoryMismatch?'#FEF2F2':'var(--surface)'};opacity:${factoryMismatch?'0.7':'1'}">
+              <div>
+                <div style="font-size:12px;font-weight:700">${order.project_name||order.id}</div>
+                <div style="font-size:11px;color:var(--muted)">👤 ${customer.name}${order.factory_name?' · '+order.factory_name:''}</div>
+                ${factoryMismatch?`<div style="font-size:10px;color:#DC2626;font-weight:700">❌ Factory mismatch</div>`:''}
+              </div>
+              <span style="font-size:11px;font-weight:700;color:${factoryMismatch?'#DC2626':'#6366F1'}">${factoryMismatch?'✕':'+ Link'}</span>
+            </div>`;
+          }).join('')}
+        </div>`;
+      })()}
 
       <div class="checkin-box" onclick="event.stopPropagation()" style="margin-top:10px">
         <div class="checkin-label">📝 Weekly Check-in Note</div>
@@ -3346,6 +3369,27 @@ async function advanceFPO(fpoId) {
   }
   await dbUpdate('factory_pos', {id: fpoId}, updates);
   renderProductionView(); renderBoard();
+}
+
+async function addOrderToFPO(fpoId, customerId, orderId) {
+  const fpo = factoryPOs.find(f => f.id === fpoId);
+  if (!fpo) return;
+  if ((fpo.customerOrders||[]).some(r => (r.orderId||r.order_id) === orderId)) return;
+  const newRef = await dbInsert('factory_po_orders', {
+    factory_po_id: fpoId, customer_id: customerId, order_id: orderId
+  });
+  if (!fpo.customerOrders) fpo.customerOrders = [];
+  fpo.customerOrders.push({customerId, orderId, ...(newRef||{})});
+  renderProductionView();
+  showToast('✅ Order linked to ' + fpoId);
+}
+
+async function removeOrderFromFPO(fpoId, orderId) {
+  const fpo = factoryPOs.find(f => f.id === fpoId);
+  if (!fpo) return;
+  fpo.customerOrders = fpo.customerOrders.filter(r => (r.orderId||r.order_id) !== orderId);
+  await sb.from('factory_po_orders').delete().match({factory_po_id: fpoId, order_id: orderId});
+  renderProductionView();
 }
 
 async function saveFPONote(fpoId, val) {
