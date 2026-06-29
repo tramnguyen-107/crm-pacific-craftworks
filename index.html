@@ -3468,7 +3468,7 @@ function switchLeadTab(idx, el) {
 function renderLeadTab(idx) {
   const body = document.getElementById('lp-body');
   if (!activeLead) return;
-  if (activeLead._forCustomer) {
+  if (activeLead._forCustomer || activeLead._fromLead) {
     // Virtual lead (Add Order mode): Collect | Quote | Notes
     const po = getActivePO(activeLead);
     if (idx === 0) body.innerHTML = buildLeadInfoTab(activeLead, po);
