@@ -805,12 +805,14 @@
 <div class="view" id="view-production">
   <div class="toolbar" style="padding-top:0;justify-content:space-between">
     <span style="font-size:13px;color:var(--muted);font-weight:600" id="prod-count">—</span>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center">
       <button class="filter-btn active" id="prod-filter-all" onclick="setProdFilter('all',this)">All</button>
       <button class="filter-btn" onclick="setProdFilter('in_production',this)">In Production</button>
       <button class="filter-btn" onclick="setProdFilter('loaded',this)">Loaded</button>
+      <button onclick="openCreateFactoryPO()" style="padding:6px 14px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">+ Factory PO</button>
     </div>
   </div>
+  <div id="prod-orders-banner" style="padding:0 20px 0"></div>
   <div style="padding:0 20px 20px" id="prod-grid"></div>
 </div>
 
@@ -1489,6 +1491,7 @@ function buildOrderCard(order, customer) {
       <span>💰 Deposit: <strong style="color:${order.deposit_received?'#059669':'var(--text)'}">${depositAmt}</strong></span>
       <span>💵 Balance: <strong>${balance}</strong></span>
       <span>📅 ETA: <strong>${eta}</strong></span>
+      ${order.etd ? `<span>🚢 ETD: <strong>${order.etd}</strong></span>` : ''}
       ${order.log_in_date ? `<span>🕐 Log in: <strong>${new Date(order.log_in_date).toLocaleDateString('en-US',{timeZone:'Pacific/Honolulu',month:'short',day:'numeric'})}</strong></span>` : ''}
       ${fpo ? `<span>🏭 ${fpo.id}</span>` : ''}
       ${ctnPlan ? `<span style="color:#8B5CF6">📦 ${ctnPlan.id}</span>` : ''}
@@ -1611,6 +1614,17 @@ function buildUrgentSection(order, customer) {
 function buildNotesSection(order, customer) {
   const link = order.drive_link || '';
   return `<div class="notes-section">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div class="notes-label">📅 ETA (Hawaii arrival)</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);padding:4px 0">${order.eta || '—'}</div>
+      </div>
+      <div>
+        <div class="notes-label">🚢 ETD (Departure from factory)</div>
+        <input class="lp-input" type="date" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
+          onchange="saveOrderField(${customer.id},'${order.id}','etd',this.value)">
+      </div>
+    </div>
     <div class="notes-label">📁 Google Drive Link</div>
     <div class="drive-input-wrap">
       <input class="drive-input" type="url" value="${link}" placeholder="Paste Google Drive folder link..."
@@ -1862,6 +1876,17 @@ function buildOrderDetail(order, customer) {
         <div class="timeline-item">
           <div class="tl-left"><div class="tl-dot pending">○</div></div>
           <div class="tl-content"><div class="tl-title tl-title pending">Delivered</div><div class="tl-date">ETA: ${order.eta || '—'}</div></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">📅 ETA (Hawaii arrival)</div>
+          <div style="font-size:13px;font-weight:600">${order.eta || '—'}</div>
+        </div>
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">🚢 ETD (Departure)</div>
+          <input class="lp-input" type="date" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
+            onchange="saveOrderField(${customer.id},'${order.id}','etd',this.value)">
         </div>
       </div>
       ${buildNotesSection(order, customer)}
@@ -2767,17 +2792,32 @@ async function addOrderFromLead(virtualLeadId, poId) {
     const l = leads.find(x => x.id === vl._fromLead);
     if (!l) return;
     if (!confirm(`Convert "${l.name}" to a customer and create order "${projectName || newOId}"?`)) return;
-    const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
-    if (!newCust) { alert('Error creating customer'); return; }
+
+    // Check for existing customer by email OR name to avoid duplicates
+    const dupCust = customers.find(c =>
+      (l.email && c.email && c.email === l.email) ||
+      c.name.trim().toLowerCase() === l.name.trim().toLowerCase()
+    );
+
+    let targetCust = dupCust;
+    if (!targetCust) {
+      targetCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
+      if (!targetCust) { alert('Error creating customer'); return; }
+      if (!targetCust.orders) targetCust.orders = [];
+      customers.push(targetCust);
+    }
+
     const newO = await dbInsert('orders', {
-      id: newOId, customer_id: newCust.id, type: projectType,
+      id: newOId, customer_id: targetCust.id, type: projectType,
       project_name: projectName, stage: 'collect',
       balance: grandTotal > 0 ? grandTotal - deposit : 0,
       notes: vl.notes || '', checked: {}, deposit_received: false,
       collect_info: po.collect_info || {}, quote_items: po.quote_items || [], shipping_cost: po.shipping_cost || 0,
     });
-    if (!newO) { alert('Error creating order — customer was created but order failed'); return; }
-    customers.push({...newCust, orders: [{...newO, checked:{}}]});
+    if (!newO) { alert('Error creating order'); return; }
+    if (!targetCust.orders) targetCust.orders = [];
+    targetCust.orders.push({...newO, checked:{}});
+
     // Delete original lead
     leads = leads.filter(x => x.id !== vl._fromLead && x.id !== virtualLeadId);
     await dbDelete('leads', {id: vl._fromLead});
@@ -2786,8 +2826,9 @@ async function addOrderFromLead(virtualLeadId, poId) {
     document.getElementById('lead-panel').classList.remove('open');
     document.getElementById('lead-overlay').classList.remove('open');
     renderBoard();
+    if (currentView === 'leads') renderLeadsView();
     showToast('✅ ' + l.name + ' → Customer + ' + (projectName || newOId) + ' created');
-    setTimeout(() => openPanel(newCust.id), 200);
+    setTimeout(() => openPanel(targetCust.id), 200);
   }
 }
 
@@ -2959,9 +3000,43 @@ function renderCustomersTable(q = '') {
 // =====================
 // PRODUCTION VIEW
 // =====================
+function openCreateFactoryPO() {
+  const poId = 'FPO-' + String(Date.now()).slice(-6);
+  const label = prompt('Factory PO ID (e.g. FPO-001):', poId);
+  if (!label) return;
+  addFactoryPO(label.trim());
+}
+
+async function addFactoryPO(poId) {
+  const newFPO = await dbInsert('factory_pos', {
+    id: poId, factory: 'Hoang Kha Stone & Cabinet',
+    status: 'spec_sent', checkin_note: ''
+  });
+  if (!newFPO) { alert('Error creating Factory PO'); return; }
+  factoryPOs.push({...newFPO, customerOrders: []});
+  renderProductionView();
+  showToast('✅ Factory PO ' + poId + ' created');
+}
+
 function renderProductionView() {
   const grid = document.getElementById('prod-grid');
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Banner: orders at 'production' stage not yet in any Factory PO
+  const allOrders = customers.flatMap(c => (c.orders||[]).map(o => ({...o, _cust: c})));
+  const inFPO = new Set(factoryPOs.flatMap(f => (f.customerOrders||[]).map(r => r.orderId)));
+  const unlinked = allOrders.filter(o => o.stage === 'production' && !inFPO.has(o.id));
+  const banner = document.getElementById('prod-orders-banner');
+  if (banner) {
+    if (unlinked.length > 0) {
+      banner.innerHTML = `<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:6px">⚠️ ${unlinked.length} order${unlinked.length>1?'s':''} in Production not yet linked to a Factory PO:</div>
+        ${unlinked.map(o => `<div style="font-size:12px;color:#78350F;padding:2px 0">• <strong>${o.project_name||o.id}</strong> — ${o._cust.name}${o.etd?` · ETD ${o.etd}`:''}${o.eta?` · ETA ${o.eta}`:''}</div>`).join('')}
+      </div>`;
+    } else {
+      banner.innerHTML = '';
+    }
+  }
 
   const statusOrder = ['spec_sent', 'in_production', 'qc_done', 'prep_load', 'loaded', 'delivered'];
   const statusLabel = {
