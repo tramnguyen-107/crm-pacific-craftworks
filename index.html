@@ -1688,36 +1688,55 @@ function buildDepositSection(order, customer) {
 function buildOrderQuoteSection(order) {
   const items = order.quote_items || [];
   const shipping = parseFloat(order.shipping_cost) || 0;
-  if (items.length === 0 && shipping === 0) return '';
   const subtotal = items.reduce((s, it) => s + (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0), 0);
   const grandTotal = subtotal + shipping;
-  const deposit = grandTotal * 0.75;
+  const depositPaid = parseFloat(order.deposit_amount) || 0;
+  const balance = Math.max(0, grandTotal - depositPaid);
+  const fmt = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:0});
+  const oid = order.id;
+
+  const rows = items.map((it, i) => {
+    const lt = (parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0);
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:3px 2px"><input style="width:100%;border:none;background:transparent;font-size:12px;font-family:inherit;color:var(--text)" value="${(it.product||'').replace(/"/g,'&quot;')}" onchange="updateOrderQuoteItem('${oid}',${i},'product',this.value)" placeholder="Item name"></td>
+      <td style="padding:3px 2px;width:45px"><input type="number" min="0" style="width:100%;border:none;background:transparent;font-size:12px;text-align:right;font-family:inherit;color:var(--text)" value="${it.qty||1}" oninput="updateOrderQuoteItem('${oid}',${i},'qty',this.value)"></td>
+      <td style="padding:3px 2px;width:90px"><input type="number" min="0" style="width:100%;border:none;background:transparent;font-size:12px;text-align:right;font-family:inherit;color:var(--text)" value="${it.unit_cost||0}" oninput="updateOrderQuoteItem('${oid}',${i},'unit_cost',this.value)"></td>
+      <td style="text-align:right;padding:3px 4px;width:70px;font-weight:600;font-size:12px" id="oq-row-${oid}-${i}">${fmt(lt)}</td>
+      <td style="padding:3px 2px;width:20px"><button onclick="removeOrderQuoteItem('${oid}',${i})" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0">✕</button></td>
+    </tr>`;
+  }).join('');
+
   return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">
     <div style="background:var(--surface);padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
       <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2)">💰 Quote</span>
-      <span style="font-size:12px;font-weight:700;color:var(--brand)">Total: $${grandTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</span>
+      <span style="font-size:12px;font-weight:700;color:var(--brand)" id="oq-grand-${oid}">Total: ${fmt(grandTotal)}</span>
     </div>
     <div style="padding:8px 12px">
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <table class="quote-table" style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="border-bottom:1px solid var(--border)">
           <th style="text-align:left;padding:4px 0;font-weight:600;color:var(--muted)">Item</th>
-          <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:40px">Qty</th>
-          <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:80px">Unit</th>
+          <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:45px">Qty</th>
+          <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:90px">Unit $</th>
           <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:70px">Total</th>
+          <th style="width:20px"></th>
         </tr></thead>
-        <tbody>${items.map(it => {
-          const lt = (parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0);
-          return `<tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:4px 0">${it.product||'—'}</td>
-            <td style="text-align:right;padding:4px 0">${it.qty||1}</td>
-            <td style="text-align:right;padding:4px 0">$${(parseFloat(it.unit_cost)||0).toLocaleString()}</td>
-            <td style="text-align:right;padding:4px 0;font-weight:600">$${lt.toLocaleString()}</td>
-          </tr>`;
-        }).join('')}</tbody>
+        <tbody id="oq-tbody-${oid}">${rows}</tbody>
       </table>
-      ${shipping > 0 ? `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--muted)">Shipping</span><span>$${shipping.toLocaleString()}</span></div>` : ''}
-      <div style="display:flex;justify-content:space-between;padding:6px 0 2px;font-size:13px;font-weight:700"><span>Grand Total</span><span>$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:2px 0 4px;font-size:12px;color:#059669;font-weight:600"><span>Deposit 75%</span><span>$${deposit.toLocaleString('en-US',{minimumFractionDigits:0})}</span></div>
+      <button onclick="addOrderQuoteItem('${oid}')" style="margin-top:6px;font-size:11px;background:none;border:1px dashed var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--muted);width:100%;font-family:inherit">+ Add Item</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-top:1px solid var(--border);margin-top:6px;font-size:12px">
+        <span style="color:var(--muted)">Shipping</span>
+        <span style="display:flex;align-items:center;gap:4px">$<input type="number" min="0" value="${shipping}" oninput="updateOrderShipping('${oid}',this.value)" style="width:70px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;font-size:12px;text-align:right;font-family:inherit"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;font-weight:700">
+        <span>Grand Total</span><span id="oq-grand-total-${oid}">${fmt(grandTotal)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0;font-size:12px;color:#059669;font-weight:600">
+        <span>🔒 Deposit Paid</span><span>${depositPaid > 0 ? fmt(depositPaid) : '—'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0 4px;font-size:12px;font-weight:700;color:${balance > 0 ? '#DC2626' : '#059669'}">
+        <span>Balance Due</span><span id="oq-balance-${oid}">${fmt(balance)}</span>
+      </div>
+      <button onclick="saveOrderQuote('${oid}')" style="margin-top:8px;width:100%;padding:8px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">💾 Save Quote</button>
     </div>
   </div>`;
 }
@@ -3888,6 +3907,77 @@ async function saveQuote(leadId, poId) {
   if (!l) return;
   await dbUpdate('leads', {id: leadId}, {lead_pos: l.lead_pos});
   showToast('✅ Quote saved!');
+}
+
+// ---- Order-level quote editing (pipeline) ----
+function _oqRecalc(order) {
+  const items = order.quote_items || [];
+  const shipping = parseFloat(order.shipping_cost) || 0;
+  const subtotal = items.reduce((s, it) => s + (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0), 0);
+  const grandTotal = subtotal + shipping;
+  const depositPaid = parseFloat(order.deposit_amount) || 0;
+  const balance = Math.max(0, grandTotal - depositPaid);
+  const fmt = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:0});
+  const oid = order.id;
+  const el = id => document.getElementById(id);
+  if (el('oq-grand-'+oid)) el('oq-grand-'+oid).textContent = 'Total: ' + fmt(grandTotal);
+  if (el('oq-grand-total-'+oid)) el('oq-grand-total-'+oid).textContent = fmt(grandTotal);
+  if (el('oq-balance-'+oid)) {
+    el('oq-balance-'+oid).textContent = fmt(balance);
+    el('oq-balance-'+oid).style.color = balance > 0 ? '#DC2626' : '#059669';
+  }
+  items.forEach((it, i) => {
+    const td = document.getElementById('oq-row-'+oid+'-'+i);
+    if (td) td.textContent = fmt((parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0));
+  });
+  return { grandTotal, balance };
+}
+
+function addOrderQuoteItem(orderId) {
+  const c = customers.find(x => x.orders?.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.quote_items = order.quote_items || [];
+  order.quote_items.push({product:'', qty:1, unit_cost:0});
+  renderPanelTab(activePanelTab);
+}
+
+function removeOrderQuoteItem(orderId, idx) {
+  const c = customers.find(x => x.orders?.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.quote_items.splice(idx, 1);
+  renderPanelTab(activePanelTab);
+}
+
+function updateOrderQuoteItem(orderId, idx, field, value) {
+  const c = customers.find(x => x.orders?.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order || !order.quote_items[idx]) return;
+  order.quote_items[idx][field] = (field === 'qty' || field === 'unit_cost') ? (parseFloat(value)||0) : value;
+  _oqRecalc(order);
+}
+
+function updateOrderShipping(orderId, value) {
+  const c = customers.find(x => x.orders?.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.shipping_cost = parseFloat(value) || 0;
+  _oqRecalc(order);
+}
+
+async function saveOrderQuote(orderId) {
+  const c = customers.find(x => x.orders?.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const { grandTotal, balance } = _oqRecalc(order);
+  order.balance = balance;
+  await dbUpdate('orders', {id: orderId}, {
+    quote_items: order.quote_items || [],
+    shipping_cost: order.shipping_cost || 0,
+    balance: balance,
+  });
+  showToast('✅ Quote saved — Balance: $' + balance.toLocaleString('en-US', {minimumFractionDigits:0}));
 }
 
 function printQuote(leadId, poId) {
