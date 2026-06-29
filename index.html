@@ -320,6 +320,8 @@
   .filter-btn { padding: 7px 13px; border: 1px solid var(--border); background: var(--white); border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.12s; }
   .filter-btn:hover { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
   .filter-btn.active { background: var(--brand); color: white; border-color: var(--brand); font-weight: 600; }
+  .dest-btn { padding:5px 12px; border:1.5px solid var(--border); background:var(--surface); border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; color:var(--text-2); transition:all 0.12s; font-family:inherit; }
+  .dest-btn.active { background:var(--brand); color:white; border-color:var(--brand); }
 
   /* VIEWS */
   .view { display: none; }
@@ -1008,8 +1010,27 @@
 </div>
 
 <div class="modal-overlay" id="container-modal">
-  <div class="modal" style="width:400px">
+  <div class="modal" style="width:420px">
     <div class="modal-title">New Container</div>
+    <div class="form-group">
+      <label class="form-label">🏭 Factory / Supplier</label>
+      <select class="form-select" id="ctn-factory">
+        <option value="Văn Huệ Furniture">Văn Huệ Furniture</option>
+        <option value="Craftica">Craftica</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">📍 Destination</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px" id="ctn-dest-btns">
+        <button type="button" class="dest-btn active" onclick="selectCtnDest('Honolulu',this)">Honolulu</button>
+        <button type="button" class="dest-btn" onclick="selectCtnDest('Kona',this)">Kona</button>
+        <button type="button" class="dest-btn" onclick="selectCtnDest('Maui',this)">Maui</button>
+        <button type="button" class="dest-btn" onclick="selectCtnDest('Hilo',this)">Hilo</button>
+        <button type="button" class="dest-btn" onclick="selectCtnDest('__other__',this)">Others…</button>
+      </div>
+      <input class="form-input" id="ctn-dest-other" placeholder="Enter destination name" style="display:none;margin-top:4px">
+      <input type="hidden" id="ctn-destination" value="Honolulu">
+    </div>
     <div class="form-group">
       <label class="form-label">Container Type</label>
       <select class="form-select" id="ctn-type" onchange="updateContainerDefaults()">
@@ -1029,7 +1050,7 @@
     </div>
     <div class="form-group">
       <label class="form-label">Target Orders</label>
-      <input class="form-input" id="ctn-target" type="number" value="8" placeholder="Số orders muốn gom">
+      <input class="form-input" id="ctn-target" type="number" value="8">
     </div>
     <div class="form-group">
       <label class="form-label">Planned Load Date</label>
@@ -1038,6 +1059,66 @@
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeContainerModal()">Cancel</button>
       <button class="btn btn-primary" onclick="confirmAddContainer()">Create Container</button>
+    </div>
+  </div>
+</div>
+
+<!-- FACTORY PO MODAL -->
+<div class="modal-overlay" id="fpo-modal" onclick="if(event.target===this)closeFPOModal()">
+  <div class="modal" style="width:380px">
+    <div class="modal-title">New Factory PO</div>
+    <div class="form-group">
+      <label class="form-label">🏭 Factory / Supplier</label>
+      <select class="form-select" id="fpo-factory">
+        <option value="Văn Huệ Furniture">Văn Huệ Furniture</option>
+        <option value="Craftica">Craftica</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">PO ID (để trống = tự tạo)</label>
+      <input class="form-input" id="fpo-id" placeholder="e.g. FPO-001">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeFPOModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmCreateFactoryPO()">Create Factory PO</button>
+    </div>
+  </div>
+</div>
+
+<!-- BOOKING INFO MODAL -->
+<div class="modal-overlay" id="booking-modal" onclick="if(event.target===this)closeBookingModal()">
+  <div class="modal" style="width:460px">
+    <div class="modal-title">🚢 Booking Info</div>
+    <input type="hidden" id="bk-ctn-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Hãng tàu (Shipping Line)</label>
+        <input class="form-input" id="bk-shipping-line" placeholder="e.g. Matson, Evergreen">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Số Booking</label>
+        <input class="form-input" id="bk-booking-no" placeholder="e.g. MAT123456">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Tên / Số hiệu tàu (Vessel)</label>
+        <input class="form-input" id="bk-vessel" placeholder="e.g. Maunawili V-027">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Forwarder / Agency</label>
+        <input class="form-input" id="bk-agency" placeholder="e.g. Pacific Freight Agency">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">🚢 ETD (ngày tàu chạy)</label>
+        <input class="form-input" id="bk-etd" type="date">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">🛬 ETA Hawaii (ngày tàu đến)</label>
+        <input class="form-input" id="bk-eta" type="date">
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-outline" onclick="closeBookingModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBookingInfo()">💾 Save</button>
     </div>
   </div>
 </div>
@@ -1623,6 +1704,30 @@ function buildNotesSection(order, customer) {
         <div class="notes-label">🚢 ETD (Departure from factory)</div>
         <input class="lp-input" type="date" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
           onchange="saveOrderField(${customer.id},'${order.id}','etd',this.value)">
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <div class="notes-label">🏭 Factory / Supplier</div>
+      <select class="lp-input" style="font-size:12px;margin-top:4px"
+        onchange="saveOrderField(${customer.id},'${order.id}','factory_name',this.value)">
+        <option value="">— Select factory —</option>
+        <option value="Văn Huệ Furniture" ${order.factory_name==='Văn Huệ Furniture'?'selected':''}>Văn Huệ Furniture</option>
+        <option value="Craftica" ${order.factory_name==='Craftica'?'selected':''}>Craftica</option>
+      </select>
+    </div>
+    <div style="margin-bottom:10px">
+      <div class="notes-label">📍 Destination</div>
+      <div class="dest-btn-group" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+        ${['Honolulu','Kona','Maui','Hilo'].map(d =>
+          `<button type="button" class="dest-btn${order.destination===d?' active':''}"
+            onclick="selectOrderDest('${d}',this,${customer.id},'${order.id}')">${d}</button>`
+        ).join('')}
+        <button type="button" class="dest-btn${!['Honolulu','Kona','Maui','Hilo',''].includes(order.destination||'')?' active':''}"
+          onclick="selectOrderDest('__other__',this,${customer.id},'${order.id}')">Others…</button>
+        <input class="lp-input dest-other-input" placeholder="Enter destination"
+          style="display:${!['Honolulu','Kona','Maui','Hilo',''].includes(order.destination||'')?'':'none'};font-size:12px;padding:5px 8px;margin-top:4px;width:100%"
+          value="${!['Honolulu','Kona','Maui','Hilo',''].includes(order.destination||'')?order.destination||'':''}"
+          onchange="saveOrderField(${customer.id},'${order.id}','destination',this.value)">
       </div>
     </div>
     <div class="notes-label">📁 Google Drive Link</div>
@@ -3001,19 +3106,32 @@ function renderCustomersTable(q = '') {
 // PRODUCTION VIEW
 // =====================
 function openCreateFactoryPO() {
-  const poId = 'FPO-' + String(Date.now()).slice(-6);
-  const label = prompt('Factory PO ID (e.g. FPO-001):', poId);
-  if (!label) return;
-  addFactoryPO(label.trim());
+  document.getElementById('fpo-modal').classList.add('open');
+}
+function closeFPOModal() {
+  document.getElementById('fpo-modal').classList.remove('open');
+}
+async function confirmCreateFactoryPO() {
+  const factory = document.getElementById('fpo-factory').value;
+  const poId = document.getElementById('fpo-id').value.trim() || ('FPO-' + String(Date.now()).slice(-6));
+  closeFPOModal();
+  const newFPO = await dbInsert('factory_pos', {
+    id: poId, factory: factory, factory_name: factory,
+    status: 'spec_sent', checkin_note: ''
+  });
+  if (!newFPO) { alert('Error creating Factory PO'); return; }
+  factoryPOs.push({...newFPO, factory_name: factory, customerOrders: []});
+  renderProductionView();
+  showToast('✅ Factory PO ' + poId + ' — ' + factory);
 }
 
 async function addFactoryPO(poId) {
   const newFPO = await dbInsert('factory_pos', {
-    id: poId, factory: 'Hoang Kha Stone & Cabinet',
+    id: poId, factory: 'Văn Huệ Furniture', factory_name: 'Văn Huệ Furniture',
     status: 'spec_sent', checkin_note: ''
   });
   if (!newFPO) { alert('Error creating Factory PO'); return; }
-  factoryPOs.push({...newFPO, customerOrders: []});
+  factoryPOs.push({...newFPO, factory_name: 'Văn Huệ Furniture', customerOrders: []});
   renderProductionView();
   showToast('✅ Factory PO ' + poId + ' created');
 }
@@ -3292,16 +3410,24 @@ function renderContainerView() {
           </div>`;
         }).join('');
 
-    // Pool orders available to add
+    // Pool orders available to add (filtered by factory match if container has factory set)
     const poolHTML = poolOrders.length === 0
       ? `<div style="text-align:center;font-size:11px;color:var(--muted);padding:8px">No unassigned orders in production</div>`
       : poolOrders.map(({ customer, order }) => {
-          return `<div class="ctn-pool-item" onclick="addToContainer('${ctn.id}', ${customer.id}, '${order.id}')">
+          const factoryMismatch = ctn.factory_name && order.factory_name && order.factory_name !== ctn.factory_name;
+          const destMismatch = ctn.destination && order.destination && order.destination !== ctn.destination;
+          const blocked = factoryMismatch || destMismatch;
+          const mismatchNote = factoryMismatch ? `❌ Factory: ${order.factory_name||'?'}` : destMismatch ? `❌ Dest: ${order.destination||'?'}` : '';
+          return `<div class="ctn-pool-item" style="${blocked?'opacity:0.5;':''}${blocked?'cursor:not-allowed;':''}" onclick="${blocked?`showToast('❌ ${mismatchNote} — cannot load into this container')`:`addToContainer('${ctn.id}',${customer.id},'${order.id}')`}">
             <div class="co-left">
-              <div class="co-po">${order.id} <span style="font-size:10px;color:var(--muted)">· ${order.type}</span></div>
+              <div class="co-po">${order.project_name||order.id} <span style="font-size:10px;color:var(--muted)">· ${order.type}</span></div>
               <div class="co-cust" style="font-size:11px">👤 ${customer.name}</div>
+              ${order.destination ? `<div style="font-size:10px;color:#1D4ED8">📍 ${order.destination}</div>` : ''}
+              ${blocked ? `<div style="font-size:10px;color:#DC2626;font-weight:700">${mismatchNote}</div>` : ''}
             </div>
-            <span class="ctn-add-btn">+ Add</span>
+            <span class="ctn-add-btn" style="${blocked?'background:#FEE2E2;color:#DC2626;':''}">
+              ${blocked ? '✕' : '+ Add'}
+            </span>
           </div>`;
         }).join('');
 
@@ -3309,15 +3435,25 @@ function renderContainerView() {
     const readyColor = isReady ? '#065F46' : '#92400E';
     const readyText = isReady ? '✅ Ready to load!' : `⏳ ${ctn.targetOrders - ctn.orderRefs.length} more orders to reach target`;
 
+    const hasBooking = ctn.booking_no || ctn.vessel || ctn.shipping_line;
     return `<div class="ctn-col">
       <div class="ctn-col-header">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="ctn-col-id">${ctn.id}</div>
             <div class="ctn-col-name">${ctn.label}</div>
-            <div class="ctn-col-date">📅 ETD (load): <strong>${ctn.plannedLoadDate || '—'}</strong></div>
-            <div class="ctn-col-date">🛬 ETA (arrival): <strong>${ctn.eta || ctn.orderRefs.map(r => customers.find(c=>c.id===r.customerId)?.orders.find(o=>o.id===r.orderId)?.eta).filter(Boolean)[0] || '—'}</strong></div>
-            ${ctnTotalValue > 0 ? `<div style="margin-top:6px;font-size:12px;font-weight:700;color:#059669">💵 Total value: $${ctnTotalValue.toLocaleString()}</div>` : ''}
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">
+              <span style="font-size:10px;font-weight:700;background:#EDE9FE;color:#5B21B6;padding:2px 8px;border-radius:20px">🏭 ${ctn.factory_name || '—'}</span>
+              <span style="font-size:10px;font-weight:700;background:#DBEAFE;color:#1D4ED8;padding:2px 8px;border-radius:20px">📍 ${ctn.destination || '—'}</span>
+            </div>
+            ${hasBooking ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">🚢 ${ctn.shipping_line||''} ${ctn.vessel ? '· '+ctn.vessel : ''} ${ctn.booking_no ? '· #'+ctn.booking_no : ''}</div>` : ''}
+            <div class="ctn-col-date">📅 ETD: <strong>${ctn.etd || ctn.plannedLoadDate || '—'}</strong></div>
+            <div class="ctn-col-date">🛬 ETA: <strong>${ctn.eta || '—'}</strong></div>
+            ${ctn.agency ? `<div style="font-size:11px;color:var(--muted)">Agency: ${ctn.agency}</div>` : ''}
+            ${ctnTotalValue > 0 ? `<div style="margin-top:4px;font-size:12px;font-weight:700;color:#059669">💵 $${ctnTotalValue.toLocaleString()}</div>` : ''}
+            <button onclick="openBookingModal('${ctn.id}')" style="margin-top:8px;padding:5px 12px;background:${hasBooking?'#EFF6FF':'var(--surface)'};border:1.5px solid ${hasBooking?'#3B82F6':'var(--border)'};border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;color:${hasBooking?'#1D4ED8':'var(--muted)'};font-family:inherit">
+              🚢 ${hasBooking ? 'Booking Info ✓' : 'Add Booking Info'}
+            </button>
           </div>
           <div class="card-menu-wrap" onclick="event.stopPropagation()">
             <button class="kebab-btn" onclick="toggleKebab('ctn-${ctn.id}')">···</button>
@@ -3429,18 +3565,90 @@ function closeContainerModal() {
   document.getElementById('container-modal').classList.remove('open');
 }
 
+function selectCtnDest(val, btn) {
+  document.querySelectorAll('#ctn-dest-btns .dest-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const otherInput = document.getElementById('ctn-dest-other');
+  if (val === '__other__') {
+    otherInput.style.display = '';
+    otherInput.focus();
+    document.getElementById('ctn-destination').value = '';
+  } else {
+    otherInput.style.display = 'none';
+    document.getElementById('ctn-destination').value = val;
+  }
+}
+
+function selectOrderDest(val, btn, customerId, orderId) {
+  const wrap = btn.closest('.dest-btn-group');
+  wrap.querySelectorAll('.dest-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const otherInput = wrap.querySelector('.dest-other-input');
+  if (val === '__other__') {
+    otherInput.style.display = '';
+    otherInput.focus();
+  } else {
+    otherInput.style.display = 'none';
+    saveOrderField(customerId, orderId, 'destination', val);
+  }
+}
+
 async function confirmAddContainer() {
-  const label    = document.getElementById('ctn-label').value.trim();
-  const capacity = parseFloat(document.getElementById('ctn-capacity').value) || 76;
-  const target   = parseInt(document.getElementById('ctn-target').value) || 8;
-  const date     = document.getElementById('ctn-date').value || null;
+  const label       = document.getElementById('ctn-label').value.trim();
+  const capacity    = parseFloat(document.getElementById('ctn-capacity').value) || 76;
+  const target      = parseInt(document.getElementById('ctn-target').value) || 8;
+  const date        = document.getElementById('ctn-date').value || null;
+  const factoryName = document.getElementById('ctn-factory').value;
+  const otherDest   = document.getElementById('ctn-dest-other').value.trim();
+  const destination = otherDest || document.getElementById('ctn-destination').value || 'Honolulu';
   if (!label) { alert('Nhập tên container'); return; }
   const newId = 'CTN-'+new Date().getFullYear()+'-'+String(Date.now()).slice(-4);
   closeContainerModal();
-  const newC = await dbInsert('container_plans', {id:newId, label, target_orders:target, capacity_m3:capacity, planned_load_date:date, status:'planning'});
-  containerPlans.push({...(newC||{id:newId}), label, targetOrders:target, capacityM3:capacity, plannedLoadDate:date, orderRefs:[]});
+  const newC = await dbInsert('container_plans', {
+    id: newId, label, target_orders: target, capacity_m3: capacity,
+    planned_load_date: date, status: 'planning',
+    factory_name: factoryName, destination
+  });
+  containerPlans.push({...(newC||{id:newId}), label, targetOrders:target, capacityM3:capacity,
+    plannedLoadDate:date, factory_name:factoryName, destination, orderRefs:[]});
   renderContainerView();
-  showToast(`✅ Container "${label}" created`);
+  showToast(`✅ Container "${label}" — ${factoryName} → ${destination}`);
+}
+
+function openBookingModal(ctnId) {
+  const ctn = containerPlans.find(c => c.id === ctnId);
+  if (!ctn) return;
+  document.getElementById('bk-ctn-id').value = ctnId;
+  document.getElementById('bk-shipping-line').value = ctn.shipping_line || '';
+  document.getElementById('bk-booking-no').value    = ctn.booking_no || '';
+  document.getElementById('bk-vessel').value         = ctn.vessel || '';
+  document.getElementById('bk-agency').value         = ctn.agency || '';
+  document.getElementById('bk-etd').value            = ctn.etd || '';
+  document.getElementById('bk-eta').value            = ctn.eta || '';
+  document.getElementById('booking-modal').classList.add('open');
+}
+
+function closeBookingModal() {
+  document.getElementById('booking-modal').classList.remove('open');
+}
+
+async function saveBookingInfo() {
+  const ctnId = document.getElementById('bk-ctn-id').value;
+  const ctn = containerPlans.find(c => c.id === ctnId);
+  if (!ctn) return;
+  const fields = {
+    shipping_line: document.getElementById('bk-shipping-line').value.trim(),
+    booking_no:    document.getElementById('bk-booking-no').value.trim(),
+    vessel:        document.getElementById('bk-vessel').value.trim(),
+    agency:        document.getElementById('bk-agency').value.trim(),
+    etd:           document.getElementById('bk-etd').value || null,
+    eta:           document.getElementById('bk-eta').value || null,
+  };
+  Object.assign(ctn, fields);
+  await dbUpdate('container_plans', {id: ctnId}, fields);
+  closeBookingModal();
+  renderContainerView();
+  showToast('✅ Booking info saved');
 }
 
 // =====================
