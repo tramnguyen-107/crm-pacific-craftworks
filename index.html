@@ -59,6 +59,11 @@
   .doc-input:focus { border-color:var(--brand,#984216); }
   .doc-textarea { width:100%; padding:7px 10px; border:1px solid var(--border,#D2C2AE); border-radius:6px; font-size:12px; font-family:inherit; outline:none; resize:vertical; min-height:70px; margin-bottom:6px; }
   .doc-save-btn { padding:6px 14px; background:var(--brand,#984216); color:white; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .field-save-btn { padding:4px 10px; background:var(--brand,#984216); color:white; border:none; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; flex-shrink:0; }
+  .field-save-btn:hover { opacity:0.85; }
+  .field-row { display:flex; gap:6px; align-items:center; }
+  .section-save-btn { margin-top:10px; padding:7px 16px; background:var(--brand,#984216); color:white; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .section-save-btn:hover { opacity:0.85; }
   .doc-cancel-btn { padding:6px 12px; background:transparent; color:var(--muted,#78898F); border:1px solid var(--border,#D2C2AE); border-radius:6px; font-size:12px; cursor:pointer; font-family:inherit; margin-left:6px; }
   .doc-upload-label { display:block; padding:12px; border:1.5px dashed var(--border,#D2C2AE); border-radius:8px; text-align:center; cursor:pointer; font-size:12px; color:var(--muted,#78898F); margin-bottom:6px; transition:all 0.12s; }
   .doc-upload-label:hover { border-color:var(--brand,#984216); color:var(--brand,#984216); background:rgba(152,66,22,0.04); }
@@ -1743,14 +1748,14 @@ function buildNotesSection(order, customer) {
       </div>
     </div>
     <div class="notes-label">📁 Google Drive Link</div>
-    <div class="drive-input-wrap">
-      <input class="drive-input" type="url" value="${link}" placeholder="Paste Google Drive folder link..."
-        onchange="saveOrderField(${customer.id},'${order.id}','drive_link',this.value)">
+    <div class="field-row" style="margin-top:4px">
+      <input class="drive-input" id="drive_link_${order.id}" type="url" value="${link}" placeholder="Paste Google Drive folder link..." style="flex:1">
       ${link ? `<button class="drive-link-btn" onclick="window.open('${link}','_blank')">Open ↗</button>` : ''}
+      <button class="field-save-btn" onclick="saveNotesFields(${customer.id},'${order.id}')">Save</button>
     </div>
     <div class="notes-label" style="margin-top:8px">📝 Order Notes</div>
-    <textarea class="order-notes-ta" placeholder="Notes, special instructions..."
-      onchange="saveOrderField(${customer.id},'${order.id}','order_notes',this.value)">${order.order_notes || ''}</textarea>
+    <textarea class="order-notes-ta" id="order_notes_${order.id}" placeholder="Notes, special instructions...">${order.order_notes || ''}</textarea>
+    <button class="section-save-btn" onclick="saveNotesFields(${customer.id},'${order.id}')">💾 Save notes</button>
   </div>`;
 }
 
@@ -2035,8 +2040,10 @@ function buildOrderDetail(order, customer) {
       </div>
       <div class="lp-field" style="margin:10px 0">
         <label class="lp-label">Container Tracking #</label>
-        <input class="lp-input" type="text" placeholder="e.g. MSCU1234567" value="${order.container_tracking||''}"
-          onchange="saveOrderField(${customer.id},'${order.id}','container_tracking',this.value)">
+        <div class="field-row">
+          <input class="lp-input" id="container_tracking_${order.id}" type="text" placeholder="e.g. MSCU1234567" value="${order.container_tracking||''}">
+          <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','container_tracking','container_tracking_${order.id}')">Save</button>
+        </div>
       </div>
       <div class="lp-field" style="margin-bottom:14px">
         <label class="lp-label">Port Arrival Date (estimated)</label>
@@ -2090,8 +2097,10 @@ function buildOrderDetail(order, customer) {
       <div style="padding:10px 12px;background:${!warehouseOk?'var(--surface)':installOk?'#F0FDF4':'#F5F3FF'};border:1px solid ${!warehouseOk?'var(--border)':installOk?'#BBF7D0':'#DDD6FE'};border-radius:8px;margin-bottom:12px;${!warehouseOk?'opacity:0.5;pointer-events:none':''}">
         <div class="lp-contact-grid">
           <div class="lp-field"><label class="lp-label">Installer / Crew *</label>
-            <input class="lp-input" type="text" placeholder="Name or company" value="${order.installer_name||''}"
-              onchange="saveOrderField(${customer.id},'${order.id}','installer_name',this.value)"></div>
+            <div class="field-row">
+              <input class="lp-input" id="installer_name_${order.id}" type="text" placeholder="Name or company" value="${order.installer_name||''}">
+              <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','installer_name','installer_name_${order.id}')">Save</button>
+            </div></div>
           <div class="lp-field"><label class="lp-label">Install Date *</label>
             <input class="lp-input" type="date" value="${order.install_date||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_date',this.value)"></div>
@@ -4156,13 +4165,13 @@ function buildQuoteTab(lead, po) {
 function buildLeadContactTab(lead) {
   return `<div class="lp-contact-grid">
     <div class="lp-field"><label class="lp-label">Full Name</label>
-      <input class="lp-input" value="${lead.name||''}" onchange="saveLeadField('${lead.id}','name',this.value)"></div>
+      <input class="lp-input" id="lead_name_${lead.id}" value="${lead.name||''}"></div>
     <div class="lp-field"><label class="lp-label">Company</label>
-      <input class="lp-input" value="${lead.company||''}" placeholder="—" onchange="saveLeadField('${lead.id}','company',this.value)"></div>
+      <input class="lp-input" id="lead_company_${lead.id}" value="${lead.company||''}" placeholder="—"></div>
     <div class="lp-field"><label class="lp-label">Email</label>
-      <input class="lp-input" type="email" value="${lead.email||''}" placeholder="—" onchange="saveLeadField('${lead.id}','email',this.value)"></div>
+      <input class="lp-input" id="lead_email_${lead.id}" type="email" value="${lead.email||''}" placeholder="—"></div>
     <div class="lp-field"><label class="lp-label">Phone</label>
-      <input class="lp-input" value="${lead.phone||''}" placeholder="—" onchange="saveLeadField('${lead.id}','phone',this.value)"></div>
+      <input class="lp-input" id="lead_phone_${lead.id}" value="${lead.phone||''}" placeholder="—"></div>
     <div class="lp-field"><label class="lp-label">Source</label>
       <select class="lp-input" onchange="saveLeadField('${lead.id}','source',this.value)">
         ${['Web Form','Referral','Email','Phone','Walk-in'].map(s=>`<option${lead.source===s?' selected':''}>${s}</option>`).join('')}
@@ -4172,22 +4181,23 @@ function buildLeadContactTab(lead) {
         ${['Kitchen Remodel','Bathroom','Vanity','Full Remodel','Other'].map(s=>`<option${lead.interest===s?' selected':''}>${s}</option>`).join('')}
       </select></div>
     <div class="lp-field"><label class="lp-label">Budget</label>
-      <input class="lp-input" value="${lead.budget||''}" placeholder="e.g. $25k–$50k" onchange="saveLeadField('${lead.id}','budget',this.value)"></div>
+      <input class="lp-input" id="lead_budget_${lead.id}" value="${lead.budget||''}" placeholder="e.g. $25k–$50k"></div>
     <div class="lp-field"><label class="lp-label">Follow-up Date</label>
       <input class="lp-input" type="date" value="${lead.follow_up||''}" onchange="saveLeadField('${lead.id}','follow_up',this.value)"></div>
     <div class="lp-field"><label class="lp-label">Status</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
         ${LEAD_STATUSES.map(s=>`<span class="lead-status-chip${lead.status===s?' sel':''}" onclick="setLeadStatus('${lead.id}','${s}');renderLeadTab(1)">${s}</span>`).join('')}
       </div></div>
-  </div>`;
+  </div>
+  <button class="section-save-btn" onclick="saveLeadContactFields('${lead.id}')">💾 Save contact info</button>`;
 }
 
 function buildLeadNotesTab(lead) {
   return `<div class="lp-field">
     <label class="lp-label">Notes / Conversation Log</label>
-    <textarea class="lp-input" rows="12" style="resize:vertical;font-size:13px;line-height:1.5"
-      onchange="saveLeadField('${lead.id}','notes',this.value)"
+    <textarea class="lp-input" id="lead_notes_${lead.id}" rows="12" style="resize:vertical;font-size:13px;line-height:1.5"
       placeholder="Ghi chú cuộc gọi, yêu cầu của khách, lịch sử trao đổi...">${lead.notes||''}</textarea>
+    <button class="section-save-btn" onclick="saveLeadNotesField('${lead.id}')">💾 Save notes</button>
   </div>`;
 }
 
@@ -4200,6 +4210,59 @@ async function saveLeadField(leadId, field, value) {
   }
   if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {[field]: value});
   else saveDraft(l);
+  showToast('✅ Saved');
+}
+
+// Save a single text input by element id, then re-render order detail
+async function saveTextField(customerId, orderId, field, inputId) {
+  const val = document.getElementById(inputId)?.value ?? '';
+  await saveOrderField(customerId, orderId, field, val);
+}
+
+// Batch save drive_link + order_notes in one Supabase call
+async function saveNotesFields(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const dl    = document.getElementById('drive_link_'   + orderId)?.value ?? order.drive_link    ?? '';
+  const notes = document.getElementById('order_notes_'  + orderId)?.value ?? order.order_notes   ?? '';
+  order.drive_link   = dl;
+  order.order_notes  = notes;
+  await dbUpdate('orders', {id: orderId}, {drive_link: dl, order_notes: notes});
+  showToast('✅ Notes saved');
+  const detailEl = document.getElementById('detail-' + orderId);
+  if (detailEl) detailEl.innerHTML = buildOrderDetail(order, c);
+}
+
+// Batch save lead contact text fields
+async function saveLeadContactFields(leadId) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  const fields = {
+    name:    document.getElementById('lead_name_'    + leadId)?.value ?? l.name    ?? '',
+    company: document.getElementById('lead_company_' + leadId)?.value ?? l.company ?? '',
+    email:   document.getElementById('lead_email_'   + leadId)?.value ?? l.email   ?? '',
+    phone:   document.getElementById('lead_phone_'   + leadId)?.value ?? l.phone   ?? '',
+    budget:  document.getElementById('lead_budget_'  + leadId)?.value ?? l.budget  ?? '',
+  };
+  Object.assign(l, fields);
+  if (activeLead?.id === leadId) {
+    document.getElementById('lp-meta').textContent = (l.company ? l.company + ' · ' : '') + (l.interest || '') + (l.budget ? ' · ' + l.budget : '');
+  }
+  if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, fields);
+  else saveDraft(l);
+  showToast('✅ Contact info saved');
+}
+
+// Save lead notes textarea
+async function saveLeadNotesField(leadId) {
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  const notes = document.getElementById('lead_notes_' + leadId)?.value ?? l.notes ?? '';
+  l.notes = notes;
+  if (!leadId.startsWith('_new_')) await dbUpdate('leads', {id: leadId}, {notes});
+  else saveDraft(l);
+  showToast('✅ Notes saved');
 }
 
 function updateShipping(leadId, poId, value) {
