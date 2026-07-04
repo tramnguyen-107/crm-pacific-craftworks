@@ -1697,13 +1697,25 @@ function buildNotesSection(order, customer) {
   return `<div class="notes-section">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
       <div>
-        <div class="notes-label">📅 ETA (Hawaii arrival)</div>
+        <div class="notes-label">🚢 ETD — Est. Departure</div>
+        <input class="lp-input" type="date" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
+          onchange="saveOrderField(${customer.id},'${order.id}','etd',this.value)">
+      </div>
+      <div>
+        <div class="notes-label">✅ ATD — Actual Departure</div>
+        <input class="lp-input" type="date" value="${order.atd||''}" style="font-size:12px;padding:5px 8px"
+          onchange="saveOrderField(${customer.id},'${order.id}','atd',this.value)">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div class="notes-label">📅 ETA — Est. Arrival Hawaii</div>
         <div style="font-size:13px;font-weight:600;color:var(--text);padding:4px 0">${order.eta || '—'}</div>
       </div>
       <div>
-        <div class="notes-label">🚢 ETD (Departure from factory)</div>
-        <input class="lp-input" type="date" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
-          onchange="saveOrderField(${customer.id},'${order.id}','etd',this.value)">
+        <div class="notes-label">🛬 ATA — Actual Arrival Hawaii</div>
+        <input class="lp-input" type="date" value="${order.ata||''}" style="font-size:12px;padding:5px 8px"
+          onchange="saveOrderField(${customer.id},'${order.id}','ata',this.value)">
       </div>
     </div>
     <div style="margin-bottom:10px">
@@ -1985,13 +1997,25 @@ function buildOrderDetail(order, customer) {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">📅 ETA (Hawaii arrival)</div>
+          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">🚢 ETD — Est. Departure</div>
+          <input class="lp-input" type="date" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
+            onchange="saveOrderField(${customer.id},'${order.id}','etd',this.value)">
+        </div>
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">✅ ATD — Actual Departure</div>
+          <input class="lp-input" type="date" value="${order.atd||''}" style="font-size:12px;padding:5px 8px"
+            onchange="saveOrderField(${customer.id},'${order.id}','atd',this.value)">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">📅 ETA — Est. Arrival Hawaii</div>
           <div style="font-size:13px;font-weight:600">${order.eta || '—'}</div>
         </div>
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">🚢 ETD (Departure)</div>
-          <input class="lp-input" type="date" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
-            onchange="saveOrderField(${customer.id},'${order.id}','etd',this.value)">
+          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">🛬 ATA — Actual Arrival Hawaii</div>
+          <input class="lp-input" type="date" value="${order.ata||''}" style="font-size:12px;padding:5px 8px"
+            onchange="saveOrderField(${customer.id},'${order.id}','ata',this.value)">
         </div>
       </div>
       ${buildNotesSection(order, customer)}
