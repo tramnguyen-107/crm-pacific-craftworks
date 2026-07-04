@@ -3183,8 +3183,8 @@ function renderProductionView() {
 
   // Banner: orders at 'production' stage not yet in any Factory PO
   const allOrders = customers.flatMap(c => (c.orders||[]).map(o => ({...o, _cust: c})));
-  const inFPO = new Set(factoryPOs.flatMap(f => (f.customerOrders||[]).map(r => r.orderId)));
-  const unlinked = allOrders.filter(o => o.stage === 'production' && !inFPO.has(o.id));
+  const inFPO = new Set(factoryPOs.flatMap(f => (f.customerOrders||[]).map(r => String(r.orderId||r.order_id||''))));
+  const unlinked = allOrders.filter(o => o.stage === 'production' && !inFPO.has(String(o.id)));
   const banner = document.getElementById('prod-orders-banner');
   if (banner) {
     if (unlinked.length > 0) {
@@ -3256,11 +3256,20 @@ function renderProductionView() {
     const etaColor = daysToETA !== null ? (daysToETA < 14 ? '#EF4444' : daysToETA < 30 ? '#F59E0B' : '#10B981') : 'var(--text)';
 
     // Customer orders inside this Factory PO
+    // customerId can be int or string depending on source — coerce both sides
     const orderRowsHTML = fpo.customerOrders.map(ref => {
-      const cust = customers.find(c => c.id === ref.customerId);
-      const order = cust?.orders.find(o => o.id === ref.orderId);
-      if (!cust || !order) return '';
-      const tClass = typeClass[order.type] || 'kitchen';
+      const refCustId = String(ref.customerId ?? ref.customer_id ?? '');
+      const refOrdId  = String(ref.orderId    ?? ref.order_id    ?? '');
+      const cust  = customers.find(c => String(c.id) === refCustId);
+      const order = cust?.orders.find(o => String(o.id) === refOrdId);
+      if (!order) {
+        // Show a broken-ref row so it's visible and removable
+        return `<div class="fac-order-row" style="display:flex;justify-content:space-between;align-items:center;opacity:0.5">
+          <div style="font-size:11px;color:var(--muted)">⚠️ Order not found (${refOrdId || '?'})</div>
+          <button onclick="event.stopPropagation();removeOrphanFPORef('${fpo.id}','${refOrdId}')"
+            style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px" title="Remove">✕</button>
+        </div>`;
+      }
       return `
         <div class="fac-order-row" onclick="event.stopPropagation(); openPanel(${cust.id})" style="display:flex;justify-content:space-between;align-items:center">
           <div>
@@ -3325,10 +3334,10 @@ function renderProductionView() {
       ${orderRowsHTML}
 
       ${(() => {
-        // Pool: production orders not yet in any Factory PO, optionally filtered by factory
-        const inAnyFPO = new Set(factoryPOs.flatMap(f => (f.customerOrders||[]).map(r => r.orderId || r.order_id)));
+        // Pool: production orders not yet in any Factory PO
+        const inAnyFPO = new Set(factoryPOs.flatMap(f => (f.customerOrders||[]).map(r => String(r.orderId||r.order_id||''))));
         const pool = customers.flatMap(c => (c.orders||[])
-          .filter(o => o.stage === 'production' && !inAnyFPO.has(o.id))
+          .filter(o => o.stage === 'production' && !inAnyFPO.has(String(o.id)))
           .map(o => ({customer: c, order: o}))
         );
         if (pool.length === 0) return '';
@@ -3423,6 +3432,15 @@ async function addOrderToFPO(fpoId, customerId, orderId) {
   fpo.customerOrders.push({customerId, orderId, ...(newRef||{})});
   renderProductionView();
   showToast('✅ Order linked to ' + fpoId);
+}
+
+async function removeOrphanFPORef(fpoId, orderId) {
+  const fpo = factoryPOs.find(f => f.id === fpoId);
+  if (!fpo) return;
+  fpo.customerOrders = fpo.customerOrders.filter(r => String(r.orderId||r.order_id||'') !== String(orderId));
+  await sb.from('factory_po_orders').delete().match({factory_po_id: fpoId, order_id: orderId});
+  renderProductionView();
+  showToast('🗑 Orphan ref removed');
 }
 
 async function removeOrderFromFPO(fpoId, orderId) {
