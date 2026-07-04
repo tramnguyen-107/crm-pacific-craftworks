@@ -1267,8 +1267,8 @@ async function loadAllData() {
   ])
   customers     = (custRes.data  || []).map(c => ({...c, orders: (c.orders||[]).map(o => ({...o, checked: o.checked||{}}))}))
   leads         = leadsRes.data  || []
-  factoryPOs    = (fpoRes.data   || []).map(f => ({...f, customerOrders: f.factory_po_orders||[]}))
-  containerPlans= (ctnRes.data   || []).map(c => ({...c, orderRefs: c.container_orders||[]}))
+  factoryPOs    = (fpoRes.data   || []).map(f => ({...f, customerOrders: (f.factory_po_orders||[]).map(r => ({...r, orderId: r.order_id||r.orderId, customerId: r.customer_id||r.customerId}))}))
+  containerPlans= (ctnRes.data   || []).map(c => ({...c, orderRefs: (c.container_orders||[]).map(r => ({...r, orderId: r.order_id||r.orderId, customerId: r.customer_id||r.customerId}))}))
 }
 
 // ============================================================
