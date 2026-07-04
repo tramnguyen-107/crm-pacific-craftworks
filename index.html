@@ -2126,19 +2126,27 @@ async function saveDeadlineAndETA(customerId, orderId, date) {
   order.delivery_deadline = date;
   order.eta = date;
   await dbUpdate('orders', {id: orderId}, {delivery_deadline: date, eta: date});
+  showToast('✅ Saved');
   renderBoard();
-  // Update sub-header in panel without full re-render
   const sub = document.querySelector(`#order-item-${orderId} .order-item-sub`);
   if (sub) sub.textContent = `Balance: $${Number(order.balance||0).toLocaleString()} · ETA ${date}`;
+  const detailEl = document.getElementById('detail-' + orderId);
+  if (detailEl) detailEl.innerHTML = buildOrderDetail(order, c);
 }
 
-async function saveOrderField(customerId, orderId, field, value) {
+async function saveOrderField(customerId, orderId, field, value, {silent=false}={}) {
   const c = customers.find(x => x.id === customerId);
   if (!c) return;
   const order = c.orders.find(o => o.id === orderId);
   if (!order) return;
   order[field] = value;
   await dbUpdate('orders', {id: orderId}, {[field]: value});
+  if (!silent) showToast('✅ Saved');
+  // Re-render the order detail block in-place (no page reload)
+  const detailEl = document.getElementById('detail-' + orderId);
+  if (detailEl) {
+    detailEl.innerHTML = buildOrderDetail(order, c);
+  }
 }
 
 function hawaiiNow() {
