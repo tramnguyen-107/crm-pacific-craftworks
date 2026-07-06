@@ -2000,29 +2000,6 @@ function buildOrderDetail(order, customer) {
           <div class="tl-content"><div class="tl-title tl-title pending">Delivered</div><div class="tl-date">ETA: ${order.eta || '—'}</div></div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
-        <div>
-          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">🚢 ETD — Est. Departure</div>
-          <input class="lp-input" type="date" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
-            onchange="saveOrderField(${customer.id},'${order.id}','etd',this.value)">
-        </div>
-        <div>
-          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">✅ ATD — Actual Departure</div>
-          <input class="lp-input" type="date" value="${order.atd||''}" style="font-size:12px;padding:5px 8px"
-            onchange="saveOrderField(${customer.id},'${order.id}','atd',this.value)">
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
-        <div>
-          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">📅 ETA — Est. Arrival Hawaii</div>
-          <div style="font-size:13px;font-weight:600">${order.eta || '—'}</div>
-        </div>
-        <div>
-          <div class="info-label" style="font-size:11px;color:var(--muted);margin-bottom:4px">🛬 ATA — Actual Arrival Hawaii</div>
-          <input class="lp-input" type="date" value="${order.ata||''}" style="font-size:12px;padding:5px 8px"
-            onchange="saveOrderField(${customer.id},'${order.id}','ata',this.value)">
-        </div>
-      </div>
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
         <button class="btn btn-primary" onclick="markLoaded(${customer.id}, '${order.id}')">Mark as Loaded →</button>
@@ -3333,30 +3310,7 @@ function renderProductionView() {
       <div class="fac-orders-label">📦 Customer Orders in this Factory PO (${fpo.customerOrders.length})</div>
       ${orderRowsHTML}
 
-      ${(() => {
-        // Pool: production orders not yet in any Factory PO
-        const inAnyFPO = new Set(factoryPOs.flatMap(f => (f.customerOrders||[]).map(r => String(r.orderId||r.order_id||''))));
-        const pool = customers.flatMap(c => (c.orders||[])
-          .filter(o => o.stage === 'production' && !inAnyFPO.has(String(o.id)))
-          .map(o => ({customer: c, order: o}))
-        );
-        if (pool.length === 0) return '';
-        return `<div style="margin-top:8px;border-top:1px dashed var(--border);padding-top:8px">
-          <div class="fac-orders-label" style="color:#6366F1">+ Link customer order</div>
-          ${pool.map(({customer, order}) => {
-            const factoryMismatch = fpo.factory_name && order.factory_name && fpo.factory_name !== order.factory_name;
-            return `<div onclick="event.stopPropagation();${factoryMismatch ? `showToast('❌ Factory mismatch: order is ${order.factory_name}')` : `addOrderToFPO('${fpo.id}',${customer.id},'${order.id}')`}"
-              style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border:1px solid ${factoryMismatch?'#FCA5A5':'var(--border)'};border-radius:7px;margin-bottom:5px;cursor:${factoryMismatch?'not-allowed':'pointer'};background:${factoryMismatch?'#FEF2F2':'var(--surface)'};opacity:${factoryMismatch?'0.7':'1'}">
-              <div>
-                <div style="font-size:12px;font-weight:700">${order.project_name||order.id}</div>
-                <div style="font-size:11px;color:var(--muted)">👤 ${customer.name}${order.factory_name?' · '+order.factory_name:''}</div>
-                ${factoryMismatch?`<div style="font-size:10px;color:#DC2626;font-weight:700">❌ Factory mismatch</div>`:''}
-              </div>
-              <span style="font-size:11px;font-weight:700;color:${factoryMismatch?'#DC2626':'#6366F1'}">${factoryMismatch?'✕':'+ Link'}</span>
-            </div>`;
-          }).join('')}
-        </div>`;
-      })()}
+      ${buildFPOPool(fpo)}
 
       <div class="checkin-box" onclick="event.stopPropagation()" style="margin-top:10px">
         <div class="checkin-label">📝 Weekly Check-in Note</div>
@@ -3419,6 +3373,39 @@ async function advanceFPO(fpoId) {
   }
   await dbUpdate('factory_pos', {id: fpoId}, updates);
   renderProductionView(); renderBoard();
+}
+
+function buildFPOPool(fpo) {
+  const inAnyFPO = new Set(factoryPOs.flatMap(f =>
+    (f.customerOrders||[]).map(r => String(r.orderId || r.order_id || ''))
+  ));
+  const pool = customers.flatMap(c =>
+    (c.orders||[])
+      .filter(o => o.stage === 'production' && !inAnyFPO.has(String(o.id)))
+      .map(o => ({customer: c, order: o}))
+  );
+  if (pool.length === 0) return '';
+  const rows = pool.map(({customer: c, order: o}) => {
+    const mismatch = fpo.factory_name && o.factory_name && fpo.factory_name !== o.factory_name;
+    const borderC  = mismatch ? '#FCA5A5' : 'var(--border)';
+    const bgC      = mismatch ? '#FEF2F2' : 'var(--surface)';
+    const action   = mismatch
+      ? `showToast('❌ Factory mismatch: order is ' + '${o.factory_name||'?'}')`
+      : `addOrderToFPO('${fpo.id}',${c.id},'${o.id}')`;
+    return `<div onclick="event.stopPropagation();${action}"
+      style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border:1px solid ${borderC};border-radius:7px;margin-bottom:5px;cursor:${mismatch?'not-allowed':'pointer'};background:${bgC}">
+      <div>
+        <div style="font-size:12px;font-weight:700">${o.project_name||o.id}</div>
+        <div style="font-size:11px;color:var(--muted)">👤 ${c.name}${o.factory_name?' · '+o.factory_name:''}</div>
+        ${mismatch ? '<div style="font-size:10px;color:#DC2626;font-weight:700">❌ Factory mismatch</div>' : ''}
+      </div>
+      <span style="font-size:11px;font-weight:700;color:${mismatch?'#DC2626':'#6366F1'}">${mismatch?'✕':'+ Link'}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:8px;border-top:1px dashed var(--border);padding-top:8px">
+    <div class="fac-orders-label" style="color:#6366F1">+ Link customer order</div>
+    ${rows}
+  </div>`;
 }
 
 async function addOrderToFPO(fpoId, customerId, orderId) {
