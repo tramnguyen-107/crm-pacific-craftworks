@@ -1289,7 +1289,12 @@ async function loadAllData() {
   ])
   customers     = (custRes.data  || []).map(c => ({...c, orders: (c.orders||[]).map(o => ({...o, checked: o.checked||{}}))}))
   leads         = leadsRes.data  || []
-  factoryPOs    = (fpoRes.data   || []).map(f => ({...f, customerOrders: (f.factory_po_orders||[]).map(r => ({...r, orderId: r.order_id||r.orderId, customerId: r.customer_id||r.customerId}))}))
+  factoryPOs    = (fpoRes.data   || []).map(f => ({...f,
+    specSentDate: f.spec_sent_date || f.specSentDate || '',
+    estComplete:  f.est_complete   || f.estComplete  || '',
+    checkinNote:  f.checkin_note   || f.checkinNote  || '',
+    customerOrders: (f.factory_po_orders||[]).map(r => ({...r, orderId: r.order_id||r.orderId, customerId: r.customer_id||r.customerId}))
+  }))
   containerPlans= (ctnRes.data   || []).map(c => ({...c,
     targetOrders:    c.target_orders    ?? c.targetOrders    ?? 0,
     capacityM3:      c.capacity_m3      ?? c.capacityM3      ?? 0,
@@ -3403,24 +3408,26 @@ function renderProductionView() {
 
       <div class="prod-stages">${stagesHTML}</div>
 
-      <div class="prod-meta">
+      <div class="prod-meta" onclick="event.stopPropagation()">
         <div class="prod-meta-item">
           <div class="prod-meta-label">Spec Sent</div>
-          <div class="prod-meta-value">${fpo.specSentDate || '—'}</div>
+          <input type="date" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.specSentDate||''}"
+            onchange="saveFPOField('${fpo.id}','spec_sent_date',this.value,'specSentDate')">
         </div>
         <div class="prod-meta-item">
           <div class="prod-meta-label">Est. Complete</div>
-          <div class="prod-meta-value">${fpo.estComplete || '—'}</div>
+          <input type="date" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.estComplete||''}"
+            onchange="saveFPOField('${fpo.id}','est_complete',this.value,'estComplete')">
         </div>
         <div class="prod-meta-item">
           <div class="prod-meta-label">Container #</div>
-          <div class="prod-meta-value" style="font-size:11px">${fpo.container || '—'}</div>
+          <input type="text" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.container||''}" placeholder="—"
+            onchange="saveFPOField('${fpo.id}','container',this.value,'container')">
         </div>
         <div class="prod-meta-item">
           <div class="prod-meta-label">ETA to Customer</div>
-          <div class="prod-meta-value" style="color:${etaColor}">
-            ${fpo.eta || '—'}${daysToETA !== null ? `<span style="font-size:10px;font-weight:600;margin-left:4px">(${daysToETA}d)</span>` : ''}
-          </div>
+          <input type="date" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.eta||''}"
+            onchange="saveFPOField('${fpo.id}','eta',this.value,'eta')">
         </div>
       </div>
 
@@ -3555,6 +3562,13 @@ async function removeOrderFromFPO(fpoId, orderId) {
   fpo.customerOrders = fpo.customerOrders.filter(r => (r.orderId||r.order_id) !== orderId);
   await sb.from('factory_po_orders').delete().match({factory_po_id: fpoId, order_id: orderId});
   renderProductionView();
+}
+
+async function saveFPOField(fpoId, dbField, value, localKey) {
+  const fpo = factoryPOs.find(f => f.id === fpoId);
+  if (fpo) fpo[localKey] = value;
+  await dbUpdate('factory_pos', {id: fpoId}, {[dbField]: value || null});
+  showToast('✅ Saved');
 }
 
 async function saveFPONote(fpoId, val) {
