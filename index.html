@@ -1290,7 +1290,12 @@ async function loadAllData() {
   customers     = (custRes.data  || []).map(c => ({...c, orders: (c.orders||[]).map(o => ({...o, checked: o.checked||{}}))}))
   leads         = leadsRes.data  || []
   factoryPOs    = (fpoRes.data   || []).map(f => ({...f, customerOrders: (f.factory_po_orders||[]).map(r => ({...r, orderId: r.order_id||r.orderId, customerId: r.customer_id||r.customerId}))}))
-  containerPlans= (ctnRes.data   || []).map(c => ({...c, orderRefs: (c.container_orders||[]).map(r => ({...r, orderId: r.order_id||r.orderId, customerId: r.customer_id||r.customerId}))}))
+  containerPlans= (ctnRes.data   || []).map(c => ({...c,
+    targetOrders:    c.target_orders    ?? c.targetOrders    ?? 0,
+    capacityM3:      c.capacity_m3      ?? c.capacityM3      ?? 0,
+    plannedLoadDate: c.planned_load_date|| c.plannedLoadDate || '',
+    orderRefs: (c.container_orders||[]).map(r => ({...r, orderId: r.order_id||r.orderId, customerId: r.customer_id||r.customerId, sizeM3: r.size_m3||r.sizeM3||0}))
+  }))
   const srRow = (settingsRes.data || []).find(r => r.key === 'sales_reps');
   if (srRow) { try { salesReps = JSON.parse(srRow.value); } catch(e) {} }
   populateSalesFilters();
@@ -3364,7 +3369,7 @@ function renderProductionView() {
       return `
         <div class="fac-order-row" onclick="event.stopPropagation(); openPanel(${cust.id})" style="display:flex;justify-content:space-between;align-items:center">
           <div>
-            <div class="fac-order-po">${order.project_name || order.id} <span style="font-size:10px;color:var(--muted);font-weight:400">${order.id}</span></div>
+            <div class="fac-order-po">${order.project_name || order.id}${order.project_name ? ` <span style="font-size:10px;color:var(--muted);font-weight:400">${order.id}</span>` : ''}</div>
             <div class="fac-order-type">👤 ${cust.name}${order.destination?' · 📍'+order.destination:''}</div>
           </div>
           <button onclick="event.stopPropagation();removeOrderFromFPO('${fpo.id}','${order.id}')"
