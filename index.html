@@ -365,6 +365,20 @@
 
   /* LEADS */
   .leads-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:12px; }
+  .leads-kanban { display:flex; gap:12px; padding:0 0 24px; overflow-x:auto; align-items:flex-start; }
+  .leads-kanban .column { flex:0 0 300px; }
+  .col-lead-new .column-header { background:#F3F4F6; }
+  .col-lead-new .col-title { color:#374151; }
+  .col-lead-new .col-count { background:#6B7280; color:white; }
+  .col-lead-quoting .column-header { background:#FFFBEB; }
+  .col-lead-quoting .col-title { color:#92400E; }
+  .col-lead-quoting .col-count { background:#F59E0B; color:white; }
+  .col-lead-quoted .column-header { background:#EEF2FF; }
+  .col-lead-quoted .col-title { color:#4338CA; }
+  .col-lead-quoted .col-count { background:#6366F1; color:white; }
+  .lead-card[draggable=true] { cursor:grab; }
+  .lead-card.dragging { opacity:0.4; }
+  .sales-rep-chip { display:inline-block; font-size:10px; font-weight:600; padding:2px 8px; background:#F0FDF4; color:#065F46; border-radius:99px; margin-top:4px; }
   .lead-card { background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow-sm); transition:all 0.15s; }
   .lead-card:hover { box-shadow:var(--shadow); transform:translateY(-1px); }
   .lead-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
@@ -707,6 +721,9 @@
       <option value="Vanity">Vanity</option>
       <option value="Full Remodel">Full Remodel</option>
     </select>
+    <select id="filter-sales" class="form-select" style="width:120px;padding:8px 10px;font-size:12px" onchange="renderBoard()">
+      <option value="">All sales</option>
+    </select>
     <button class="filter-btn" id="toggle-archive" onclick="toggleShowArchived(this)" style="white-space:nowrap">📁 Show Archived</button>
   </div>
   <div style="padding:0 20px 8px;display:flex;gap:6px;flex-wrap:wrap" id="active-filters"></div>
@@ -720,6 +737,9 @@
       <select id="lead-filter-source" class="form-select" style="width:120px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
         <option value="">All sources</option>
         <option>Web Form</option><option>Referral</option><option>Email</option><option>Phone</option><option>Walk-in</option>
+      </select>
+      <select id="lead-filter-sales" class="form-select" style="width:120px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
+        <option value="">All sales</option>
       </select>
     </div>
     <button class="btn btn-primary" onclick="openAddLead()">+ New Lead</button>
@@ -1233,6 +1253,7 @@ function startDemo() {
   document.getElementById('demo-banner').classList.add('show');
   document.getElementById('lead-badge').textContent = leads.length;
   document.getElementById('toolbar-bar').style.display = 'none';
+  populateSalesFilters();
   renderDashboard();
   renderBoard();
 }
@@ -1259,16 +1280,103 @@ async function startApp() {
 // ============================================================
 async function loadAllData() {
   const testFilter = isTestMode ? true : false;
-  const [custRes, leadsRes, fpoRes, ctnRes] = await Promise.all([
+  const [custRes, leadsRes, fpoRes, ctnRes, settingsRes] = await Promise.all([
     sb.from('customers').select('*, orders(*)').eq('is_test', testFilter).order('created_at', {ascending: false}),
     sb.from('leads').select('*').eq('is_test', testFilter).order('created_at', {ascending: false}),
     sb.from('factory_pos').select('*, factory_po_orders(customer_id, order_id)').order('created_at', {ascending: false}),
     sb.from('container_plans').select('*, container_orders(customer_id, order_id, size_m3)').order('created_at', {ascending: false}),
+    sb.from('settings').select('*'),
   ])
   customers     = (custRes.data  || []).map(c => ({...c, orders: (c.orders||[]).map(o => ({...o, checked: o.checked||{}}))}))
   leads         = leadsRes.data  || []
   factoryPOs    = (fpoRes.data   || []).map(f => ({...f, customerOrders: (f.factory_po_orders||[]).map(r => ({...r, orderId: r.order_id||r.orderId, customerId: r.customer_id||r.customerId}))}))
   containerPlans= (ctnRes.data   || []).map(c => ({...c, orderRefs: (c.container_orders||[]).map(r => ({...r, orderId: r.order_id||r.orderId, customerId: r.customer_id||r.customerId}))}))
+  const srRow = (settingsRes.data || []).find(r => r.key === 'sales_reps');
+  if (srRow) { try { salesReps = JSON.parse(srRow.value); } catch(e) {} }
+  populateSalesFilters();
+}
+
+// ============================================================
+// SALES REP HELPERS
+// ============================================================
+function populateSalesFilters() {
+  const opts = salesReps.map(s => `<option value="${s}">${s}</option>`).join('');
+  const lf = document.getElementById('lead-filter-sales');
+  const pf = document.getElementById('filter-sales');
+  if (lf) lf.innerHTML = '<option value="">All sales</option>' + opts;
+  if (pf) pf.innerHTML = '<option value="">All sales</option>' + opts;
+}
+
+async function addSalesRep(name) {
+  const n = name.trim();
+  if (!n || salesReps.includes(n)) return;
+  salesReps.push(n);
+  await sb.from('settings').upsert({key:'sales_reps', value: JSON.stringify(salesReps)});
+  populateSalesFilters();
+}
+
+function buildSalesRepField(entityType, entityId, currentVal, extraStyle='') {
+  const opts = salesReps.map(s => `<option value="${s}"${currentVal===s?' selected':''}>${s}</option>`).join('');
+  return `<div>
+    <div class="notes-label">👤 Sales Rep</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:4px${extraStyle?';'+extraStyle:''}">
+      <select id="salesrep_sel_${entityType}_${entityId}" class="lp-input" style="flex:1;font-size:12px"
+        onchange="onSalesRepSelect('${entityType}','${entityId}',this)">
+        <option value="">— None —</option>
+        ${opts}
+        <option value="__other__">+ Add new…</option>
+      </select>
+      <input id="salesrep_inp_${entityType}_${entityId}" class="lp-input" placeholder="Name…"
+        style="display:none;flex:1;font-size:12px"
+        onkeydown="if(event.key==='Enter')saveSalesRepNew('${entityType}','${entityId}')">
+      <button id="salesrep_savebtn_${entityType}_${entityId}" style="display:none"
+        class="field-save-btn" onclick="saveSalesRepNew('${entityType}','${entityId}')">Save</button>
+    </div>
+  </div>`;
+}
+
+function onSalesRepSelect(type, id, sel) {
+  const inp = document.getElementById(`salesrep_inp_${type}_${id}`);
+  const btn = document.getElementById(`salesrep_savebtn_${type}_${id}`);
+  if (sel.value === '__other__') {
+    inp.style.display = 'block'; btn.style.display = 'block';
+    sel.style.display = 'none'; inp.focus();
+  } else {
+    saveSalesRepField(type, id, sel.value);
+  }
+}
+
+async function saveSalesRepNew(type, id) {
+  const inp = document.getElementById(`salesrep_inp_${type}_${id}`);
+  const sel = document.getElementById(`salesrep_sel_${type}_${id}`);
+  const btn = document.getElementById(`salesrep_savebtn_${type}_${id}`);
+  const name = inp.value.trim();
+  if (!name) return;
+  await addSalesRep(name);
+  inp.style.display = 'none'; btn.style.display = 'none';
+  sel.style.display = ''; sel.innerHTML = '<option value="">— None —</option>' +
+    salesReps.map(s=>`<option value="${s}"${s===name?' selected':''}>${s}</option>`).join('') +
+    '<option value="__other__">+ Add new…</option>';
+  saveSalesRepField(type, id, name);
+}
+
+async function saveSalesRepField(type, id, value) {
+  if (type === 'lead') {
+    const l = leads.find(x => x.id === id);
+    if (l) { l.sales_rep = value; if (!id.startsWith('_new_')) await dbUpdate('leads', {id}, {sales_rep: value}); }
+    renderLeads();
+  } else if (type === 'customer') {
+    const c = customers.find(x => x.id == id);
+    if (c) { c.sales_rep = value; await dbUpdate('customers', {id: parseInt(id)}, {sales_rep: value}); }
+  } else if (type === 'order') {
+    // id is "customerId|orderId"
+    const [cid, oid] = id.split('|');
+    const c = customers.find(x => x.id == cid);
+    const order = c?.orders.find(o => o.id === oid);
+    if (order) { order.sales_rep = value; await dbUpdate('orders', {id: oid}, {sales_rep: value}); }
+    renderBoard();
+  }
+  showToast('✅ Sales rep saved');
 }
 
 // ============================================================
@@ -1337,7 +1445,8 @@ let leads          = [];
 let customers      = [];
 let factoryPOs     = [];
 let containerPlans = [];
-const LEAD_STATUSES = ['New', 'Contacted', 'Quoted', 'Follow-up'];
+const LEAD_STATUSES = ['New', 'Contacted', 'Quoting', 'Quoted', 'Follow-up'];
+let salesReps = ['JJ','Cezar','Dustin','Darrel','Andy'];
 
 let activeCustomerId = null;
 let activePanelTab = 0;
@@ -1352,6 +1461,7 @@ function renderBoard() {
   const filterYear  = document.getElementById('filter-year')?.value || '';
   const filterMonth = document.getElementById('filter-month')?.value;
   const filterType  = document.getElementById('filter-type')?.value || '';
+  const filterSales = document.getElementById('filter-sales')?.value || '';
   const searchQ     = (document.getElementById('search-input')?.value || '').toLowerCase();
 
   const activeStages = ['collect','production','shipped','delivery'];
@@ -1394,6 +1504,7 @@ function renderBoard() {
           !(o.project_name||'').toLowerCase().includes(searchQ) &&
           !o.id.toLowerCase().includes(searchQ)) return false;
       if (filterType && o.type !== filterType) return false;
+      if (filterSales && (o.sales_rep||c.sales_rep||'') !== filterSales) return false;
       if (filterYear || (filterMonth !== '' && filterMonth !== undefined)) {
         const d = toVN(o.created_at) || toVN(c.created_at);
         if (!d) return false;
@@ -1566,7 +1677,8 @@ function buildOrderCard(order, customer) {
     ${archiveBadge}
     ${isUrgent ? `<div style="font-size:10px;font-weight:800;background:#DC2626;color:white;padding:3px 8px;border-radius:20px;margin-bottom:6px;display:inline-block;letter-spacing:0.3px">🔴 URGENT</div>` : ''}
     <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:2px">${projectName}</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${customer.name}${customer.company ? ' · ' + customer.company : ''}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${customer.name}${customer.company ? ' · ' + customer.company : ''}</div>
+    ${(order.sales_rep||customer.sales_rep) ? `<div class="sales-rep-chip" style="margin-bottom:6px">👤 ${order.sales_rep||customer.sales_rep}</div>` : ''}
     ${isUrgent && order.delivery_deadline ? `<div style="font-size:11px;font-weight:700;color:#DC2626;margin-bottom:4px">🗓 Deliver by: ${order.delivery_deadline}</div>` : ''}
     ${order.stage==='collect' && order.collect_deadline ? (() => { const s=collectDeadlineStatus(order); return s?`<div class="collect-clock ${s.cls}" style="margin-bottom:4px;font-size:10px">${s.label}</div>`:''; })() : ''}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -1747,6 +1859,7 @@ function buildNotesSection(order, customer) {
           onchange="saveOrderField(${customer.id},'${order.id}','destination',this.value)">
       </div>
     </div>
+    <div style="margin-bottom:10px">${buildSalesRepField('order', `${customer.id}|${order.id}`, order.sales_rep||'')}</div>
     <div class="notes-label">📁 Google Drive Link</div>
     <div class="field-row" style="margin-top:4px">
       <input class="drive-input" id="drive_link_${order.id}" type="url" value="${link}" placeholder="Paste Google Drive folder link..." style="flex:1">
@@ -2483,6 +2596,7 @@ function buildContactTab(c) {
       <div class="info-item"><div class="info-label">Source</div><div class="info-value">${c.source}</div></div>
       <div class="info-item"><div class="info-label">Total Orders</div><div class="info-value">${c.orders.length}</div></div>
     </div>
+    <div style="margin-top:12px">${buildSalesRepField('customer', c.id, c.sales_rep||'')}</div>
   `;
 }
 
@@ -2924,7 +3038,7 @@ async function addOrderFromLead(virtualLeadId, poId) {
 
     let targetCust = dupCust;
     if (!targetCust) {
-      targetCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
+      targetCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect', sales_rep:l.sales_rep||''});
       if (!targetCust) { alert('Error creating customer'); return; }
       if (!targetCust.orders) targetCust.orders = [];
       customers.push(targetCust);
@@ -4193,6 +4307,7 @@ function buildLeadContactTab(lead) {
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
         ${LEAD_STATUSES.map(s=>`<span class="lead-status-chip${lead.status===s?' sel':''}" onclick="setLeadStatus('${lead.id}','${s}');renderLeadTab(1)">${s}</span>`).join('')}
       </div></div>
+    <div class="lp-field">${buildSalesRepField('lead', lead.id, lead.sales_rep||'')}</div>
   </div>
   <button class="section-save-btn" onclick="saveLeadContactFields('${lead.id}')">💾 Save contact info</button>`;
 }
@@ -4458,69 +4573,98 @@ function printQuote(leadId, poId) {
   window.print();
 }
 
-function renderLeads() {
-  const q = (document.getElementById('lead-search')?.value || '').toLowerCase();
-  const srcFilter = document.getElementById('lead-filter-source')?.value || '';
-  const board = document.getElementById('leads-board');
-
-  let filtered = leads.filter(l => {
-    if (q && !l.name.toLowerCase().includes(q) && !l.company.toLowerCase().includes(q) && !l.email.toLowerCase().includes(q)) return false;
-    if (srcFilter && l.source !== srcFilter) return false;
-    return true;
-  });
-
-  // Update badge
-  document.getElementById('lead-badge').textContent = leads.length;
-
-  if (filtered.length === 0) {
-    board.innerHTML = `<div class="leads-empty"><div class="big">🎯</div><p>No leads yet — click "+ New Lead" to add one.</p></div>`;
-    return;
-  }
-
-  const statusColors = { New:'#EF4444', Contacted:'#F59E0B', Quoted:'#6366F1', 'Follow-up':'#3B82F6' };
-  const statusBg = { New:'#FEF2F2', Contacted:'#FFFBEB', Quoted:'#EEF2FF', 'Follow-up':'#EFF6FF' };
-
+function buildLeadCardHTML(lead) {
   const today = new Date().toISOString().split('T')[0];
-
-  board.innerHTML = `<div class="leads-grid">` + filtered.map(lead => {
-    const isOverdue = lead.follow_up && lead.follow_up <= today;
-    const followUpHTML = lead.follow_up
-      ? `<div class="lead-followup">${isOverdue ? '🔴' : '🟡'} Follow-up: ${lead.follow_up}${isOverdue ? ' — OVERDUE' : ''}</div>`
-      : '';
-
-    const { grandTotal, deposit } = calcQuote(lead);
-    const hasQuote = grandTotal > 0;
-
-    return `<div class="lead-card" onclick="openLeadPanel('${lead.id}')" style="cursor:pointer">
-      <div class="lead-card-header">
-        <div>
-          <div class="lead-name">${lead.name}</div>
-          ${lead.company ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">${lead.company}</div>` : ''}
-        </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <span class="lead-source">${lead.source}</span>
-          <span style="font-size:11px;padding:2px 8px;background:${lead.status==='Quoted'?'#EEF2FF':lead.status==='Contacted'?'#FFFBEB':'#F3F4F6'};color:${lead.status==='Quoted'?'#6366F1':lead.status==='Contacted'?'#92400E':'#374151'};border-radius:20px">${lead.status||'New'}</span>
-          <div class="card-menu-wrap" onclick="event.stopPropagation()">
-            <button class="kebab-btn" onclick="toggleKebab('lead-${lead.id}')">···</button>
-            <div class="kebab-dropdown" id="kebab-lead-${lead.id}">
-              <div class="kebab-item" onclick="duplicateLead('${lead.id}')"><span class="ki-icon">⧉</span> Duplicate</div>
-              <div class="kebab-item danger" onclick="deleteLead('${lead.id}')"><span class="ki-icon">🗑</span> Delete</div>
-            </div>
+  const isOverdue = lead.follow_up && lead.follow_up <= today;
+  const followUpHTML = lead.follow_up
+    ? `<div class="lead-followup">${isOverdue ? '🔴' : '🟡'} Follow-up: ${lead.follow_up}${isOverdue ? ' — OVERDUE' : ''}</div>`
+    : '';
+  const { grandTotal, deposit } = calcQuote(lead);
+  const hasQuote = grandTotal > 0;
+  return `<div class="lead-card" draggable="true"
+      ondragstart="event.dataTransfer.setData('leadId','${lead.id}');this.classList.add('dragging')"
+      ondragend="this.classList.remove('dragging')"
+      onclick="openLeadPanel('${lead.id}')" style="cursor:pointer">
+    <div class="lead-card-header">
+      <div>
+        <div class="lead-name">${lead.name}</div>
+        ${lead.company ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">${lead.company}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="lead-source">${lead.source}</span>
+        <div class="card-menu-wrap" onclick="event.stopPropagation()">
+          <button class="kebab-btn" onclick="toggleKebab('lead-${lead.id}')">···</button>
+          <div class="kebab-dropdown" id="kebab-lead-${lead.id}">
+            <div class="kebab-item" onclick="duplicateLead('${lead.id}')"><span class="ki-icon">⧉</span> Duplicate</div>
+            <div class="kebab-item danger" onclick="deleteLead('${lead.id}')"><span class="ki-icon">🗑</span> Delete</div>
           </div>
         </div>
       </div>
-      <div class="lead-meta">
-        ${lead.email ? `<div class="lead-meta-row">✉️ ${lead.email}</div>` : ''}
-        ${lead.phone ? `<div class="lead-meta-row">📞 ${lead.phone}</div>` : ''}
-        ${lead.interest ? `<div class="lead-meta-row">🏠 ${lead.interest}${lead.budget ? ' · ' + lead.budget : ''}</div>` : ''}
+    </div>
+    <div class="lead-meta">
+      ${lead.email ? `<div class="lead-meta-row">✉️ ${lead.email}</div>` : ''}
+      ${lead.phone ? `<div class="lead-meta-row">📞 ${lead.phone}</div>` : ''}
+      ${lead.interest ? `<div class="lead-meta-row">🏠 ${lead.interest}${lead.budget ? ' · ' + lead.budget : ''}</div>` : ''}
+    </div>
+    ${lead.sales_rep ? `<div class="sales-rep-chip">👤 ${lead.sales_rep}</div>` : ''}
+    ${followUpHTML}
+    ${hasQuote ? `<div style="margin-top:8px;padding:8px 10px;background:linear-gradient(135deg,#EEF2FF,#F0FDF4);border-radius:8px;font-size:12px">
+      <div style="font-weight:700;color:#6366F1">💰 Quote: $${grandTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</div>
+      <div style="color:#059669;margin-top:2px">Deposit (75%): $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})}</div>
+    </div>` : `<div style="margin-top:8px;font-size:11px;color:var(--muted)">Click to open quote builder →</div>`}
+  </div>`;
+}
+
+function renderLeads() {
+  const q = (document.getElementById('lead-search')?.value || '').toLowerCase();
+  const srcFilter = document.getElementById('lead-filter-source')?.value || '';
+  const salesFilter = document.getElementById('lead-filter-sales')?.value || '';
+  const board = document.getElementById('leads-board');
+
+  document.getElementById('lead-badge').textContent = leads.filter(l => !l.id.startsWith('_new_')).length;
+
+  let filtered = leads.filter(l => {
+    if (l.id.startsWith('_new_')) return false;
+    if (q && !l.name.toLowerCase().includes(q) && !(l.company||'').toLowerCase().includes(q) && !(l.email||'').toLowerCase().includes(q)) return false;
+    if (srcFilter && l.source !== srcFilter) return false;
+    if (salesFilter && l.sales_rep !== salesFilter) return false;
+    return true;
+  });
+
+  const cols = [
+    { key:'new',     label:'New',     emoji:'🎯', cls:'col-lead-new',     match: l => !['Quoting','Quoted'].includes(l.status||'New') },
+    { key:'quoting', label:'Quoting', emoji:'✏️', cls:'col-lead-quoting', match: l => l.status === 'Quoting' },
+    { key:'quoted',  label:'Quoted',  emoji:'💰', cls:'col-lead-quoted',  match: l => l.status === 'Quoted' },
+  ];
+
+  board.innerHTML = `<div class="leads-kanban">` + cols.map(col => {
+    const colLeads = filtered.filter(col.match);
+    const cards = colLeads.map(l => buildLeadCardHTML(l)).join('');
+    return `<div class="column ${col.cls}">
+      <div class="column-header">
+        <div class="col-title">${col.emoji} ${col.label}</div>
+        <div class="col-count">${colLeads.length}</div>
       </div>
-      ${followUpHTML}
-      ${hasQuote ? `<div style="margin-top:8px;padding:8px 10px;background:linear-gradient(135deg,#EEF2FF,#F0FDF4);border-radius:8px;font-size:12px">
-        <div style="font-weight:700;color:#6366F1">💰 Quote: $${grandTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</div>
-        <div style="color:#059669;margin-top:2px">Deposit (75%): $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})}</div>
-      </div>` : `<div style="margin-top:8px;font-size:11px;color:var(--muted)">Click to open quote builder →</div>`}
+      <div class="column-body" id="lead-col-${col.key}"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="dropLead(event,'${col.key}');this.classList.remove('drag-over')">
+        ${cards || `<div style="font-size:12px;color:var(--muted);padding:8px;text-align:center">No leads</div>`}
+      </div>
     </div>`;
   }).join('') + `</div>`;
+}
+
+async function dropLead(e, colKey) {
+  const leadId = e.dataTransfer.getData('leadId');
+  if (!leadId) return;
+  const l = leads.find(x => x.id === leadId);
+  if (!l) return;
+  const newStatus = colKey === 'quoting' ? 'Quoting' : colKey === 'quoted' ? 'Quoted' : 'New';
+  if (l.status === newStatus) return;
+  l.status = newStatus;
+  renderLeads();
+  await dbUpdate('leads', {id: leadId}, {status: newStatus});
 }
 
 async function setLeadStatus(leadId, status) {
@@ -4540,7 +4684,7 @@ async function convertLeadToCustomer(leadId, poId) {
     collect_info: l.collect_info || {}
   };
   if (!confirm(`Convert "${l.name}" to a customer and create their order?`)) return;
-  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect'});
+  const newCust = await dbInsert('customers', {name:l.name, company:l.company||'', email:l.email||'', phone:l.phone||'', source:l.source||'', stage:'collect', sales_rep:l.sales_rep||''});
   if (!newCust) { alert('Error creating customer — check browser console'); return; }
   const { grandTotal, deposit } = calcQuote(po);
   const newOId = 'PO-'+String(Date.now()).slice(-6);
