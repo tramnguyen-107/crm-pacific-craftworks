@@ -379,6 +379,11 @@
   .lead-card[draggable=true] { cursor:grab; }
   .lead-card.dragging { opacity:0.4; }
   .sales-rep-chip { display:inline-block; font-size:10px; font-weight:600; padding:2px 8px; background:#F0FDF4; color:#065F46; border-radius:99px; margin-top:4px; }
+  .lead-type-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; margin-right:4px; }
+  .lead-type-badge.customer { background:#EFF6FF; color:#1D4ED8; }
+  .lead-type-badge.contractor { background:#FFF7ED; color:#C2410C; }
+  .lead-type-badge.internal-sales { background:#F5F3FF; color:#6D28D9; }
+  .already-customer-badge { display:flex; align-items:center; gap:6px; margin-top:6px; padding:5px 8px; background:#F0FDF4; border:1px solid #BBF7D0; border-radius:6px; font-size:11px; color:#065F46; font-weight:600; }
   .lead-card { background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow-sm); transition:all 0.15s; }
   .lead-card:hover { box-shadow:var(--shadow); transform:translateY(-1px); }
   .lead-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
@@ -737,6 +742,12 @@
       <select id="lead-filter-source" class="form-select" style="width:120px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
         <option value="">All sources</option>
         <option>Web Form</option><option>Referral</option><option>Email</option><option>Phone</option><option>Walk-in</option>
+      </select>
+      <select id="lead-filter-type" class="form-select" style="width:130px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
+        <option value="">All types</option>
+        <option value="Customer">Customer</option>
+        <option value="Contractor">Contractor</option>
+        <option value="Internal Sales">Internal Sales</option>
       </select>
       <select id="lead-filter-sales" class="form-select" style="width:120px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
         <option value="">All sales</option>
@@ -4310,6 +4321,10 @@ function buildLeadContactTab(lead) {
       <input class="lp-input" id="lead_email_${lead.id}" type="email" value="${lead.email||''}" placeholder="—"></div>
     <div class="lp-field"><label class="lp-label">Phone</label>
       <input class="lp-input" id="lead_phone_${lead.id}" value="${lead.phone||''}" placeholder="—"></div>
+    <div class="lp-field"><label class="lp-label">Type</label>
+      <select class="lp-input" onchange="saveLeadField('${lead.id}','lead_type',this.value);renderLeads()">
+        ${['Customer','Contractor','Internal Sales'].map(t=>`<option${(lead.lead_type||'Customer')===t?' selected':''}>${t}</option>`).join('')}
+      </select></div>
     <div class="lp-field"><label class="lp-label">Source</label>
       <select class="lp-input" onchange="saveLeadField('${lead.id}','source',this.value)">
         ${['Web Form','Referral','Email','Phone','Walk-in'].map(s=>`<option${lead.source===s?' selected':''}>${s}</option>`).join('')}
@@ -4600,10 +4615,30 @@ function buildLeadCardHTML(lead) {
     : '';
   const { grandTotal, deposit } = calcQuote(lead);
   const hasQuote = grandTotal > 0;
+
+  // Type badge
+  const ltype = lead.lead_type || 'Customer';
+  const typeCls = ltype === 'Contractor' ? 'contractor' : ltype === 'Internal Sales' ? 'internal-sales' : 'customer';
+  const typeEmoji = ltype === 'Contractor' ? '🔨' : ltype === 'Internal Sales' ? '🏢' : '👤';
+  const typeBadge = `<span class="lead-type-badge ${typeCls}">${typeEmoji} ${ltype}</span>`;
+
+  // Detect if already a customer
+  const dupCust = customers.find(c =>
+    (lead.email && c.email && c.email.toLowerCase() === lead.email.toLowerCase()) ||
+    c.name.trim().toLowerCase() === lead.name.trim().toLowerCase()
+  );
+  const dupBadge = dupCust ? `<div class="already-customer-badge">
+    ✅ Already a customer
+    <button onclick="event.stopPropagation();deleteLead('${lead.id}')"
+      style="margin-left:auto;font-size:10px;padding:2px 8px;border:1px solid #BBF7D0;background:white;border-radius:4px;cursor:pointer;color:#065F46;font-weight:600">
+      Remove lead
+    </button>
+  </div>` : '';
+
   return `<div class="lead-card" draggable="true"
       ondragstart="event.dataTransfer.setData('leadId','${lead.id}');this.classList.add('dragging')"
       ondragend="this.classList.remove('dragging')"
-      onclick="openLeadPanel('${lead.id}')" style="cursor:pointer">
+      onclick="openLeadPanel('${lead.id}')" style="cursor:pointer${dupCust?';border-color:#BBF7D0':''}">
     <div class="lead-card-header">
       <div>
         <div class="lead-name">${lead.name}</div>
@@ -4620,6 +4655,7 @@ function buildLeadCardHTML(lead) {
         </div>
       </div>
     </div>
+    <div style="margin-bottom:6px">${typeBadge}</div>
     <div class="lead-meta">
       ${lead.email ? `<div class="lead-meta-row">✉️ ${lead.email}</div>` : ''}
       ${lead.phone ? `<div class="lead-meta-row">📞 ${lead.phone}</div>` : ''}
@@ -4627,10 +4663,11 @@ function buildLeadCardHTML(lead) {
     </div>
     ${lead.sales_rep ? `<div class="sales-rep-chip">👤 ${lead.sales_rep}</div>` : ''}
     ${followUpHTML}
-    ${hasQuote ? `<div style="margin-top:8px;padding:8px 10px;background:linear-gradient(135deg,#EEF2FF,#F0FDF4);border-radius:8px;font-size:12px">
+    ${dupBadge}
+    ${!dupCust && hasQuote ? `<div style="margin-top:8px;padding:8px 10px;background:linear-gradient(135deg,#EEF2FF,#F0FDF4);border-radius:8px;font-size:12px">
       <div style="font-weight:700;color:#6366F1">💰 Quote: $${grandTotal.toLocaleString('en-US',{minimumFractionDigits:0})}</div>
       <div style="color:#059669;margin-top:2px">Deposit (75%): $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})}</div>
-    </div>` : `<div style="margin-top:8px;font-size:11px;color:var(--muted)">Click to open quote builder →</div>`}
+    </div>` : !dupCust ? `<div style="margin-top:8px;font-size:11px;color:var(--muted)">Click to open quote builder →</div>` : ''}
   </div>`;
 }
 
@@ -4638,6 +4675,7 @@ function renderLeads() {
   const q = (document.getElementById('lead-search')?.value || '').toLowerCase();
   const srcFilter = document.getElementById('lead-filter-source')?.value || '';
   const salesFilter = document.getElementById('lead-filter-sales')?.value || '';
+  const typeFilter = document.getElementById('lead-filter-type')?.value || '';
   const board = document.getElementById('leads-board');
 
   document.getElementById('lead-badge').textContent = leads.filter(l => !l.id.startsWith('_new_')).length;
@@ -4647,6 +4685,7 @@ function renderLeads() {
     if (q && !l.name.toLowerCase().includes(q) && !(l.company||'').toLowerCase().includes(q) && !(l.email||'').toLowerCase().includes(q)) return false;
     if (srcFilter && l.source !== srcFilter) return false;
     if (salesFilter && l.sales_rep !== salesFilter) return false;
+    if (typeFilter && (l.lead_type||'Customer') !== typeFilter) return false;
     return true;
   });
 
