@@ -1090,7 +1090,7 @@
     </div>
     <div class="form-group">
       <label class="form-label">Planned Load Date</label>
-      <input class="form-input" id="ctn-date" type="date">
+      <input class="form-input" id="ctn-date" type="date" min="2020-01-01" max="2035-12-31">
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeContainerModal()">Cancel</button>
@@ -1145,11 +1145,11 @@
       </div>
       <div class="form-group" style="margin:0">
         <label class="form-label">🚢 ETD (ngày tàu chạy)</label>
-        <input class="form-input" id="bk-etd" type="date">
+        <input class="form-input" id="bk-etd" type="date" min="2020-01-01" max="2035-12-31">
       </div>
       <div class="form-group" style="margin:0">
         <label class="form-label">🛬 ETA Hawaii (ngày tàu đến)</label>
-        <input class="form-input" id="bk-eta" type="date">
+        <input class="form-input" id="bk-eta" type="date" min="2020-01-01" max="2035-12-31">
       </div>
     </div>
     <div class="modal-actions" style="margin-top:16px">
@@ -1822,7 +1822,7 @@ function buildUrgentSection(order, customer) {
       </span>
       <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
         <label style="font-size:11px;color:${isUrgent?'#DC2626':'var(--muted)'};font-weight:600;white-space:nowrap">Expected Delivery</label>
-        <input type="date" value="${order.delivery_deadline||''}"
+        <input type="date" min="2020-01-01" max="2035-12-31" value="${order.delivery_deadline||''}"
           style="padding:4px 8px;border:1.5px solid ${isUrgent?'#FCA5A5':'var(--border)'};border-radius:6px;font-size:12px;font-family:inherit;color:${isUrgent?'#DC2626':'var(--text)'};font-weight:600;background:white"
           onchange="saveDeadlineAndETA(${customer.id},'${order.id}',this.value)">
       </div>
@@ -1836,12 +1836,12 @@ function buildNotesSection(order, customer) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
       <div>
         <div class="notes-label">🚢 ETD — Est. Departure</div>
-        <input class="lp-input" type="date" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
+        <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.etd||''}" style="font-size:12px;padding:5px 8px"
           onchange="saveOrderField(${customer.id},'${order.id}','etd',this.value)">
       </div>
       <div>
         <div class="notes-label">✅ ATD — Actual Departure</div>
-        <input class="lp-input" type="date" value="${order.atd||''}" style="font-size:12px;padding:5px 8px"
+        <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.atd||''}" style="font-size:12px;padding:5px 8px"
           onchange="saveOrderField(${customer.id},'${order.id}','atd',this.value)">
       </div>
     </div>
@@ -1852,7 +1852,7 @@ function buildNotesSection(order, customer) {
       </div>
       <div>
         <div class="notes-label">🛬 ATA — Actual Arrival Hawaii</div>
-        <input class="lp-input" type="date" value="${order.ata||''}" style="font-size:12px;padding:5px 8px"
+        <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.ata||''}" style="font-size:12px;padding:5px 8px"
           onchange="saveOrderField(${customer.id},'${order.id}','ata',this.value)">
       </div>
     </div>
@@ -2158,7 +2158,7 @@ function buildOrderDetail(order, customer) {
       </div>
       <div class="lp-field" style="margin-bottom:14px">
         <label class="lp-label">Port Arrival Date (estimated)</label>
-        <input class="lp-input" type="date" value="${order.port_arrival_date||''}"
+        <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.port_arrival_date||''}"
           onchange="saveOrderField(${customer.id},'${order.id}','port_arrival_date',this.value)">
       </div>
       ${buildNotesSection(order, customer)}
@@ -2194,7 +2194,7 @@ function buildOrderDetail(order, customer) {
         <div style="font-size:12px;font-weight:700;color:${warehouseOk?'#065F46':'#92400E'};margin-bottom:8px">${warehouseOk?'✅ Arrived at Warehouse':'⏳ Waiting for warehouse arrival'}</div>
         <div class="lp-contact-grid">
           <div class="lp-field"><label class="lp-label">Arrival Date</label>
-            <input class="lp-input" type="date" value="${order.warehouse_arrival_date||''}"
+            <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.warehouse_arrival_date||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','warehouse_arrival_date',this.value)"></div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
@@ -2213,7 +2213,7 @@ function buildOrderDetail(order, customer) {
               <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','installer_name','installer_name_${order.id}')">Save</button>
             </div></div>
           <div class="lp-field"><label class="lp-label">Install Date *</label>
-            <input class="lp-input" type="date" value="${order.install_date||''}"
+            <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.install_date||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_date',this.value)"></div>
           <div class="lp-field"><label class="lp-label">Install Time</label>
             <input class="lp-input" type="time" value="${order.install_time||''}"
@@ -3422,12 +3422,12 @@ function renderProductionView() {
       <div class="prod-meta" onclick="event.stopPropagation()">
         <div class="prod-meta-item">
           <div class="prod-meta-label">Spec Sent</div>
-          <input type="date" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.specSentDate||''}"
+          <input type="date" min="2020-01-01" max="2035-12-31" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.specSentDate||''}"
             onchange="saveFPOField('${fpo.id}','spec_sent_date',this.value,'specSentDate')">
         </div>
         <div class="prod-meta-item">
           <div class="prod-meta-label">Est. Complete</div>
-          <input type="date" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.estComplete||''}"
+          <input type="date" min="2020-01-01" max="2035-12-31" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.estComplete||''}"
             onchange="saveFPOField('${fpo.id}','est_complete',this.value,'estComplete')">
         </div>
         <div class="prod-meta-item">
@@ -3437,7 +3437,7 @@ function renderProductionView() {
         </div>
         <div class="prod-meta-item">
           <div class="prod-meta-label">ETA to Customer</div>
-          <input type="date" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.eta||''}"
+          <input type="date" min="2020-01-01" max="2035-12-31" class="lp-input" style="font-size:11px;padding:3px 6px" value="${fpo.eta||''}"
             onchange="saveFPOField('${fpo.id}','eta',this.value,'eta')">
         </div>
       </div>
@@ -3727,13 +3727,13 @@ function renderContainerView() {
             <input class="lp-input" style="font-size:11px;padding:4px 8px" type="text" placeholder="MSCU1234567" value="${ctn.container_tracking||''}"
               onchange="saveCtnField('${ctn.id}','container_tracking',this.value)"></div>
           <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Port Arrival Date</div>
-            <input class="lp-input" style="font-size:11px;padding:4px 8px" type="date" value="${ctn.port_arrival_date||''}"
+            <input class="lp-input" style="font-size:11px;padding:4px 8px" type="date" min="2020-01-01" max="2035-12-31" value="${ctn.port_arrival_date||''}"
               onchange="saveCtnField('${ctn.id}','port_arrival_date',this.value)"></div>
           <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Trucking Company</div>
             <input class="lp-input" style="font-size:11px;padding:4px 8px" type="text" placeholder="Company name" value="${ctn.trucking_company||''}"
               onchange="saveCtnField('${ctn.id}','trucking_company',this.value)"></div>
           <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Pick Up Date</div>
-            <input class="lp-input" style="font-size:11px;padding:4px 8px" type="date" value="${ctn.trucking_pickup_date||''}"
+            <input class="lp-input" style="font-size:11px;padding:4px 8px" type="date" min="2020-01-01" max="2035-12-31" value="${ctn.trucking_pickup_date||''}"
               onchange="saveCtnField('${ctn.id}','trucking_pickup_date',this.value)"></div>
           <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Pick Up Time</div>
             <input class="lp-input" style="font-size:11px;padding:4px 8px" type="time" value="${ctn.trucking_pickup_time||''}"
@@ -4088,7 +4088,7 @@ function buildLeadInfoTab(lead, po) {
       <span class="ci-yn-label">${label}</span>
       <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="saveCI('${id}','${pid}','${field}','yes')"> Yes</label>
       <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="saveCI('${id}','${pid}','${field}','no')"> No</label>
-      <input class="lp-input" type="date" value="${d}" style="width:130px;margin-left:auto" onchange="saveCI('${id}','${pid}','${field}_date',this.value)">
+      <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${d}" style="width:130px;margin-left:auto" onchange="saveCI('${id}','${pid}','${field}_date',this.value)">
     </div>`;
   }
 
@@ -4336,7 +4336,7 @@ function buildLeadContactTab(lead) {
     <div class="lp-field"><label class="lp-label">Budget</label>
       <input class="lp-input" id="lead_budget_${lead.id}" value="${lead.budget||''}" placeholder="e.g. $25k–$50k"></div>
     <div class="lp-field"><label class="lp-label">Follow-up Date</label>
-      <input class="lp-input" type="date" value="${lead.follow_up||''}" onchange="saveLeadField('${lead.id}','follow_up',this.value)"></div>
+      <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${lead.follow_up||''}" onchange="saveLeadField('${lead.id}','follow_up',this.value)"></div>
     <div class="lp-field"><label class="lp-label">Status</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
         ${LEAD_STATUSES.map(s=>`<span class="lead-status-chip${lead.status===s?' sel':''}" onclick="setLeadStatus('${lead.id}','${s}');renderLeadTab(1)">${s}</span>`).join('')}
