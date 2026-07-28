@@ -3568,6 +3568,7 @@ async function removeOrphanFPORef(fpoId, orderId) {
 }
 
 async function removeOrderFromFPO(fpoId, orderId) {
+  if (!confirm(`Remove ${orderId} from this Factory PO?`)) return;
   const fpo = factoryPOs.find(f => f.id === fpoId);
   if (!fpo) return;
   fpo.customerOrders = fpo.customerOrders.filter(r => (r.orderId||r.order_id) !== orderId);
@@ -3770,6 +3771,7 @@ async function addToContainer(ctnId, customerId, orderId) {
 }
 
 async function removeFromContainer(ctnId, orderId) {
+  if (!confirm(`Remove ${orderId} from this container?`)) return;
   const ctn = containerPlans.find(c => c.id === ctnId);
   if (!ctn) return;
   ctn.orderRefs = ctn.orderRefs.filter(r => (r.orderId||r.order_id) !== orderId);
