@@ -3367,6 +3367,17 @@ function renderProductionView() {
     const daysToETA = etaDate ? Math.ceil((etaDate - new Date()) / 86400000) : null;
     const etaColor = daysToETA !== null ? (daysToETA < 14 ? '#EF4444' : daysToETA < 30 ? '#F59E0B' : '#10B981') : 'var(--text)';
 
+    // Auto-detect containers that hold this FPO's orders
+    const fpoOrderIds = new Set((fpo.customerOrders||[]).map(r => r.orderId||r.order_id));
+    const linkedCtns = containerPlans.filter(ctn =>
+      ctn.orderRefs.some(r => fpoOrderIds.has(r.orderId||r.order_id))
+    );
+    const linkedCtnHTML = linkedCtns.length > 0
+      ? `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">` +
+        linkedCtns.map(c => `<span style="font-size:11px;font-weight:600;padding:3px 10px;background:#F5F3FF;color:#6D28D9;border-radius:99px;border:1px solid #DDD6FE">📦 ${c.id} — ${c.label}</span>`).join('') +
+        `</div>`
+      : '';
+
     // Customer orders inside this Factory PO
     // customerId can be int or string depending on source — coerce both sides
     const orderRowsHTML = fpo.customerOrders.map(ref => {
@@ -3401,7 +3412,8 @@ function renderProductionView() {
             <span class="fac-po-badge">🏭 ${fpo.id}</span>
             <span class="stage-badge ${sl.badge}">${sl.label}</span>
           </div>
-          <div class="prod-card-sub">Factory: ${fpo.factory}</div>
+          <div class="prod-card-sub">Factory: ${fpo.factory_name || fpo.factory}</div>
+          ${linkedCtnHTML}
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="event.stopPropagation(); advanceFPO('${fpo.id}')">
@@ -3641,7 +3653,9 @@ function renderContainerView() {
               <div class="co-type">${order.type} · <span class="co-size">${ref.sizeM3 || '?'} m³</span></div>
               <div style="font-size:10px;color:#059669;font-weight:600;margin-top:2px">${orderTotal > 0 ? '💵 $'+orderTotal.toLocaleString() : ''}</div>
             </div>
-            <button class="ctn-remove" title="Remove" onclick="event.stopPropagation();removeFromContainer('${ctn.id}','${order.id}')">✕</button>
+            ${['loaded','delivered'].includes(ctn.status)
+              ? `<span title="Locked — container already loaded" style="font-size:12px;color:var(--muted);padding:2px 6px">🔒</span>`
+              : `<button class="ctn-remove" title="Remove" onclick="event.stopPropagation();removeFromContainer('${ctn.id}','${order.id}')">✕</button>`}
           </div>`;
         }).join('');
 
