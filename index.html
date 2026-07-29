@@ -384,6 +384,34 @@
   .lead-type-badge.contractor { background:#FFF7ED; color:#C2410C; }
   .lead-type-badge.internal-sales { background:#F5F3FF; color:#6D28D9; }
   .already-customer-badge { display:flex; align-items:center; gap:6px; margin-top:6px; padding:5px 8px; background:#F0FDF4; border:1px solid #BBF7D0; border-radius:6px; font-size:11px; color:#065F46; font-weight:600; }
+
+  /* TASKS & COMMENTS */
+  .activity-section { border-top:2px solid var(--border); margin-top:16px; padding-top:14px; }
+  .activity-section .section-title { margin-bottom:10px; }
+  .task-add-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .task-add-row input, .task-add-row select { flex:1; min-width:80px; }
+  .task-item { display:flex; align-items:flex-start; gap:8px; padding:7px 0; border-bottom:1px solid var(--border); }
+  .task-item:last-child { border-bottom:none; }
+  .task-check { width:16px; height:16px; accent-color:var(--brand); cursor:pointer; margin-top:2px; flex-shrink:0; }
+  .task-info { flex:1; min-width:0; }
+  .task-title { font-size:12px; font-weight:600; color:var(--text); }
+  .task-title.done { text-decoration:line-through; color:var(--muted); }
+  .task-meta { font-size:10px; color:var(--muted); margin-top:2px; }
+  .task-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:0 2px; flex-shrink:0; }
+  .task-del:hover { color:#EF4444; }
+  .comment-feed { display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+  .comment-item { display:flex; gap:8px; }
+  .comment-avatar { width:28px; height:28px; border-radius:50%; background:var(--brand); color:white; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .comment-bubble { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+  .comment-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  .comment-author { font-size:11px; font-weight:700; color:var(--text); }
+  .comment-time { font-size:10px; color:var(--muted); }
+  .comment-body { font-size:12px; color:var(--text); line-height:1.5; white-space:pre-wrap; }
+  .comment-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:11px; padding:0; }
+  .comment-del:hover { color:#EF4444; }
+  .comment-add-form { display:flex; flex-direction:column; gap:6px; }
+  .comment-add-author { display:flex; gap:6px; }
+  .comment-add-author select, .comment-add-author input { flex:1; }
   .lead-card { background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow-sm); transition:all 0.15s; }
   .lead-card:hover { box-shadow:var(--shadow); transform:translateY(-1px); }
   .lead-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
@@ -1318,6 +1346,162 @@ async function loadAllData() {
 }
 
 // ============================================================
+// TASKS & COMMENTS
+// ============================================================
+async function loadOrderActivity(orderId) {
+  if (isDemoMode) { orderActivity[orderId] = { tasks:[], comments:[] }; return; }
+  const [tRes, cRes] = await Promise.all([
+    sb.from('order_tasks').select('*').eq('order_id', orderId).order('created_at'),
+    sb.from('order_comments').select('*').eq('order_id', orderId).order('created_at', {ascending:false}),
+  ]);
+  orderActivity[orderId] = { tasks: tRes.data||[], comments: cRes.data||[] };
+}
+
+function renderOrderActivity(orderId) {
+  const tEl = document.getElementById('tasks-body-'+orderId);
+  const cEl = document.getElementById('comments-feed-'+orderId);
+  const act = orderActivity[orderId] || { tasks:[], comments:[] };
+  if (tEl) tEl.innerHTML = buildTasksBody(orderId, act.tasks);
+  if (cEl) cEl.innerHTML = buildCommentsFeed(orderId, act.comments);
+}
+
+function buildTasksBody(orderId, tasks) {
+  if (!tasks.length) return `<div style="font-size:12px;color:var(--muted);padding:6px 0">No tasks yet</div>`;
+  return tasks.map(t => {
+    const overdue = t.due_date && !t.completed && t.due_date < new Date().toISOString().split('T')[0];
+    return `<div class="task-item">
+      <input class="task-check" type="checkbox" ${t.completed?'checked':''} onchange="toggleOrderTask('${t.id}','${orderId}',this.checked)">
+      <div class="task-info">
+        <div class="task-title ${t.completed?'done':''}">${t.title}</div>
+        <div class="task-meta">
+          ${t.assigned_to?`👤 ${t.assigned_to}`:''}
+          ${t.assigned_to&&t.due_date?' · ':''}
+          ${t.due_date?`<span style="color:${overdue?'#EF4444':'var(--muted)'}">📅 ${t.due_date}${overdue?' ⚠️':''}</span>`:''}
+        </div>
+      </div>
+      <button class="task-del" onclick="deleteOrderTask('${t.id}','${orderId}')">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function buildCommentsFeed(orderId, comments) {
+  if (!comments.length) return `<div style="font-size:12px;color:var(--muted);padding:6px 0">No comments yet</div>`;
+  return comments.map(c => {
+    const initials = c.author.includes('@') ? c.author[0].toUpperCase() : c.author.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const time = new Date(c.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="comment-item">
+      <div class="comment-avatar">${initials}</div>
+      <div class="comment-bubble">
+        <div class="comment-header">
+          <span class="comment-author">${c.author}</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <span class="comment-time">${time}</span>
+            <button class="comment-del" onclick="deleteOrderComment('${c.id}','${orderId}')">✕</button>
+          </span>
+        </div>
+        <div class="comment-body">${c.body.replace(/</g,'&lt;')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function buildTasksSection(orderId) {
+  const salesOpts = salesReps.map(s=>`<option value="${s}">${s}</option>`).join('');
+  return `<div class="activity-section">
+    <div class="section-title">✅ Tasks</div>
+    <div class="task-add-row">
+      <input class="lp-input" id="task-title-${orderId}" placeholder="New task..." style="flex:2;font-size:12px" onkeydown="if(event.key==='Enter')addOrderTask('${orderId}')">
+      <select class="lp-input" id="task-assign-sel-${orderId}" style="flex:1;font-size:12px"
+        onchange="if(this.value==='__other__'){document.getElementById('task-assign-inp-${orderId}').style.display='';this.style.display='none'}">
+        <option value="">Assign to…</option>
+        ${salesOpts}
+        <option value="__other__">+ Email…</option>
+      </select>
+      <input class="lp-input" id="task-assign-inp-${orderId}" placeholder="email@…" style="display:none;flex:1;font-size:12px">
+      <input class="lp-input" id="task-due-${orderId}" type="date" min="2020-01-01" max="2035-12-31" style="flex:1;font-size:12px">
+      <button class="field-save-btn" onclick="addOrderTask('${orderId}')">Add</button>
+    </div>
+    <div id="tasks-body-${orderId}">${buildTasksBody(orderId, (orderActivity[orderId]||{}).tasks||[])}</div>
+  </div>`;
+}
+
+function buildCommentsSection(orderId) {
+  const salesOpts = salesReps.map(s=>`<option value="${s}">${s}</option>`).join('');
+  return `<div class="activity-section">
+    <div class="section-title">💬 Comments</div>
+    <div class="comment-feed" id="comments-feed-${orderId}">${buildCommentsFeed(orderId, (orderActivity[orderId]||{}).comments||[])}</div>
+    <div class="comment-add-form">
+      <div class="comment-add-author">
+        <select class="lp-input" id="comment-author-sel-${orderId}" style="font-size:12px"
+          onchange="if(this.value==='__other__'){document.getElementById('comment-author-inp-${orderId}').style.display='';this.style.display='none'}">
+          <option value="">Author…</option>
+          ${salesOpts}
+          <option value="__other__">+ Email…</option>
+        </select>
+        <input class="lp-input" id="comment-author-inp-${orderId}" placeholder="email@…" style="display:none;font-size:12px">
+      </div>
+      <textarea class="lp-input" id="comment-body-${orderId}" rows="2" placeholder="Write a comment…" style="font-size:12px;resize:vertical"></textarea>
+      <button class="field-save-btn" onclick="addOrderComment('${orderId}')">Send</button>
+    </div>
+  </div>`;
+}
+
+async function addOrderTask(orderId) {
+  const title = document.getElementById('task-title-'+orderId)?.value?.trim();
+  if (!title) return;
+  const selEl = document.getElementById('task-assign-sel-'+orderId);
+  const inpEl = document.getElementById('task-assign-inp-'+orderId);
+  const assigned_to = (inpEl?.style.display!=='none' ? inpEl?.value : selEl?.value) || '';
+  const due_date = document.getElementById('task-due-'+orderId)?.value || null;
+  const newTask = { order_id: orderId, title, assigned_to, due_date, completed: false };
+  const res = isDemoMode ? {...newTask, id: 'demo-'+Date.now(), created_at: new Date().toISOString()} : (await sb.from('order_tasks').insert(newTask).select().single()).data;
+  if (!res) return;
+  if (!orderActivity[orderId]) orderActivity[orderId] = { tasks:[], comments:[] };
+  orderActivity[orderId].tasks.push(res);
+  document.getElementById('task-title-'+orderId).value = '';
+  renderOrderActivity(orderId);
+  showToast('✅ Task added');
+}
+
+async function toggleOrderTask(taskId, orderId, completed) {
+  const act = orderActivity[orderId];
+  const t = act?.tasks.find(x => x.id === taskId);
+  if (t) t.completed = completed;
+  renderOrderActivity(orderId);
+  if (!isDemoMode) await sb.from('order_tasks').update({completed}).eq('id', taskId);
+}
+
+async function deleteOrderTask(taskId, orderId) {
+  if (!confirm('Delete this task?')) return;
+  if (orderActivity[orderId]) orderActivity[orderId].tasks = orderActivity[orderId].tasks.filter(t => t.id !== taskId);
+  renderOrderActivity(orderId);
+  if (!isDemoMode) await sb.from('order_tasks').delete().eq('id', taskId);
+}
+
+async function addOrderComment(orderId) {
+  const selEl = document.getElementById('comment-author-sel-'+orderId);
+  const inpEl = document.getElementById('comment-author-inp-'+orderId);
+  const author = ((inpEl?.style.display!=='none' ? inpEl?.value : selEl?.value) || '').trim();
+  const body = document.getElementById('comment-body-'+orderId)?.value?.trim();
+  if (!author || !body) { showToast('⚠️ Need author + comment'); return; }
+  const newC = { order_id: orderId, author, body };
+  const res = isDemoMode ? {...newC, id:'demo-'+Date.now(), created_at:new Date().toISOString()} : (await sb.from('order_comments').insert(newC).select().single()).data;
+  if (!res) return;
+  if (!orderActivity[orderId]) orderActivity[orderId] = { tasks:[], comments:[] };
+  orderActivity[orderId].comments.unshift(res);
+  document.getElementById('comment-body-'+orderId).value = '';
+  renderOrderActivity(orderId);
+  showToast('💬 Comment sent');
+}
+
+async function deleteOrderComment(commentId, orderId) {
+  if (!confirm('Delete this comment?')) return;
+  if (orderActivity[orderId]) orderActivity[orderId].comments = orderActivity[orderId].comments.filter(c => c.id !== commentId);
+  renderOrderActivity(orderId);
+  if (!isDemoMode) await sb.from('order_comments').delete().eq('id', commentId);
+}
+
+// ============================================================
 // SALES REP HELPERS
 // ============================================================
 function populateSalesFilters() {
@@ -1468,6 +1652,7 @@ let factoryPOs     = [];
 let containerPlans = [];
 const LEAD_STATUSES = ['New', 'Contacted', 'Quoting', 'Quoted', 'Follow-up'];
 let salesReps = ['JJ','Cezar','Dustin','Darrel','Andy'];
+let orderActivity = {}; // { orderId: { tasks:[], comments:[] } }
 
 let activeCustomerId = null;
 let activePanelTab = 0;
@@ -1742,6 +1927,11 @@ function openPanel(customerId) {
   renderPanelTab(0);
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
+  // Load tasks & comments for all orders of this customer
+  (c.orders || []).forEach(async o => {
+    await loadOrderActivity(o.id);
+    renderOrderActivity(o.id);
+  });
 }
 
 function closePanel() {
@@ -1792,7 +1982,7 @@ function buildOrdersTab(c) {
         </div>
       </div>
       <div class="order-detail ${i === 0 ? 'open' : ''}" id="detail-${order.id}">
-        ${buildOrderDetail(order, c)}
+        ${buildFullOrderDetail(order, c)}
       </div>
     </div>`;
   });
@@ -2236,6 +2426,10 @@ function buildOrderDetail(order, customer) {
   return `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">✅ Order completed.</div>`;
 }
 
+function buildFullOrderDetail(order, customer) {
+  return buildOrderDetail(order, customer) + buildTasksSection(order.id) + buildCommentsSection(order.id);
+}
+
 // =====================
 // ORDER FIELD SAVE (Supabase)
 // =====================
@@ -2251,7 +2445,7 @@ async function saveDeadlineAndETA(customerId, orderId, date) {
   const sub = document.querySelector(`#order-item-${orderId} .order-item-sub`);
   if (sub) sub.textContent = `Balance: $${Number(order.balance||0).toLocaleString()} · ETA ${date}`;
   const detailEl = document.getElementById('detail-' + orderId);
-  if (detailEl) detailEl.innerHTML = buildOrderDetail(order, c);
+  if (detailEl) detailEl.innerHTML = buildFullOrderDetail(order, c);
 }
 
 async function saveOrderField(customerId, orderId, field, value, {silent=false}={}) {
@@ -2265,7 +2459,7 @@ async function saveOrderField(customerId, orderId, field, value, {silent=false}=
   // Re-render the order detail block in-place (no page reload)
   const detailEl = document.getElementById('detail-' + orderId);
   if (detailEl) {
-    detailEl.innerHTML = buildOrderDetail(order, c);
+    detailEl.innerHTML = buildFullOrderDetail(order, c);
   }
 }
 
@@ -4401,7 +4595,7 @@ async function saveNotesFields(customerId, orderId) {
   await dbUpdate('orders', {id: orderId}, {drive_link: dl, order_notes: notes});
   showToast('✅ Notes saved');
   const detailEl = document.getElementById('detail-' + orderId);
-  if (detailEl) detailEl.innerHTML = buildOrderDetail(order, c);
+  if (detailEl) detailEl.innerHTML = buildFullOrderDetail(order, c);
 }
 
 // Batch save lead contact text fields
