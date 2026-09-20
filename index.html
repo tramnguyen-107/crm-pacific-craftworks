@@ -2113,10 +2113,77 @@ function buildSpecSummarySection(order, customer) {
       </div>
       <div id="${uid}" style="display:none;padding:12px 14px;border-top:1px solid var(--border)">
         ${buildOrderQuoteSection(order)}
-        ${buildOrderSpecsSection(order)}
+        ${buildOrderCollectInfoForm(order, customer)}
         ${buildFurnitureSection(order, customer)}
+        ${buildOrderChecklistSummary(order)}
       </div>
     </div>`;
+}
+
+function buildOrderCollectInfoForm(order, customer) {
+  const ci = order.collect_info || {};
+  const cid = customer.id; const oid = order.id;
+  const sel = (field, opts) => `<select class="lp-input" style="font-size:11px" onchange="saveOrderCI(${cid},'${oid}','${field}',this.value)">
+    <option value="">— select —</option>
+    ${opts.map(o => `<option${ci[field]===o?' selected':''}>${o}</option>`).join('')}
+  </select>`;
+  const inp = (field, ph='') => `<input class="lp-input" style="font-size:11px" placeholder="${ph}" value="${(ci[field]||'').replace(/"/g,'&quot;')}" onchange="saveOrderCI(${cid},'${oid}','${field}',this.value)">`;
+
+  return `<div style="margin-bottom:12px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2);margin-bottom:8px">🪵 Cabinet Box</div>
+    <div class="lp-contact-grid" style="margin-bottom:8px">
+      <div class="lp-field"><label class="lp-label">Species</label>${sel('box_species',['Plywood Birch','MDF','Other'])}</div>
+      <div class="lp-field"><label class="lp-label">Finish</label>${sel('box_finish',['NC','UV','PU','Stain Only'])}</div>
+      <div class="lp-field"><label class="lp-label">Color Outside</label>${inp('box_color_outside','Standard')}</div>
+      <div class="lp-field"><label class="lp-label">Color Inside</label>${inp('box_color_inside','Stain match door faces')}</div>
+    </div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2);margin-bottom:8px">🚪 Cabinet Door / Drawer Face</div>
+    <div class="lp-contact-grid" style="margin-bottom:8px">
+      <div class="lp-field"><label class="lp-label">Species</label>${inp('door_species','e.g. Acacia, Oak...')}</div>
+      <div class="lp-field"><label class="lp-label">Color / Stain</label>${inp('door_stain','e.g. Sample, White...')}</div>
+      <div class="lp-field"><label class="lp-label">Finish</label>${sel('door_finish',['NC','UV','PU','Stain Only'])}</div>
+      <div class="lp-field"><label class="lp-label">Door Style</label>${inp('door_style','e.g. Shaker, Slab...')}</div>
+      <div class="lp-field"><label class="lp-label">Grain Direction</label>${sel('grain_dir',['Vertical','Horizontal'])}</div>
+    </div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2);margin-bottom:8px">🔩 Drawer & Hardware</div>
+    <div class="lp-contact-grid">
+      <div class="lp-field"><label class="lp-label">Drawer Species</label>${inp('drawer_species','')}</div>
+      <div class="lp-field"><label class="lp-label">Drawer Style</label>${inp('drawer_style','e.g. Dovetail...')}</div>
+      <div class="lp-field"><label class="lp-label">Drawer Slide</label>${sel('drawer_slide',['Soft-close undermount','Side mount','Standard'])}</div>
+      <div class="lp-field"><label class="lp-label">Hinge</label>${sel('hinge',['Soft-close','Standard'])}</div>
+      <div class="lp-field"><label class="lp-label">Fridge Panel</label>${inp('appl_fridge','')}</div>
+      <div class="lp-field"><label class="lp-label">Cooktop</label>${inp('appl_cooktop','')}</div>
+    </div>
+  </div>`;
+}
+
+function buildOrderChecklistSummary(order) {
+  const checked = order.checked || {};
+  const groups = [
+    { label: '📐 Dimensions & Finish', items: CHECKLIST.dimensions },
+    { label: '📄 Drawings', items: CHECKLIST.drawings },
+    { label: '🪨 Stone', items: CHECKLIST.stone },
+    { label: '🔩 Hardware', items: CHECKLIST.hardware },
+  ];
+  return `<div style="margin-top:8px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2);margin-bottom:8px">✅ Collect Checklist</div>
+    ${groups.map(g => `
+      <div style="margin-bottom:8px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px">${g.label}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${g.items.map(item => `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:${checked[item.id]?'#D1FAE5':'var(--surface)'};color:${checked[item.id]?'#065F46':'var(--muted)'};border:1px solid ${checked[item.id]?'#6EE7B7':'var(--border)'}">${checked[item.id]?'✓':''} ${item.label}</span>`).join('')}
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+async function saveOrderCI(customerId, orderId, field, value) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  if (!order.collect_info) order.collect_info = {};
+  order.collect_info[field] = value;
+  await sb.from('orders').update({ collect_info: order.collect_info }).eq('id', orderId);
 }
 
 function toggleSpecSummary(uid) {
