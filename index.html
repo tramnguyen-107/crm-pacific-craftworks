@@ -126,6 +126,9 @@
     --shipped: #7C3AED;
     --shipped-bg: #F4F0FD;
     --shipped-border: #CEBFF8;
+    --deposit: #059669;
+    --deposit-bg: #ECFDF5;
+    --deposit-border: #A7F3D0;
     --done: #8D957E;
     --done-bg: #EEF0EB;
     --done-border: #C4CAB8;
@@ -164,9 +167,28 @@
   .column-body { background: rgba(0,0,0,0.025); border-radius: 0 0 var(--radius) var(--radius); padding: 8px; min-height: 80px; display: flex; flex-direction: column; gap: 7px; border: 1px solid rgba(0,0,0,0.06); border-top: none; }
 
   /* STAGE COLORS */
+  .col-deposit .column-header { background: var(--deposit-bg); }
+  .col-deposit .col-title { color: var(--deposit); }
+  .col-deposit .col-count { background: var(--deposit); color: white; }
   .col-collect .column-header { background: var(--collect-bg); }
   .col-collect .col-title { color: var(--collect); }
   .col-collect .col-count { background: var(--collect); color: white; }
+  /* Workflow checklist */
+  .wf-section { margin-bottom:14px; }
+  .wf-phase { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:10px; }
+  .wf-phase:first-child { border-top:none;margin-top:0; }
+  .wf-task { display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px; }
+  .wf-task input[type=checkbox] { width:15px;height:15px;cursor:pointer;accent-color:var(--brand); }
+  .wf-task.done .wf-label { text-decoration:line-through;color:var(--muted); }
+  .wf-assignee { font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;white-space:nowrap;flex-shrink:0; }
+  .wf-a-tram { background:#EEF2FF;color:#4338CA; }
+  .wf-a-thanh { background:#FEF3C7;color:#92400E; }
+  .wf-a-andy { background:#FDF4FF;color:#7E22CE; }
+  .wf-a-giao { background:#FFF1F2;color:#BE123C; }
+  .wf-a-nhung { background:#F0FDF4;color:#166534; }
+  .wf-label { flex:1; }
+  .finance-row { display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px; }
+  .finance-chip { font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:#F0FDF4;color:#065F46; }
   .col-production .column-header { background: var(--production-bg); }
   .col-production .col-title { color: var(--production); }
   .col-production .col-count { background: var(--production); color: white; }
@@ -239,6 +261,7 @@
   .order-item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
   .stage-badge { font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
   .badge-lead { background: var(--lead-bg); color: var(--lead); }
+  .badge-deposit { background: var(--deposit-bg); color: var(--deposit); }
   .badge-collect { background: var(--collect-bg); color: var(--collect); }
   .badge-production { background: var(--production-bg); color: var(--production); }
   .badge-shipped { background: var(--shipped-bg); color: var(--shipped); }
@@ -829,6 +852,10 @@
 <!-- PIPELINE VIEW -->
 <div class="view" id="view-pipeline">
 <div class="board" id="board">
+  <div class="column col-deposit">
+    <div class="column-header"><div class="col-title">💰 Deposit</div><div class="col-count" id="count-deposit">0</div></div>
+    <div class="column-body" id="col-deposit"></div>
+  </div>
   <div class="column col-collect">
     <div class="column-header"><div class="col-title">🟡 Collecting Info</div><div class="col-count" id="count-collect">0</div></div>
     <div class="column-body" id="col-collect"></div>
@@ -1645,6 +1672,68 @@ const CHECKLIST = {
 
 const TOTAL_CHECKS = Object.values(CHECKLIST).flat().length; // 19
 
+// ============================================================
+// WORKFLOW TASKS — mapped from PCW business process flow
+// Assignees: Trâm, Thành, Andy, Giao, Nhung
+// ============================================================
+const WORKFLOW_TASKS = {
+  quote: {
+    label: '📋 Quoting & Design',
+    tasks: [
+      { id:'wq1', assignee:'Andy',  cls:'wf-a-andy',  label:'Liên lạc khách, gửi Trâm bản vẽ yêu cầu' },
+      { id:'wq2', assignee:'Giao',  cls:'wf-a-giao',  label:'Đi đo đạc tại công trình' },
+      { id:'wq3', assignee:'Giao',  cls:'wf-a-giao',  label:'Gửi thông tin cho Thành + Trâm' },
+      { id:'wq4', assignee:'Thành', cls:'wf-a-thanh', label:'Thiết kế layout theo yêu cầu khách' },
+      { id:'wq5', assignee:'Thành', cls:'wf-a-thanh', label:'Báo giá (check với nhà máy)' },
+      { id:'wq6', assignee:'Trâm',  cls:'wf-a-tram',  label:'Check giá & gửi khách bản vẽ + quotation' },
+    ]
+  },
+  deposit: {
+    label: '💰 Deposit & Confirm',
+    tasks: [
+      { id:'wd1', assignee:'Trâm',  cls:'wf-a-tram',  label:'Follow up khách tiến hành deposit' },
+      { id:'wd2', assignee:'Trâm',  cls:'wf-a-tram',  label:'Thông báo chị Nhung ngay sau khi khách deposit' },
+      { id:'wd3', assignee:'Trâm',  cls:'wf-a-tram',  label:'Gửi khách proposal để xác nhận' },
+      { id:'wd4', assignee:'Trâm',  cls:'wf-a-tram',  label:'Gửi khách invoice + bản vẽ để ký xác nhận' },
+      { id:'wd5', assignee:'Thành', cls:'wf-a-thanh', label:'Sample (nếu cần) — gửi thông tin cho nhà máy' },
+      { id:'wd6', assignee:'Thành', cls:'wf-a-thanh', label:'Follow up thời gian làm sample' },
+    ]
+  },
+  production: {
+    label: '🏭 Sản xuất & QC',
+    tasks: [
+      { id:'wp1', assignee:'Thành', cls:'wf-a-thanh', label:'Đưa xuống sản xuất (nhà máy)' },
+      { id:'wp2', assignee:'Thành', cls:'wf-a-thanh', label:'Follow up QC — đảm bảo hàng đúng ngày lên cont' },
+      { id:'wp3', assignee:'Thành', cls:'wf-a-thanh', label:'Gửi QC report cho Trâm' },
+      { id:'wp4', assignee:'Trâm',  cls:'wf-a-tram',  label:'Booking tàu, container, giấy tờ nhập hàng' },
+      { id:'wp5', assignee:'Trâm',  cls:'wf-a-tram',  label:'Nhận QC Report từ Thành' },
+      { id:'wp6', assignee:'Trâm',  cls:'wf-a-tram',  label:'QC check — sản phẩm đầy đủ theo Packing List' },
+    ]
+  },
+  shipping: {
+    label: '🚢 Vận chuyển & Thanh toán',
+    tasks: [
+      { id:'ws1', assignee:'Trâm',  cls:'wf-a-tram',  label:'Gửi Invoice & Proposal cho anh Giao' },
+      { id:'ws2', assignee:'Trâm',  cls:'wf-a-tram',  label:'Cập nhật anh Giao thời gian tàu đến Mỹ' },
+      { id:'ws3', assignee:'Giao',  cls:'wf-a-giao',  label:'Thu tiền còn lại từ khách (invoice + proposal)' },
+      { id:'ws4', assignee:'Giao',  cls:'wf-a-giao',  label:'Gửi check/tiền cho chị Nhung' },
+      { id:'ws5', assignee:'Nhung', cls:'wf-a-nhung', label:'Nhận check từ anh Giao — nộp ngân hàng' },
+      { id:'ws6', assignee:'Nhung', cls:'wf-a-nhung', label:'Wire fund từ Mỹ về VN — xử lý payroll' },
+    ]
+  },
+  delivery: {
+    label: '🚛 Giao hàng & Lắp đặt',
+    tasks: [
+      { id:'wdel1', assignee:'Giao', cls:'wf-a-giao', label:'Lập kế hoạch giao hàng' },
+      { id:'wdel2', assignee:'Giao', cls:'wf-a-giao', label:'Liên hệ trucking local' },
+      { id:'wdel3', assignee:'Giao', cls:'wf-a-giao', label:'Set up cho thợ unload khi container về' },
+      { id:'wdel4', assignee:'Giao', cls:'wf-a-giao', label:'Lập bảng lịch installation theo tuần/tháng — gửi Trâm' },
+      { id:'wdel5', assignee:'Giao', cls:'wf-a-giao', label:'Tiến hành lắp đặt (Phú & Pavel)' },
+      { id:'wdel6', assignee:'Giao', cls:'wf-a-giao', label:'Giám sát thi công cho đến khi hoàn thành' },
+    ]
+  },
+};
+
 // LEADS / CUSTOMERS / FACTORY POs / CONTAINERS — loaded from Supabase on login
 let leads          = [];
 let customers      = [];
@@ -1670,9 +1759,9 @@ function renderBoard() {
   const filterSales = document.getElementById('filter-sales')?.value || '';
   const searchQ     = (document.getElementById('search-input')?.value || '').toLowerCase();
 
-  const activeStages = ['collect','production','shipped','delivery'];
-  const colIds   = { lead:'col-lead', collect:'col-collect', production:'col-production', shipped:'col-shipped', delivery:'col-delivery', done:'col-done' };
-  const countIds = { lead:'count-lead', collect:'count-collect', production:'count-production', shipped:'count-shipped', delivery:'count-delivery', done:'count-done' };
+  const activeStages = ['deposit','collect','production','shipped','delivery'];
+  const colIds   = { lead:'col-lead', deposit:'col-deposit', collect:'col-collect', production:'col-production', shipped:'col-shipped', delivery:'col-delivery', done:'col-done' };
+  const countIds = { lead:'count-lead', deposit:'count-deposit', collect:'count-collect', production:'count-production', shipped:'count-shipped', delivery:'count-delivery', done:'count-done' };
 
   // Show/hide archive column
   document.getElementById('col-done-wrap').style.display = showArchived ? '' : 'none';
@@ -1794,8 +1883,8 @@ function buildCard(customer) {
   const chips = orderTypes.map(t => `<span class="order-chip ${typeClass[t] || 'kitchen'}">${t}</span>`).join('');
 
   const totalOrders = customer.orders.length;
-  const stageColors = { collect:'#B86B10', production:'#78898F', shipped:'#7C3AED', delivery:'#984216', done:'#8D957E' };
-  const stageLabels = { collect:'Collecting Info', production:'In Production', shipped:'Shipped', delivery:'Delivery', done:'Done' };
+  const stageColors = { deposit:'#059669', collect:'#B86B10', production:'#78898F', shipped:'#7C3AED', delivery:'#984216', done:'#8D957E' };
+  const stageLabels = { deposit:'Deposit', collect:'Collecting Info', production:'In Production', shipped:'Shipped', delivery:'Delivery', done:'Done' };
 
   const poRows = customer.orders.map(o => {
     const depositAmt = o.deposit_amount ? '$' + Number(o.deposit_amount).toLocaleString() : (o.deposit_received ? 'Received' : '—');
@@ -1865,8 +1954,8 @@ function buildOrderCard(order, customer) {
   div.className = 'customer-card';
   div.onclick = () => { openPanel(customer.id); };
 
-  const stageColors = { collect:'#B86B10', production:'#78898F', shipped:'#7C3AED', delivery:'#984216', done:'#8D957E' };
-  const stageLabels = { collect:'Collecting Info', production:'In Production', shipped:'Shipped', delivery:'Delivery', done:'Done' };
+  const stageColors = { deposit:'#059669', collect:'#B86B10', production:'#78898F', shipped:'#7C3AED', delivery:'#984216', done:'#8D957E' };
+  const stageLabels = { deposit:'Deposit', collect:'Collecting Info', production:'In Production', shipped:'Shipped', delivery:'Delivery', done:'Done' };
   const depositAmt = order.deposit_amount ? '$' + Number(order.deposit_amount).toLocaleString() : (order.deposit_received ? 'Received' : '—');
   const balance = order.balance ? '$' + Number(order.balance).toLocaleString() : '—';
   const eta = order.eta || '—';
@@ -1964,8 +2053,8 @@ function buildOrdersTab(c) {
   c.orders.forEach((order, i) => {
     const checked = Object.values(order.checked || {}).filter(Boolean).length;
     const pct = Math.round((checked / TOTAL_CHECKS) * 100);
-    const stageLabel = { lead: 'Lead', collect: 'Collecting Info', production: 'In Production', shipped: 'Shipped', done: 'Done' };
-    const stageBadge = { lead: 'badge-lead', collect: 'badge-collect', production: 'badge-production', shipped: 'badge-shipped', done: 'badge-done' };
+    const stageLabel = { lead: 'Lead', deposit: 'Deposit', collect: 'Collecting Info', production: 'In Production', shipped: 'Shipped', done: 'Done' };
+    const stageBadge = { lead: 'badge-lead', deposit: 'badge-deposit', collect: 'badge-collect', production: 'badge-production', shipped: 'badge-shipped', done: 'badge-done' };
     const barColor = pct === 100 ? '#10B981' : pct > 50 ? '#3B82F6' : '#F59E0B';
 
     html += `
@@ -1993,6 +2082,39 @@ function buildOrdersTab(c) {
 // =====================
 // ORDER DETAIL HELPERS (Supabase-backed, snake_case fields)
 // =====================
+function buildWorkflowSection(order, customer, phases) {
+  const checked = order.checked || {};
+  const phaseKeys = phases || Object.keys(WORKFLOW_TASKS);
+  let html = `<div class="wf-section"><div class="section-title">📋 Workflow Checklist</div>`;
+  phaseKeys.forEach(key => {
+    const phase = WORKFLOW_TASKS[key];
+    if (!phase) return;
+    const total = phase.tasks.length;
+    const done  = phase.tasks.filter(t => checked[t.id]).length;
+    html += `<div class="wf-phase">${phase.label} <span style="font-size:10px;color:${done===total?'var(--deposit)':'var(--muted)'};margin-left:6px">${done}/${total}</span></div>`;
+    phase.tasks.forEach(t => {
+      const isChecked = !!checked[t.id];
+      html += `<div class="wf-task${isChecked?' done':''}">
+        <input type="checkbox" ${isChecked?'checked':''} onclick="toggleWorkflowTask(${customer.id},'${order.id}','${t.id}',this)">
+        <span class="wf-assignee ${t.cls}">${t.assignee}</span>
+        <span class="wf-label">${t.label}</span>
+      </div>`;
+    });
+  });
+  html += `</div>`;
+  return html;
+}
+
+async function toggleWorkflowTask(customerId, orderId, taskId, el) {
+  const c = customers.find(x => x.id == customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.checked = order.checked || {};
+  order.checked[taskId] = el.checked;
+  el.closest('.wf-task').classList.toggle('done', el.checked);
+  await dbUpdate('orders', {id: orderId}, {checked: order.checked});
+}
+
 function buildUrgentSection(order, customer) {
   const isUrgent = order.urgent;
   const borderStyle = isUrgent ? 'border:2px solid #EF4444;border-radius:10px;overflow:hidden;margin-bottom:12px' : 'border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px';
@@ -2227,10 +2349,23 @@ function buildOrderDetail(order, customer) {
     return `
       ${buildDepositSection(order, customer)}
       ${buildUrgentSection(order, customer)}
+      ${buildWorkflowSection(order, customer, ['quote'])}
       ${buildNotesSection(order, customer)}
       ${buildFurnitureSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToCollect(${customer.id}, '${order.id}')">Start Collecting Info →</button>
+        <button class="btn btn-primary" onclick="moveToDeposit(${customer.id}, '${order.id}')">💰 Khách đã Deposit →</button>
+      </div>`;
+  }
+
+  if (order.stage === 'deposit') {
+    return `
+      ${buildDepositSection(order, customer)}
+      ${buildUrgentSection(order, customer)}
+      ${buildWorkflowSection(order, customer, ['quote','deposit'])}
+      ${buildNotesSection(order, customer)}
+      ${buildFurnitureSection(order, customer)}
+      <div class="action-bar">
+        <button class="btn btn-primary" onclick="moveToCollect(${customer.id}, '${order.id}')">📋 Bắt đầu Thu thập Spec →</button>
       </div>`;
   }
 
@@ -2288,6 +2423,7 @@ function buildOrderDetail(order, customer) {
     }
 
     html += buildFurnitureSection(order, customer);
+    html += buildWorkflowSection(order, customer, ['quote','deposit','production']);
     html += buildNotesSection(order, customer);
     html += `<div class="action-bar">
       <button class="btn btn-primary" ${!canPush ? 'disabled title="Need deposit + complete checklist"' : ''} onclick="pushToFactory(${customer.id}, '${order.id}')">Push to Factory →</button>
@@ -2301,6 +2437,7 @@ function buildOrderDetail(order, customer) {
       ${buildOrderQuoteSection(order)}
       ${buildOrderSpecsSection(order)}
       ${buildUrgentSection(order, customer)}
+      ${buildWorkflowSection(order, customer, ['production'])}
       <div class="section-title">Production Timeline</div>
       <div class="timeline">
         <div class="timeline-item">
@@ -2351,6 +2488,7 @@ function buildOrderDetail(order, customer) {
         <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.port_arrival_date||''}"
           onchange="saveOrderField(${customer.id},'${order.id}','port_arrival_date',this.value)">
       </div>
+      ${buildWorkflowSection(order, customer, ['shipping'])}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
         <button class="btn btn-primary" onclick="markPortArrival(${customer.id},'${order.id}')">🚛 Container Arrived at Port →</button>
@@ -2417,6 +2555,7 @@ function buildOrderDetail(order, customer) {
         </label>
       </div>
 
+      ${buildWorkflowSection(order, customer, ['delivery'])}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
         <button class="btn btn-primary" ${!canDone?'disabled title="Warehouse arrival + installation + customer confirm required"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Mark as Delivered & Done</button>
@@ -2863,6 +3002,17 @@ function toggleCheck(customerId, orderId, checkId, el) {
   dbUpdate('orders', {id: orderId}, {checked: order.checked});
 }
 
+async function moveToDeposit(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c.orders.find(o => o.id === orderId);
+  order.stage = 'deposit'; c.stage = 'deposit';
+  renderBoard(); renderPanelTab(0);
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {stage: 'deposit'}),
+    dbUpdate('customers', {id: customerId}, {stage: 'deposit'})
+  ]);
+}
+
 async function moveToCollect(customerId, orderId) {
   const c = customers.find(x => x.id === customerId);
   const order = c.orders.find(o => o.id === orderId);
@@ -2954,8 +3104,8 @@ async function dropCard(e, newStage) {
   const allDone = c.orders.every(o => o.stage === 'done');
   const anyStage = s => c.orders.some(o => o.stage === s);
   // Customer stage = most advanced order stage
-  const stageOrder = ['collect','production','shipped','delivery','done'];
-  const maxStage = stageOrder.slice().reverse().find(s => anyStage(s)) || 'collect';
+  const stageOrder = ['deposit','collect','production','shipped','delivery','done'];
+  const maxStage = stageOrder.slice().reverse().find(s => anyStage(s)) || 'deposit';
   c.stage = maxStage;
   renderBoard();
   await Promise.all([
@@ -3422,7 +3572,7 @@ function onSearch(val) {
 function renderCustomersTable(q = '') {
   const tbody = document.getElementById('customers-tbody');
   const stageLabel = { lead: 'Lead', collect: 'Collecting Info', production: 'In Production', shipped: 'Shipped', delivery: 'Delivery', done: 'Done' };
-  const stageBadge = { lead: 'badge-lead', collect: 'badge-collect', production: 'badge-production', shipped: 'badge-shipped', delivery: 'badge-shipped', done: 'badge-done' };
+  const stageBadge = { lead: 'badge-lead', deposit: 'badge-deposit', collect: 'badge-collect', production: 'badge-production', shipped: 'badge-shipped', delivery: 'badge-shipped', done: 'badge-done' };
   const typeClass = { 'Kitchen Remodel': 'kitchen', 'Bathroom': 'bathroom', 'Vanity': 'vanity', 'Full Remodel': 'remodel' };
 
   let filtered = customers;
