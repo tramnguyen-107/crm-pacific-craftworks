@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>PCW — QR Scan</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #fff; min-height: 100vh; }
+
+    /* Header */
+    .header { background: #7C3F23; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+    .header-title { font-size: 16px; font-weight: 700; }
+    .header-sub { font-size: 11px; opacity: 0.7; }
+
+    /* Camera view */
+    #camera-wrap { position: relative; width: 100%; aspect-ratio: 1; background: #000; overflow: hidden; }
+    #video { width: 100%; height: 100%; object-fit: cover; }
+    #canvas { display: none; }
+    .scan-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .scan-box { width: 65%; aspect-ratio: 1; border: 2px solid #fff; border-radius: 12px; position: relative; }
+    .scan-box::before, .scan-box::after, .scan-corner-bl, .scan-corner-br {
+      content: ''; position: absolute; width: 20px; height: 20px; border-color: #7C3F23; border-style: solid;
+    }
+    .scan-box::before  { top: -2px; left: -2px;  border-width: 4px 0 0 4px; border-radius: 8px 0 0 0; }
+    .scan-box::after   { top: -2px; right: -2px; border-width: 4px 4px 0 0; border-radius: 0 8px 0 0; }
+    .scan-corner-bl    { bottom: -2px; left: -2px;  border-width: 0 0 4px 4px; border-radius: 0 0 0 8px; }
+    .scan-corner-br    { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; border-radius: 0 0 8px 0; }
+    .scan-line { position: absolute; top: 50%; left: 4px; right: 4px; height: 2px; background: linear-gradient(90deg, transparent, #7C3F23, transparent); animation: scanAnim 2s ease-in-out infinite; }
+    @keyframes scanAnim { 0%,100% { top: 10%; } 50% { top: 90%; } }
+    .scan-hint { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; font-size: 12px; color: rgba(255,255,255,0.6); }
+
+    /* Scan result panel */
+    #result-panel { padding: 16px; }
+    .status-idle { text-align: center; padding: 24px 16px; color: rgba(255,255,255,0.4); font-size: 14px; }
+
+    .item-card { background: #1e2028; border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+    .item-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+    .item-qr-id { font-size: 13px; font-weight: 700; color: #7C3F23; letter-spacing: 0.5px; }
+    .item-order { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+    .item-desc { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .item-dim { font-size: 12px; color: rgba(255,255,255,0.5); }
+
+    /* Status chips */
+    .status-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .status-chip { padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; border: 1.5px solid; }
+    .chip-done    { background: #052e16; color: #4ade80; border-color: #16a34a; }
+    .chip-pending { background: #1e2028; color: rgba(255,255,255,0.35); border-color: rgba(255,255,255,0.1); }
+    .chip-next    { background: #7C3F23; color: #fff; border-color: #7C3F23; }
+
+    /* Action buttons */
+    .action-btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
+    .action-btn:active { opacity: 0.8; }
+    .btn-loaded    { background: #D97706; color: #fff; }
+    .btn-unloaded  { background: #2563EB; color: #fff; }
+    .btn-delivered { background: #059669; color: #fff; }
+    .btn-done      { background: #1e2028; color: rgba(255,255,255,0.35); cursor: default; }
+
+    /* Who field */
+    .who-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+    .who-label { font-size: 11px; color: rgba(255,255,255,0.5); white-space: nowrap; }
+    .who-sel { flex: 1; background: #1e2028; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: #fff; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+
+    /* Success flash */
+    #flash { position: fixed; inset: 0; background: rgba(5,150,105,0.9); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 99; }
+    #flash.show { opacity: 1; pointer-events: all; }
+    .flash-icon { font-size: 64px; }
+    .flash-msg { font-size: 18px; font-weight: 700; }
+
+    /* Error */
+    .error-card { background: #3f1515; border: 1px solid #dc2626; border-radius: 12px; padding: 14px 16px; color: #fca5a5; font-size: 13px; text-align: center; }
+
+    /* Bottom safe area */
+    .safe-bottom { height: env(safe-area-inset-bottom, 16px); }
+
+    /* Camera off state */
+    #no-camera { display: none; background: #1e2028; padding: 40px 20px; text-align: center; color: rgba(255,255,255,0.5); font-size: 13px; }
+    #no-camera button { margin-top: 12px; padding: 10px 20px; background: #7C3F23; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">Pacific Craftworks</div>
+    <div class="header-sub">QR Scanner</div>
+  </div>
+  <div style="font-size:11px;color:rgba(255,255,255,0.5)" id="scan-status-txt">Scanning…</div>
+</div>
+
+<!-- Camera -->
+<div id="camera-wrap">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="canvas"></canvas>
+  <div class="scan-overlay">
+    <div class="scan-box">
+      <div class="scan-corner-bl"></div>
+      <div class="scan-corner-br"></div>
+      <div class="scan-line"></div>
+    </div>
+  </div>
+  <div class="scan-hint">Point camera at QR code on box</div>
+</div>
+<div id="no-camera">
+  <div>📷 Camera not accessible</div>
+  <button onclick="startCamera()">Try Again</button>
+</div>
+
+<!-- Result -->
+<div id="result-panel">
+  <div class="status-idle" id="idle-msg">Scan a QR code to begin</div>
+</div>
+
+<!-- Success flash -->
+<div id="flash">
+  <div class="flash-icon">✅</div>
+  <div class="flash-msg" id="flash-msg">Recorded!</div>
+</div>
+
+<div class="safe-bottom"></div>
+
+<script>
+const SUPABASE_URL     = 'https://ravdtlsnrtltgynswxna.supabase.co';
+const SUPABASE_ANON_KEY= 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhdmR0bHNucnRsdGd5bnN3eG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5ODcxMjUsImV4cCI6MjA5NjU2MzEyNX0.dTex6kJooA-t7mxYvvYONEejrQ7pgW-kZAfnNLoOhhc';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const TEAM = ['Thành','Trâm','Giao','Nhung','Andy','JJ','Cezar','Dustin','Darrel'];
+const EVENT_LABELS = { loaded: '🚢 Loaded onto Container', unloaded: '🏭 Unloaded in US', delivered: '🏠 Delivered to Customer' };
+const EVENT_NEXT   = { null: 'loaded', loaded: 'unloaded', unloaded: 'delivered', delivered: null };
+
+let video, canvas, ctx, scanning = true, lastScanned = '';
+
+async function startCamera() {
+  video = document.getElementById('video');
+  canvas = document.getElementById('canvas');
+  ctx = canvas.getContext('2d');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    video.srcObject = stream;
+    video.play();
+    document.getElementById('camera-wrap').style.display = 'block';
+    document.getElementById('no-camera').style.display = 'none';
+    requestAnimationFrame(tick);
+  } catch(e) {
+    document.getElementById('camera-wrap').style.display = 'none';
+    document.getElementById('no-camera').style.display = 'block';
+  }
+}
+
+function tick() {
+  if (video.readyState === video.HAVE_ENOUGH_DATA && scanning) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+    if (code && code.data && code.data !== lastScanned) {
+      lastScanned = code.data;
+      scanning = false;
+      document.getElementById('scan-status-txt').textContent = 'Found!';
+      handleScan(code.data);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+function resumeScan() {
+  lastScanned = '';
+  scanning = true;
+  document.getElementById('scan-status-txt').textContent = 'Scanning…';
+  document.getElementById('result-panel').innerHTML = '<div class="status-idle" id="idle-msg">Scan a QR code to begin</div>';
+}
+
+async function handleScan(qrId) {
+  document.getElementById('result-panel').innerHTML = `<div style="padding:20px;text-align:center;color:rgba(255,255,255,0.4)">⏳ Looking up ${qrId}…</div>`;
+
+  // Load item info
+  const { data: item } = await sb.from('packing_list_items').select('*').eq('qr_id', qrId).single();
+  if (!item) {
+    document.getElementById('result-panel').innerHTML = `
+      <div class="error-card">❌ QR code not found: <strong>${qrId}</strong></div>
+      <div style="text-align:center;margin-top:16px"><button onclick="resumeScan()" style="padding:10px 24px;background:#7C3F23;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">Scan Again</button></div>`;
+    return;
+  }
+
+  // Load order + customer
+  const { data: order } = await sb.from('orders').select('*, customers(name)').eq('id', item.order_id).single();
+
+  // Load existing scan events for this item
+  const { data: events } = await sb.from('qr_scan_events').select('*').eq('qr_id', qrId).order('scanned_at');
+  const latestEvent = events?.length ? events[events.length - 1].event_type : null;
+  const nextEvent = EVENT_NEXT[latestEvent];
+
+  const dim = [item.width_in, item.height_in, item.depth_in].filter(Boolean).map(v => v + '"').join(' × ');
+  const eventDone = (type) => events?.some(e => e.event_type === type);
+
+  const chipFor = (type) => {
+    const done = eventDone(type);
+    const isNext = nextEvent === type;
+    const cls = done ? 'chip-done' : isNext ? 'chip-next' : 'chip-pending';
+    const e = events?.find(ev => ev.event_type === type);
+    const when = e ? new Date(e.scanned_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div class="status-chip ${cls}">${done?'✓':isNext?'→':'○'} ${type.charAt(0).toUpperCase()+type.slice(1)}${when ? ' · '+when : ''}</div>`;
+  };
+
+  const whoOpts = TEAM.map(n => `<option value="${n}">${n}</option>`).join('');
+
+  let actionBtn = '';
+  if (nextEvent) {
+    const btnCls = `btn-${nextEvent}`;
+    actionBtn = `
+      <div class="who-row">
+        <span class="who-label">Scanned by:</span>
+        <select class="who-sel" id="who-sel">${whoOpts}</select>
+      </div>
+      <button class="action-btn ${btnCls}" onclick="recordEvent('${qrId}','${item.order_id}','${item.id}','${nextEvent}')">
+        ${EVENT_LABELS[nextEvent]}
+      </button>`;
+  } else {
+    actionBtn = `<button class="action-btn btn-done" disabled>✅ All steps complete</button>`;
+  }
+
+  document.getElementById('result-panel').innerHTML = `
+    <div class="item-card">
+      <div class="item-card-header">
+        <div>
+          <div class="item-qr-id">${qrId}</div>
+          <div class="item-order">${order ? (order.customers?.name || '') + ' · ' + item.order_id : item.order_id}</div>
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.4)">Item #${item.item_no}</div>
+      </div>
+      <div class="item-desc">${item.description || '—'}</div>
+      ${dim ? `<div class="item-dim">${dim} in</div>` : ''}
+      <div class="status-row" style="margin-top:12px">
+        ${chipFor('loaded')}${chipFor('unloaded')}${chipFor('delivered')}
+      </div>
+      ${actionBtn}
+    </div>
+    <div style="text-align:center;margin-top:8px">
+      <button onclick="resumeScan()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:13px;cursor:pointer;font-family:inherit;padding:8px">← Scan another</button>
+    </div>`;
+}
+
+async function recordEvent(qrId, orderId, itemId, eventType) {
+  const who = document.getElementById('who-sel')?.value || '';
+  const btn = document.querySelector('.action-btn:not(.btn-done)');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  await sb.from('qr_scan_events').insert({ qr_id: qrId, order_id: orderId, event_type: eventType, scanned_by: who });
+
+  // Flash success
+  document.getElementById('flash-msg').textContent = EVENT_LABELS[eventType];
+  const flash = document.getElementById('flash');
+  flash.classList.add('show');
+  setTimeout(() => {
+    flash.classList.remove('show');
+    // Reload item to show updated status
+    handleScan(qrId);
+  }, 1500);
+}
+
+startCamera();
+</script>
+</body>
+</html>

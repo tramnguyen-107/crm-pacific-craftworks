@@ -1383,6 +1383,16 @@ async function loadAllData() {
       if (!invoiceItems[item.order_id]) invoiceItems[item.order_id] = [];
       invoiceItems[item.order_id].push(item);
     });
+    // Load QR scan events for all packing items
+    const allQrIds = (plRes.data || []).map(i => i.qr_id).filter(Boolean);
+    if (allQrIds.length) {
+      const { data: scanData } = await sb.from('qr_scan_events').select('*').in('qr_id', allQrIds).order('scanned_at');
+      qrScanEvents = {};
+      (scanData || []).forEach(e => {
+        if (!qrScanEvents[e.qr_id]) qrScanEvents[e.qr_id] = [];
+        qrScanEvents[e.qr_id].push(e);
+      });
+    }
   }
 }
 
@@ -1758,6 +1768,7 @@ let salesReps = ['JJ','Cezar','Dustin','Darrel','Andy'];
 let orderActivity = {}; // { orderId: { tasks:[], comments:[] } }
 let packingItems = {}; // { orderId: [items] }
 let invoiceItems = {}; // { orderId: [items] }
+let qrScanEvents = {}; // { qrId: [events] }
 
 let activeCustomerId = null;
 let activePanelTab = 0;
@@ -2712,6 +2723,7 @@ function buildPackingListSection(order, customer) {
       <td style="padding:4px 6px"><input class="lp-input" style="width:100%;min-width:90px;font-size:11px" value="${(item.notes||'').replace(/"/g,'&quot;')}" onchange="savePackingField('${item.id}','${order.id}','notes',this.value)"></td>
       <td style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--brand);white-space:nowrap">${item.qr_id}</td>
       <td style="padding:4px 8px"><div id="qr-${item.id}" data-qr-text="${item.qr_id}" style="width:52px;height:52px"></div></td>
+      <td style="padding:4px 8px">${buildQRStatusChips(item.qr_id)}</td>
       <td style="padding:4px 6px"><button onclick="deletePackingItem('${item.id}','${order.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" title="Delete">🗑</button></td>
     </tr>`).join('');
 
@@ -2732,10 +2744,27 @@ function buildPackingListSection(order, customer) {
         <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Notes</th>
         <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">QR ID</th>
         <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">QR Code</th>
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Status</th>
         <th></th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>` : `<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No items yet. Click "+ Add Item" to start.</div>`}
+  </div>`;
+}
+
+function buildQRStatusChips(qrId) {
+  const events = qrScanEvents[qrId] || [];
+  const done = (type) => events.some(e => e.event_type === type);
+  const chip = (label, type, emoji) => {
+    const isDone = done(type);
+    return `<span style="display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid;white-space:nowrap;
+      background:${isDone?'#D1FAE5':'var(--surface)'};color:${isDone?'#065F46':'var(--muted)'};border-color:${isDone?'#6EE7B7':'var(--border)'}">
+      ${isDone?'✓':emoji} ${label}</span>`;
+  };
+  return `<div style="display:flex;flex-direction:column;gap:3px">
+    ${chip('Loaded','loaded','🚢')}
+    ${chip('Unloaded','unloaded','🏭')}
+    ${chip('Delivered','delivered','🏠')}
   </div>`;
 }
 
