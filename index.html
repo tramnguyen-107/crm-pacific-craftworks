@@ -196,6 +196,12 @@
   .col-shipped .column-header { background: var(--shipped-bg); }
   .col-shipped .col-title { color: var(--shipped); }
   .col-shipped .col-count { background: var(--shipped); color: white; }
+  .col-qc .column-header { background: #FFF7ED; }
+  .col-qc .col-title { color: #7C3F23; }
+  .col-qc .col-count { background: #7C3F23; color: white; }
+  .col-unloaded .column-header { background: #EFF6FF; }
+  .col-unloaded .col-title { color: #1D4ED8; }
+  .col-unloaded .col-count { background: #1D4ED8; color: white; }
   .col-delivery .column-header { background: #F5F3FF; }
   .col-delivery .col-title { color: #7C3AED; }
   .col-delivery .col-count { background: #7C3AED; color: white; }
@@ -869,6 +875,14 @@
   <div class="column col-shipped">
     <div class="column-header"><div class="col-title">🚢 Loaded / Shipped</div><div class="col-count" id="count-shipped">0</div></div>
     <div class="column-body" id="col-shipped"></div>
+  </div>
+  <div class="column col-qc">
+    <div class="column-header"><div class="col-title">🔍 QC Check</div><div class="col-count" id="count-qc">0</div></div>
+    <div class="column-body" id="col-qc"></div>
+  </div>
+  <div class="column col-unloaded">
+    <div class="column-header"><div class="col-title">🏭 Unloaded</div><div class="col-count" id="count-unloaded">0</div></div>
+    <div class="column-body" id="col-unloaded"></div>
   </div>
   <div class="column col-delivery" id="col-delivery-wrap">
     <div class="column-header"><div class="col-title">🚛 Delivery</div><div class="col-count" id="count-delivery">0</div></div>
@@ -1787,9 +1801,9 @@ function renderBoard() {
   const filterSales = document.getElementById('filter-sales')?.value || '';
   const searchQ     = (document.getElementById('search-input')?.value || '').toLowerCase();
 
-  const activeStages = ['deposit','collect','production','shipped','delivery'];
-  const colIds   = { lead:'col-lead', deposit:'col-deposit', collect:'col-collect', production:'col-production', shipped:'col-shipped', delivery:'col-delivery', done:'col-done' };
-  const countIds = { lead:'count-lead', deposit:'count-deposit', collect:'count-collect', production:'count-production', shipped:'count-shipped', delivery:'count-delivery', done:'count-done' };
+  const activeStages = ['deposit','collect','production','shipped','qc','unloaded','delivery'];
+  const colIds   = { lead:'col-lead', deposit:'col-deposit', collect:'col-collect', production:'col-production', shipped:'col-shipped', qc:'col-qc', unloaded:'col-unloaded', delivery:'col-delivery', done:'col-done' };
+  const countIds = { lead:'count-lead', deposit:'count-deposit', collect:'count-collect', production:'count-production', shipped:'count-shipped', qc:'count-qc', unloaded:'count-unloaded', delivery:'count-delivery', done:'count-done' };
 
   // Show/hide archive column
   document.getElementById('col-done-wrap').style.display = showArchived ? '' : 'none';
@@ -1911,8 +1925,8 @@ function buildCard(customer) {
   const chips = orderTypes.map(t => `<span class="order-chip ${typeClass[t] || 'kitchen'}">${t}</span>`).join('');
 
   const totalOrders = customer.orders.length;
-  const stageColors = { deposit:'#059669', collect:'#B86B10', production:'#78898F', shipped:'#7C3AED', delivery:'#984216', done:'#8D957E' };
-  const stageLabels = { deposit:'Deposit', collect:'Collecting Info', production:'In Production', shipped:'Shipped', delivery:'Delivery', done:'Done' };
+  const stageColors = { deposit:'#059669', collect:'#B86B10', production:'#78898F', shipped:'#7C3AED', qc:'#7C3F23', unloaded:'#1D4ED8', delivery:'#984216', done:'#8D957E' };
+  const stageLabels = { deposit:'Deposit', collect:'Collecting Info', production:'In Production', shipped:'Shipped', qc:'QC Check', unloaded:'Unloaded', delivery:'Delivery', done:'Done' };
 
   const poRows = customer.orders.map(o => {
     const depositAmt = o.deposit_amount ? '$' + Number(o.deposit_amount).toLocaleString() : (o.deposit_received ? 'Received' : '—');
@@ -1982,8 +1996,8 @@ function buildOrderCard(order, customer) {
   div.className = 'customer-card';
   div.onclick = () => { openPanel(customer.id); };
 
-  const stageColors = { deposit:'#059669', collect:'#B86B10', production:'#78898F', shipped:'#7C3AED', delivery:'#984216', done:'#8D957E' };
-  const stageLabels = { deposit:'Deposit', collect:'Collecting Info', production:'In Production', shipped:'Shipped', delivery:'Delivery', done:'Done' };
+  const stageColors = { deposit:'#059669', collect:'#B86B10', production:'#78898F', shipped:'#7C3AED', qc:'#7C3F23', unloaded:'#1D4ED8', delivery:'#984216', done:'#8D957E' };
+  const stageLabels = { deposit:'Deposit', collect:'Collecting Info', production:'In Production', shipped:'Shipped', qc:'QC Check', unloaded:'Unloaded', delivery:'Delivery', done:'Done' };
   const depositAmt = order.deposit_amount ? '$' + Number(order.deposit_amount).toLocaleString() : (order.deposit_received ? 'Received' : '—');
   const balance = order.balance ? '$' + Number(order.balance).toLocaleString() : '—';
   const eta = order.eta || '—';
@@ -2613,7 +2627,63 @@ function buildOrderDetail(order, customer) {
       ${buildWorkflowSection(order, customer, ['shipping'])}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="markPortArrival(${customer.id},'${order.id}')">🚛 Container Arrived at Port →</button>
+        <button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Chuyển sang QC →</button>
+      </div>`;
+  }
+
+  if (order.stage === 'qc') {
+    const items = packingItems[order.id] || [];
+    const qcEvents = items.map(i => (qrScanEvents[i.qr_id]||[]).find(e => e.event_type === 'qc')).filter(Boolean);
+    const passCount = qcEvents.filter(e => e.qc_pass === true).length;
+    const failCount = qcEvents.filter(e => e.qc_pass === false).length;
+    return `
+      <div class="section-title">🔍 QC Check</div>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <div style="flex:1;padding:12px;background:#052e16;border:1px solid #16a34a;border-radius:10px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:#4ade80">${passCount}</div>
+          <div style="font-size:10px;color:#4ade80;font-weight:700">✅ PASS</div>
+        </div>
+        <div style="flex:1;padding:12px;background:${failCount?'#3f1515':'var(--surface)'};border:1px solid ${failCount?'#dc2626':'var(--border)'};border-radius:10px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:${failCount?'#fca5a5':'var(--muted)'}">${failCount}</div>
+          <div style="font-size:10px;color:${failCount?'#fca5a5':'var(--muted)'};font-weight:700">❌ FAIL</div>
+        </div>
+        <div style="flex:1;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--muted)">${items.length - qcEvents.length}</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700">⏳ PENDING</div>
+        </div>
+      </div>
+      ${items.length ? `<div style="margin-bottom:12px">
+        <button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=qc&order=${encodeURIComponent(order.id)}','_blank')">📱 Mở QC Session</button>
+      </div>` : ''}
+      ${buildSpecSummarySection(order, customer)}
+      ${buildNotesSection(order, customer)}
+      <div class="action-bar">
+        <button class="btn btn-primary" onclick="moveToUnloaded(${customer.id},'${order.id}')">🏭 QC Xong → Chuyển Unloaded</button>
+      </div>`;
+  }
+
+  if (order.stage === 'unloaded') {
+    const items = packingItems[order.id] || [];
+    const unloadEvents = items.map(i => (qrScanEvents[i.qr_id]||[]).find(e => e.event_type === 'unloaded')).filter(Boolean);
+    return `
+      <div class="section-title">🏭 Unloaded at US Warehouse</div>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <div style="flex:1;padding:12px;background:#1e3a8a;border:1px solid #2563EB;border-radius:10px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:#93c5fd">${unloadEvents.length}</div>
+          <div style="font-size:10px;color:#93c5fd;font-weight:700">✅ UNLOADED</div>
+        </div>
+        <div style="flex:1;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--muted)">${items.length - unloadEvents.length}</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700">⏳ PENDING</div>
+        </div>
+      </div>
+      ${items.length ? `<div style="margin-bottom:12px">
+        <button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=unloaded&order=${encodeURIComponent(order.id)}','_blank')">📱 Mở Unload Session</button>
+      </div>` : ''}
+      ${buildSpecSummarySection(order, customer)}
+      ${buildNotesSection(order, customer)}
+      <div class="action-bar">
+        <button class="btn btn-primary" onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Chuyển sang Delivery →</button>
       </div>`;
   }
 
@@ -3583,12 +3653,12 @@ async function markTruckingAssigned(ctnId) {
     const cust = customers.find(c => c.id === ref.customerId);
     const order = cust?.orders.find(o => o.id === ref.orderId);
     if (order && order.stage === 'shipped') {
-      order.stage = 'delivery';
-      await dbUpdate('orders', {id: order.id}, {stage: 'delivery'});
+      order.stage = 'qc';
+      await dbUpdate('orders', {id: order.id}, {stage: 'qc'});
     }
-    if (cust && cust.orders.every(o => ['delivery','done'].includes(o.stage))) {
-      cust.stage = 'delivery';
-      await dbUpdate('customers', {id: cust.id}, {stage: 'delivery'});
+    if (cust && cust.orders.every(o => ['qc','unloaded','delivery','done'].includes(o.stage))) {
+      cust.stage = 'qc';
+      await dbUpdate('customers', {id: cust.id}, {stage: 'qc'});
     }
   }
   renderContainerView(); renderBoard();
@@ -3617,17 +3687,52 @@ async function dropCard(e, newStage) {
 }
 
 async function markPortArrival(customerId, orderId) {
+  await moveToQC(customerId, orderId);
+}
+
+async function moveToQC(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.stage = 'qc';
+  const allBeyond = c.orders.every(o => ['qc','unloaded','delivery','done'].includes(o.stage));
+  if (allBeyond) c.stage = 'qc';
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {stage: 'qc'}),
+    allBeyond ? dbUpdate('customers', {id: customerId}, {stage: 'qc'}) : Promise.resolve()
+  ]);
+  renderBoard(); renderPanelTab(activePanelTab);
+  showToast('🔍 Order moved to QC Check');
+}
+
+async function moveToUnloaded(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  order.stage = 'unloaded';
+  const allBeyond = c.orders.every(o => ['unloaded','delivery','done'].includes(o.stage));
+  if (allBeyond) c.stage = 'unloaded';
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {stage: 'unloaded'}),
+    allBeyond ? dbUpdate('customers', {id: customerId}, {stage: 'unloaded'}) : Promise.resolve()
+  ]);
+  renderBoard(); renderPanelTab(activePanelTab);
+  showToast('🏭 Order moved to Unloaded');
+}
+
+async function moveToDeliveryStage(customerId, orderId) {
   const c = customers.find(x => x.id === customerId);
   const order = c?.orders.find(o => o.id === orderId);
   if (!order) return;
   order.stage = 'delivery';
-  c.stage = 'delivery';
+  const allBeyond = c.orders.every(o => ['delivery','done'].includes(o.stage));
+  if (allBeyond) c.stage = 'delivery';
   await Promise.all([
     dbUpdate('orders', {id: orderId}, {stage: 'delivery'}),
-    dbUpdate('customers', {id: customerId}, {stage: 'delivery'})
+    allBeyond ? dbUpdate('customers', {id: customerId}, {stage: 'delivery'}) : Promise.resolve()
   ]);
   renderBoard(); renderPanelTab(activePanelTab);
-  showToast('🚛 Container arrived — setup trucking & installation');
+  showToast('🚛 Order moved to Delivery');
 }
 
 async function markDone(customerId, orderId) {
