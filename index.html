@@ -2728,6 +2728,14 @@ function buildPackingListSection(order, customer) {
       <td style="padding:4px 6px"><button onclick="deletePackingItem('${item.id}','${order.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" title="Delete">🗑</button></td>
     </tr>`).join('');
 
+  const scanBtns = items.length ? `
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;padding:10px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+      <span style="font-size:10px;color:var(--muted);font-weight:700;align-self:center;margin-right:2px">SCAN SESSION:</span>
+      <button class="btn" style="font-size:11px;padding:4px 10px;background:#92400e;color:#fff;border:none" onclick="window.open('scan.html?step=loaded&order=${encodeURIComponent(order.id)}','_blank')">🚢 Load</button>
+      <button class="btn" style="font-size:11px;padding:4px 10px;background:#5a2d18;color:#fff;border:none" onclick="window.open('scan.html?step=qc&order=${encodeURIComponent(order.id)}','_blank')">🔍 QC</button>
+      <button class="btn" style="font-size:11px;padding:4px 10px;background:#1e3a8a;color:#fff;border:none" onclick="window.open('scan.html?step=unloaded&order=${encodeURIComponent(order.id)}','_blank')">🏭 Unload</button>
+      <button class="btn" style="font-size:11px;padding:4px 10px;background:#065f46;color:#fff;border:none" onclick="window.open('scan.html?step=delivered&order=${encodeURIComponent(order.id)}','_blank')">🏠 Deliver</button>
+    </div>` : '';
   return `<div class="activity-section">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="section-title" style="margin:0">📦 Packing List <span style="font-size:11px;color:var(--muted);font-weight:400">${items.length} item${items.length!==1?'s':''}</span></div>
@@ -2736,6 +2744,7 @@ function buildPackingListSection(order, customer) {
         ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printPackingList('${order.id}','${customer.id}')">🖨️ Print PDF</button>` : ''}
       </div>
     </div>
+    ${scanBtns}
     ${items.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
       <thead><tr style="background:var(--surface);border-bottom:2px solid var(--border)">
         <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">#</th>
@@ -2755,18 +2764,27 @@ function buildPackingListSection(order, customer) {
 
 function buildQRStatusChips(qrId) {
   const events = qrScanEvents[qrId] || [];
-  const done = (type) => events.some(e => e.event_type === type);
-  const chip = (label, type, emoji) => {
-    const isDone = done(type);
-    return `<span style="display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid;white-space:nowrap;
-      background:${isDone?'#D1FAE5':'var(--surface)'};color:${isDone?'#065F46':'var(--muted)'};border-color:${isDone?'#6EE7B7':'var(--border)'}">
-      ${isDone?'✓':emoji} ${label}</span>`;
-  };
-  return `<div style="display:flex;flex-direction:column;gap:3px">
-    ${chip('Loaded','loaded','🚢')}
-    ${chip('Unloaded','unloaded','🏭')}
-    ${chip('Delivered','delivered','🏠')}
-  </div>`;
+  const getEvent = (type) => events.find(e => e.event_type === type);
+  const chips = [
+    { label:'Loaded',    type:'loaded',    icon:'🚢' },
+    { label:'QC',        type:'qc',        icon:'🔍' },
+    { label:'Unloaded',  type:'unloaded',  icon:'🏭' },
+    { label:'Delivered', type:'delivered', icon:'🏠' },
+  ].map(({ label, type, icon }) => {
+    const ev = getEvent(type);
+    let bg='var(--surface)', color='var(--muted)', border='var(--border)', text=icon+' '+label;
+    if (ev) {
+      if (type === 'qc') {
+        if (ev.qc_pass === true)  { bg='#052e16'; color='#4ade80'; border='#16a34a'; text='✅ QC Pass'; }
+        else if (ev.qc_pass === false) { bg='#3f1515'; color='#fca5a5'; border='#dc2626'; text='❌ QC Fail'; }
+        else { bg='#D1FAE5'; color='#065F46'; border='#6EE7B7'; text='✓ QC'; }
+      } else {
+        bg='#D1FAE5'; color='#065F46'; border='#6EE7B7'; text='✓ '+label;
+      }
+    }
+    return `<span style="display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid;white-space:nowrap;background:${bg};color:${color};border-color:${border}">${text}</span>`;
+  });
+  return `<div style="display:flex;flex-direction:column;gap:3px">${chips.join('')}</div>`;
 }
 
 async function addPackingItem(orderId) {

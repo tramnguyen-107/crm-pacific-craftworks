@@ -3,265 +3,592 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>PCW — QR Scan</title>
+  <title>PCW Scanner</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #fff; min-height: 100vh; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{--brand:#7C3F23;--brand2:#5a2d18;--green:#059669;--red:#dc2626;--blue:#2563EB;--orange:#D97706;--bg:#0f1117;--card:#1a1d26;--card2:#22263a;--border:rgba(255,255,255,0.08);--muted:rgba(255,255,255,0.4);--text:#fff}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 
-    /* Header */
-    .header { background: #7C3F23; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
-    .header-title { font-size: 16px; font-weight: 700; }
-    .header-sub { font-size: 11px; opacity: 0.7; }
+    /* ─── HEADER ─── */
+    .hdr{background:var(--brand);padding:11px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+    .hdr-title{font-size:15px;font-weight:800;letter-spacing:.3px}
+    .hdr-sub{font-size:10px;opacity:.6;margin-top:1px}
+    .hdr-back{background:rgba(255,255,255,.15);border:none;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
 
-    /* Camera view */
-    #camera-wrap { position: relative; width: 100%; aspect-ratio: 1; background: #000; overflow: hidden; }
-    #video { width: 100%; height: 100%; object-fit: cover; }
-    #canvas { display: none; }
-    .scan-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-    .scan-box { width: 65%; aspect-ratio: 1; border: 2px solid #fff; border-radius: 12px; position: relative; }
-    .scan-box::before, .scan-box::after, .scan-corner-bl, .scan-corner-br {
-      content: ''; position: absolute; width: 20px; height: 20px; border-color: #7C3F23; border-style: solid;
-    }
-    .scan-box::before  { top: -2px; left: -2px;  border-width: 4px 0 0 4px; border-radius: 8px 0 0 0; }
-    .scan-box::after   { top: -2px; right: -2px; border-width: 4px 4px 0 0; border-radius: 0 8px 0 0; }
-    .scan-corner-bl    { bottom: -2px; left: -2px;  border-width: 0 0 4px 4px; border-radius: 0 0 0 8px; }
-    .scan-corner-br    { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; border-radius: 0 0 8px 0; }
-    .scan-line { position: absolute; top: 50%; left: 4px; right: 4px; height: 2px; background: linear-gradient(90deg, transparent, #7C3F23, transparent); animation: scanAnim 2s ease-in-out infinite; }
-    @keyframes scanAnim { 0%,100% { top: 10%; } 50% { top: 90%; } }
-    .scan-hint { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; font-size: 12px; color: rgba(255,255,255,0.6); }
+    /* ─── SCREENS ─── */
+    .screen{display:none;padding:16px;padding-bottom:40px}
+    .screen.active{display:block}
 
-    /* Scan result panel */
-    #result-panel { padding: 16px; }
-    .status-idle { text-align: center; padding: 24px 16px; color: rgba(255,255,255,0.4); font-size: 14px; }
+    /* ─── STEP SELECT ─── */
+    .step-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+    .step-card{background:var(--card);border:2px solid var(--border);border-radius:16px;padding:20px 14px;text-align:center;cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent}
+    .step-card:active{transform:scale(.96)}
+    .step-card.loaded  {border-color:#D97706}
+    .step-card.qc      {border-color:#7C3F23}
+    .step-card.unloaded{border-color:#2563EB}
+    .step-card.delivered{border-color:#059669}
+    .step-icon{font-size:36px;margin-bottom:8px}
+    .step-name{font-size:13px;font-weight:800}
+    .step-desc{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.4}
 
-    .item-card { background: #1e2028; border-radius: 14px; padding: 16px; margin-bottom: 12px; }
-    .item-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
-    .item-qr-id { font-size: 13px; font-weight: 700; color: #7C3F23; letter-spacing: 0.5px; }
-    .item-order { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
-    .item-desc { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-    .item-dim { font-size: 12px; color: rgba(255,255,255,0.5); }
+    /* ─── CAMERA ─── */
+    #cam-wrap{position:relative;width:100%;aspect-ratio:1;background:#000;overflow:hidden}
+    #video{width:100%;height:100%;object-fit:cover;display:block}
+    #canvas{display:none}
+    .cam-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+    .cam-box{width:62%;aspect-ratio:1;position:relative}
+    .cam-box::before,.cam-box::after,.cam-tl,.cam-tr,.cam-bl,.cam-br{content:'';position:absolute;width:22px;height:22px;border-color:var(--brand);border-style:solid}
+    .cam-box::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:6px 0 0 0}
+    .cam-box::after {top:0;right:0;border-width:3px 3px 0 0;border-radius:0 6px 0 0}
+    .cam-bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 6px}
+    .cam-br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 6px 0}
+    .cam-line{position:absolute;top:50%;left:4px;right:4px;height:2px;background:linear-gradient(90deg,transparent,var(--brand),transparent);animation:scan 2s ease-in-out infinite}
+    @keyframes scan{0%,100%{top:8%}50%{top:92%}}
+    .cam-hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.5)}
+    .cam-step-badge{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
 
-    /* Status chips */
-    .status-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-    .status-chip { padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; border: 1.5px solid; }
-    .chip-done    { background: #052e16; color: #4ade80; border-color: #16a34a; }
-    .chip-pending { background: #1e2028; color: rgba(255,255,255,0.35); border-color: rgba(255,255,255,0.1); }
-    .chip-next    { background: #7C3F23; color: #fff; border-color: #7C3F23; }
+    /* ─── SCAN SCREEN INFO ─── */
+    .scan-info{padding:12px 0}
+    .scan-progress{background:var(--card);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+    .sp-label{font-size:11px;color:var(--muted);margin-bottom:6px}
+    .sp-bar{height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden}
+    .sp-fill{height:100%;background:var(--green);border-radius:99px;transition:width .3s}
+    .sp-count{font-size:11px;color:var(--muted);margin-top:4px;text-align:right}
+    .scanned-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .scanned-chip{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#052e16;color:#4ade80;border:1px solid #16a34a}
 
-    /* Action buttons */
-    .action-btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
-    .action-btn:active { opacity: 0.8; }
-    .btn-loaded    { background: #D97706; color: #fff; }
-    .btn-unloaded  { background: #2563EB; color: #fff; }
-    .btn-delivered { background: #059669; color: #fff; }
-    .btn-done      { background: #1e2028; color: rgba(255,255,255,0.35); cursor: default; }
+    /* ─── ITEM POPUP ─── */
+    .popup-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:flex;align-items:flex-end}
+    .popup{background:var(--card);border-radius:20px 20px 0 0;width:100%;max-height:90vh;overflow-y:auto;padding:20px 16px 40px}
+    .popup-handle{width:40px;height:4px;background:rgba(255,255,255,.2);border-radius:99px;margin:0 auto 16px}
+    .popup-qrid{font-size:11px;font-weight:700;color:var(--brand);letter-spacing:.5px}
+    .popup-name{font-size:18px;font-weight:700;margin:4px 0 2px}
+    .popup-meta{font-size:12px;color:var(--muted);margin-bottom:14px}
 
-    /* Who field */
-    .who-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
-    .who-label { font-size: 11px; color: rgba(255,255,255,0.5); white-space: nowrap; }
-    .who-sel { flex: 1; background: #1e2028; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: #fff; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+    /* QC fields */
+    .qc-section{margin-bottom:14px}
+    .qc-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+    .pf-row{display:flex;gap:8px;margin-bottom:14px}
+    .pf-btn{flex:1;padding:12px;border:2px solid var(--border);border-radius:12px;background:var(--card2);color:var(--muted);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;text-align:center}
+    .pf-btn.pass.selected{background:#052e16;border-color:var(--green);color:#4ade80}
+    .pf-btn.fail.selected{background:#3f1515;border-color:var(--red);color:#fca5a5}
+    .pf-btn:active{transform:scale(.97)}
 
-    /* Success flash */
-    #flash { position: fixed; inset: 0; background: rgba(5,150,105,0.9); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 99; }
-    #flash.show { opacity: 1; pointer-events: all; }
-    .flash-icon { font-size: 64px; }
-    .flash-msg { font-size: 18px; font-weight: 700; }
+    /* Photos */
+    .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+    .photo-thumb{aspect-ratio:1;border-radius:10px;object-fit:cover;border:1px solid var(--border)}
+    .photo-add{aspect-ratio:1;border-radius:10px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:22px;background:var(--card2);gap:4px;-webkit-tap-highlight-color:transparent}
+    .photo-add span{font-size:10px;font-weight:600}
+    .photo-upload-inp{display:none}
+    .photo-uploading{font-size:11px;color:var(--muted);text-align:center;padding:4px}
 
-    /* Error */
-    .error-card { background: #3f1515; border: 1px solid #dc2626; border-radius: 12px; padding: 14px 16px; color: #fca5a5; font-size: 13px; text-align: center; }
+    /* Comment */
+    .comment-ta{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:#fff;padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;min-height:72px;margin-bottom:14px}
+    .comment-ta::placeholder{color:var(--muted)}
+    .comment-ta:focus{outline:none;border-color:var(--brand)}
 
-    /* Bottom safe area */
-    .safe-bottom { height: env(safe-area-inset-bottom, 16px); }
+    /* Who */
+    .who-row{display:flex;gap:8px;align-items:center;margin-bottom:14px}
+    .who-lbl{font-size:11px;color:var(--muted);white-space:nowrap}
+    .who-sel{flex:1;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:#fff;padding:9px 10px;font-size:13px;font-family:inherit}
 
-    /* Camera off state */
-    #no-camera { display: none; background: #1e2028; padding: 40px 20px; text-align: center; color: rgba(255,255,255,0.5); font-size: 13px; }
-    #no-camera button { margin-top: 12px; padding: 10px 20px; background: #7C3F23; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; font-family: inherit; }
+    /* Confirm btn */
+    .confirm-btn{width:100%;padding:16px;border:none;border-radius:14px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;transition:opacity .15s}
+    .confirm-btn:active{opacity:.8}
+    .confirm-btn.loaded   {background:var(--orange);color:#fff}
+    .confirm-btn.qc-pass  {background:var(--green);color:#fff}
+    .confirm-btn.qc-fail  {background:var(--red);color:#fff}
+    .confirm-btn.qc-none  {background:var(--card2);color:var(--muted)}
+    .confirm-btn.unloaded {background:var(--blue);color:#fff}
+    .confirm-btn.delivered{background:var(--green);color:#fff}
+
+    /* History */
+    .history-item{padding:10px 0;border-bottom:1px solid var(--border);font-size:12px}
+    .history-item:last-child{border-bottom:none}
+    .history-step{font-weight:700;color:var(--brand)}
+    .history-meta{color:var(--muted);font-size:11px;margin-top:2px}
+    .history-comment{margin-top:4px;color:rgba(255,255,255,.7)}
+    .history-photos{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+    .history-photo{width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:pointer}
+
+    /* Flash */
+    #flash{position:fixed;inset:0;background:rgba(5,150,105,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:200}
+    #flash.show{opacity:1;pointer-events:all}
+    .flash-icon{font-size:72px}
+    .flash-msg{font-size:18px;font-weight:800}
+    .flash-sub{font-size:13px;opacity:.7}
+
+    /* No camera */
+    .no-cam{text-align:center;padding:40px 20px;color:var(--muted)}
+    .no-cam button{margin-top:12px;padding:10px 24px;background:var(--brand);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit}
+
+    /* Lightbox */
+    #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:300;display:none;align-items:center;justify-content:center}
+    #lightbox.open{display:flex}
+    #lightbox img{max-width:95vw;max-height:90vh;border-radius:8px;object-fit:contain}
+    #lightbox-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer}
   </style>
 </head>
 <body>
 
-<div class="header">
+<!-- Header -->
+<div class="hdr">
   <div>
-    <div class="header-title">Pacific Craftworks</div>
-    <div class="header-sub">QR Scanner</div>
+    <div class="hdr-title">Pacific Craftworks</div>
+    <div class="hdr-sub" id="hdr-sub">QR Scanner</div>
   </div>
-  <div style="font-size:11px;color:rgba(255,255,255,0.5)" id="scan-status-txt">Scanning…</div>
+  <button class="hdr-back" id="hdr-back" onclick="goBack()" style="display:none">← Back</button>
 </div>
 
-<!-- Camera -->
-<div id="camera-wrap">
-  <video id="video" playsinline autoplay muted></video>
-  <canvas id="canvas"></canvas>
-  <div class="scan-overlay">
-    <div class="scan-box">
-      <div class="scan-corner-bl"></div>
-      <div class="scan-corner-br"></div>
-      <div class="scan-line"></div>
+<!-- SCREEN 1: Step Selection -->
+<div class="screen active" id="scr-steps">
+  <div style="font-size:13px;color:var(--muted);margin-bottom:14px;margin-top:4px">Chọn bước quét hàng:</div>
+  <div class="step-grid">
+    <div class="step-card loaded" onclick="startStep('loaded')">
+      <div class="step-icon">🚢</div>
+      <div class="step-name">Loaded</div>
+      <div class="step-desc">Xếp hàng lên container (VN)</div>
+    </div>
+    <div class="step-card qc" onclick="startStep('qc')">
+      <div class="step-icon">🔍</div>
+      <div class="step-name">QC Check</div>
+      <div class="step-desc">Kiểm tra chất lượng + hình ảnh</div>
+    </div>
+    <div class="step-card unloaded" onclick="startStep('unloaded')">
+      <div class="step-icon">🏭</div>
+      <div class="step-name">Unloaded</div>
+      <div class="step-desc">Dỡ hàng tại Mỹ</div>
+    </div>
+    <div class="step-card delivered" onclick="startStep('delivered')">
+      <div class="step-icon">🏠</div>
+      <div class="step-name">Delivered</div>
+      <div class="step-desc">Giao hàng đến khách</div>
     </div>
   </div>
-  <div class="scan-hint">Point camera at QR code on box</div>
-</div>
-<div id="no-camera">
-  <div>📷 Camera not accessible</div>
-  <button onclick="startCamera()">Try Again</button>
-</div>
-
-<!-- Result -->
-<div id="result-panel">
-  <div class="status-idle" id="idle-msg">Scan a QR code to begin</div>
+  <div style="margin-top:20px;background:var(--card);border-radius:12px;padding:14px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--muted)">HOẶC — Lịch sử / tìm kiếm item</div>
+    <div style="display:flex;gap:8px">
+      <input id="search-qrid" placeholder="Nhập QR ID (VD: PCW-MG-0001)" style="flex:1;background:var(--card2);border:1px solid var(--border);color:#fff;padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit" onkeydown="if(event.key==='Enter')searchItem()">
+      <button onclick="searchItem()" style="background:var(--brand);border:none;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:700;font-family:inherit">Tìm</button>
+    </div>
+  </div>
 </div>
 
-<!-- Success flash -->
+<!-- SCREEN 2: Camera Scan -->
+<div class="screen" id="scr-cam">
+  <div id="cam-wrap">
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="cam-overlay">
+      <div class="cam-box">
+        <div class="cam-tl"></div><div class="cam-tr"></div>
+        <div class="cam-bl"></div><div class="cam-br"></div>
+        <div class="cam-line"></div>
+      </div>
+    </div>
+    <div class="cam-step-badge" id="cam-step-badge">—</div>
+    <div class="cam-hint">Hướng camera vào mã QR trên kiện hàng</div>
+  </div>
+  <div class="no-cam" id="no-cam" style="display:none">
+    <div>📷 Camera không truy cập được</div>
+    <button onclick="startCamera()">Thử lại</button>
+  </div>
+  <div class="scan-info" id="scan-info"></div>
+</div>
+
+<!-- SCREEN 3: Item Popup (injected dynamically) -->
+
+<!-- Flash -->
 <div id="flash">
-  <div class="flash-icon">✅</div>
-  <div class="flash-msg" id="flash-msg">Recorded!</div>
+  <div class="flash-icon" id="flash-icon">✅</div>
+  <div class="flash-msg" id="flash-msg">Đã lưu!</div>
+  <div class="flash-sub" id="flash-sub"></div>
 </div>
 
-<div class="safe-bottom"></div>
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="">
+</div>
 
 <script>
-const SUPABASE_URL     = 'https://ravdtlsnrtltgynswxna.supabase.co';
-const SUPABASE_ANON_KEY= 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhdmR0bHNucnRsdGd5bnN3eG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5ODcxMjUsImV4cCI6MjA5NjU2MzEyNX0.dTex6kJooA-t7mxYvvYONEejrQ7pgW-kZAfnNLoOhhc';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SB_URL = 'https://ravdtlsnrtltgynswxna.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhdmR0bHNucnRsdGd5bnN3eG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5ODcxMjUsImV4cCI6MjA5NjU2MzEyNX0.dTex6kJooA-t7mxYvvYONEejrQ7pgW-kZAfnNLoOhhc';
+const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
 const TEAM = ['Thành','Trâm','Giao','Nhung','Andy','JJ','Cezar','Dustin','Darrel'];
-const EVENT_LABELS = { loaded: '🚢 Loaded onto Container', unloaded: '🏭 Unloaded in US', delivered: '🏠 Delivered to Customer' };
-const EVENT_NEXT   = { null: 'loaded', loaded: 'unloaded', unloaded: 'delivered', delivered: null };
+const STEPS = {
+  loaded:    { label:'🚢 Loaded onto Container', color:'#D97706', icon:'🚢' },
+  qc:        { label:'🔍 QC Check',              color:'#7C3F23', icon:'🔍' },
+  unloaded:  { label:'🏭 Unloaded in US',        color:'#2563EB', icon:'🏭' },
+  delivered: { label:'🏠 Delivered to Customer', color:'#059669', icon:'🏠' },
+};
+const STEP_ORDER = ['loaded','qc','unloaded','delivered'];
 
+let currentStep = null, currentOrderId = null;
 let video, canvas, ctx, scanning = true, lastScanned = '';
+let scannedThisSession = []; // qr_ids scanned this session
+let totalOrderItems = 0;
+let pendingPhotos = []; // {file, dataUrl} waiting to upload
+let currentPopupData = null; // {item, order, events, scanEventId}
+let qcPassState = null; // null | 'pass' | 'fail'
 
+// ─── URL PARAMS ───
+const params = new URLSearchParams(location.search);
+if (params.get('step')) {
+  startStep(params.get('step'), params.get('order'));
+}
+
+// ─── NAVIGATION ───
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const isHome = id === 'scr-steps';
+  document.getElementById('hdr-back').style.display = isHome ? 'none' : '';
+}
+
+function goBack() {
+  stopCamera();
+  closePopup();
+  currentStep = null; scannedThisSession = [];
+  document.getElementById('hdr-sub').textContent = 'QR Scanner';
+  showScreen('scr-steps');
+}
+
+// ─── STEP START ───
+async function startStep(step, orderId = null) {
+  currentStep = step;
+  currentOrderId = orderId;
+  scannedThisSession = [];
+  qcPassState = null;
+  const s = STEPS[step];
+  document.getElementById('hdr-sub').textContent = s.label;
+  document.getElementById('cam-step-badge').textContent = s.icon + ' ' + step.toUpperCase();
+  showScreen('scr-cam');
+  await startCamera();
+  if (orderId) await loadOrderProgress(orderId);
+  else updateScanInfo();
+}
+
+async function loadOrderProgress(orderId) {
+  const { data: items } = await sb.from('packing_list_items').select('*').eq('order_id', orderId).order('item_no');
+  totalOrderItems = items?.length || 0;
+  const qrIds = (items||[]).map(i => i.qr_id);
+  const { data: events } = await sb.from('qr_scan_events').select('*').in('qr_id', qrIds).eq('event_type', currentStep);
+  const doneIds = (events||[]).map(e => e.qr_id);
+  scannedThisSession = doneIds;
+  updateScanInfo(items, doneIds);
+}
+
+function updateScanInfo(items, doneIds) {
+  const el = document.getElementById('scan-info');
+  if (!items) { el.innerHTML = ''; return; }
+  const done = doneIds?.length || 0;
+  const total = items?.length || 0;
+  const pct = total ? Math.round(done/total*100) : 0;
+  const chips = (doneIds||[]).map(id => {
+    const item = items.find(i => i.qr_id === id);
+    return `<span class="scanned-chip">${item ? '#'+item.item_no : id}</span>`;
+  }).join('');
+  el.innerHTML = `<div class="scan-progress">
+    <div class="sp-label">Tiến độ ${STEPS[currentStep]?.icon||''} ${currentStep.toUpperCase()} — ${done}/${total} items</div>
+    <div class="sp-bar"><div class="sp-fill" style="width:${pct}%"></div></div>
+    <div class="sp-count">${pct}%</div>
+    ${chips ? `<div class="scanned-list">${chips}</div>` : ''}
+    ${done === total && total > 0 ? `<div style="text-align:center;color:#4ade80;font-size:13px;font-weight:700;margin-top:8px">✅ Hoàn tất tất cả ${total} items!</div>` : ''}
+  </div>`;
+}
+
+// ─── CAMERA ───
 async function startCamera() {
   video = document.getElementById('video');
   canvas = document.getElementById('canvas');
-  ctx = canvas.getContext('2d');
+  ctx = canvas.getContext('2d', { willReadFrequently: true });
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } }, audio: false });
     video.srcObject = stream;
-    video.play();
-    document.getElementById('camera-wrap').style.display = 'block';
-    document.getElementById('no-camera').style.display = 'none';
+    await video.play();
+    document.getElementById('cam-wrap').style.display = 'block';
+    document.getElementById('no-cam').style.display = 'none';
+    scanning = true; lastScanned = '';
     requestAnimationFrame(tick);
   } catch(e) {
-    document.getElementById('camera-wrap').style.display = 'none';
-    document.getElementById('no-camera').style.display = 'block';
+    document.getElementById('cam-wrap').style.display = 'none';
+    document.getElementById('no-cam').style.display = 'block';
   }
 }
 
+function stopCamera() {
+  scanning = false;
+  if (video?.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+}
+
 function tick() {
-  if (video.readyState === video.HAVE_ENOUGH_DATA && scanning) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+  if (!scanning) return;
+  if (video?.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
-    if (code && code.data && code.data !== lastScanned) {
+    if (code?.data && code.data !== lastScanned && code.data.startsWith('PCW-')) {
       lastScanned = code.data;
       scanning = false;
-      document.getElementById('scan-status-txt').textContent = 'Found!';
-      handleScan(code.data);
+      openItemPopup(code.data);
     }
   }
   requestAnimationFrame(tick);
 }
 
-function resumeScan() {
+function resumeCamera() {
   lastScanned = '';
   scanning = true;
-  document.getElementById('scan-status-txt').textContent = 'Scanning…';
-  document.getElementById('result-panel').innerHTML = '<div class="status-idle" id="idle-msg">Scan a QR code to begin</div>';
+  closePopup();
 }
 
-async function handleScan(qrId) {
-  document.getElementById('result-panel').innerHTML = `<div style="padding:20px;text-align:center;color:rgba(255,255,255,0.4)">⏳ Looking up ${qrId}…</div>`;
+// ─── ITEM POPUP ───
+async function openItemPopup(qrId) {
+  // remove any existing popup
+  closePopup();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'popup-backdrop';
+  backdrop.id = 'popup-bd';
+  backdrop.innerHTML = `<div class="popup"><div class="popup-handle"></div><div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">⏳ Đang tải...</div></div>`;
+  document.body.appendChild(backdrop);
 
-  // Load item info
-  const { data: item } = await sb.from('packing_list_items').select('*').eq('qr_id', qrId).single();
+  // Load item + order + history
+  const [{ data: item }, { data: events }] = await Promise.all([
+    sb.from('packing_list_items').select('*').eq('qr_id', qrId).single(),
+    sb.from('qr_scan_events').select('*, qr_scan_photos(*)').eq('qr_id', qrId).order('scanned_at'),
+  ]);
+
   if (!item) {
-    document.getElementById('result-panel').innerHTML = `
-      <div class="error-card">❌ QR code not found: <strong>${qrId}</strong></div>
-      <div style="text-align:center;margin-top:16px"><button onclick="resumeScan()" style="padding:10px 24px;background:#7C3F23;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">Scan Again</button></div>`;
+    backdrop.querySelector('.popup').innerHTML = `
+      <div class="popup-handle"></div>
+      <div style="text-align:center;padding:20px">
+        <div style="font-size:40px;margin-bottom:8px">❌</div>
+        <div style="font-size:14px;color:var(--muted)">Không tìm thấy QR: <strong>${qrId}</strong></div>
+      </div>
+      <button onclick="resumeCamera();closePopup()" style="width:100%;padding:14px;background:var(--brand);border:none;color:#fff;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px">Quét lại</button>`;
     return;
   }
 
-  // Load order + customer
-  const { data: order } = await sb.from('orders').select('*, customers(name)').eq('id', item.order_id).single();
+  let order = null;
+  try { const r = await sb.from('orders').select('*, customers(name)').eq('id', item.order_id).single(); order = r.data; } catch(e) {}
 
-  // Load existing scan events for this item
-  const { data: events } = await sb.from('qr_scan_events').select('*').eq('qr_id', qrId).order('scanned_at');
-  const latestEvent = events?.length ? events[events.length - 1].event_type : null;
-  const nextEvent = EVENT_NEXT[latestEvent];
-
-  const dim = [item.width_in, item.height_in, item.depth_in].filter(Boolean).map(v => v + '"').join(' × ');
-  const eventDone = (type) => events?.some(e => e.event_type === type);
-
-  const chipFor = (type) => {
-    const done = eventDone(type);
-    const isNext = nextEvent === type;
-    const cls = done ? 'chip-done' : isNext ? 'chip-next' : 'chip-pending';
-    const e = events?.find(ev => ev.event_type === type);
-    const when = e ? new Date(e.scanned_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-    return `<div class="status-chip ${cls}">${done?'✓':isNext?'→':'○'} ${type.charAt(0).toUpperCase()+type.slice(1)}${when ? ' · '+when : ''}</div>`;
-  };
+  const alreadyDone = (events||[]).some(e => e.event_type === currentStep);
+  const dim = [item.width_in, item.height_in, item.depth_in].filter(Boolean).map(v=>v+'"').join(' × ');
+  pendingPhotos = [];
+  qcPassState = null;
+  currentPopupData = { item, order, events };
 
   const whoOpts = TEAM.map(n => `<option value="${n}">${n}</option>`).join('');
+  const stepColor = { loaded:'#D97706', qc:'#7C3F23', unloaded:'#2563EB', delivered:'#059669' }[currentStep]||'#fff';
 
-  let actionBtn = '';
-  if (nextEvent) {
-    const btnCls = `btn-${nextEvent}`;
-    actionBtn = `
+  // History section
+  const histHTML = (events||[]).length ? `
+    <div style="margin-bottom:14px">
+      <div class="qc-label">Lịch sử</div>
+      ${(events||[]).map(e => {
+        const photos = e.qr_scan_photos || [];
+        const when = new Date(e.scanned_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+        const passChip = e.qc_pass === true ? `<span style="color:#4ade80;font-weight:700"> · ✅ Pass</span>`
+                       : e.qc_pass === false ? `<span style="color:#fca5a5;font-weight:700"> · ❌ Fail</span>` : '';
+        return `<div class="history-item">
+          <div class="history-step">${STEPS[e.event_type]?.icon||''} ${e.event_type.toUpperCase()}${passChip}</div>
+          <div class="history-meta">${when}${e.scanned_by ? ' · ' + e.scanned_by : ''}</div>
+          ${e.comment ? `<div class="history-comment">${e.comment}</div>` : ''}
+          ${photos.length ? `<div class="history-photos">${photos.map(p => `<img class="history-photo" src="${p.photo_url}" onclick="openLightbox('${p.photo_url}')" loading="lazy">`).join('')}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  // QC fields or simple confirm
+  let actionHTML = '';
+  if (alreadyDone) {
+    actionHTML = `
+      <div style="background:rgba(5,150,105,.15);border:1px solid var(--green);border-radius:12px;padding:12px;text-align:center;margin-bottom:12px;font-size:13px;color:#4ade80;font-weight:700">
+        ✅ Đã ${currentStep.toUpperCase()} — bước này hoàn tất
+      </div>
+      <button onclick="resumeCamera();closePopup()" style="width:100%;padding:14px;background:var(--card2);border:none;color:var(--muted);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Quét item khác</button>`;
+  } else if (currentStep === 'qc') {
+    actionHTML = `
+      <div class="qc-section">
+        <div class="qc-label">Kết quả QC *</div>
+        <div class="pf-row">
+          <div class="pf-btn pass" id="pf-pass" onclick="selectPF('pass')">✅ PASS</div>
+          <div class="pf-btn fail" id="pf-fail" onclick="selectPF('fail')">❌ FAIL</div>
+        </div>
+      </div>
+      <div class="qc-section">
+        <div class="qc-label">Hình QC (chụp nhiều hình)</div>
+        <div class="photo-grid" id="photo-grid">
+          <div class="photo-add" onclick="document.getElementById('photo-inp').click()">
+            <span>📷</span><span>Chụp / Thêm</span>
+          </div>
+        </div>
+        <input type="file" accept="image/*" capture="environment" multiple id="photo-inp" class="photo-upload-inp" onchange="handlePhotoSelect(this)">
+        <div class="photo-uploading" id="photo-status"></div>
+      </div>
+      <div class="qc-section">
+        <div class="qc-label">QC Report / Ghi chú</div>
+        <textarea class="comment-ta" id="qc-comment" placeholder="Mô tả tình trạng sản phẩm, lỗi (nếu có)..."></textarea>
+      </div>
       <div class="who-row">
-        <span class="who-label">Scanned by:</span>
+        <span class="who-lbl">Người QC:</span>
         <select class="who-sel" id="who-sel">${whoOpts}</select>
       </div>
-      <button class="action-btn ${btnCls}" onclick="recordEvent('${qrId}','${item.order_id}','${item.id}','${nextEvent}')">
-        ${EVENT_LABELS[nextEvent]}
+      <button class="confirm-btn qc-none" id="confirm-btn" onclick="recordEvent('${qrId}')">
+        🔍 Xác nhận QC
       </button>`;
   } else {
-    actionBtn = `<button class="action-btn btn-done" disabled>✅ All steps complete</button>`;
+    const btnCls = { loaded:'loaded', unloaded:'unloaded', delivered:'delivered' }[currentStep]||'loaded';
+    actionHTML = `
+      <div class="qc-section">
+        <div class="qc-label">Ghi chú (tuỳ chọn)</div>
+        <textarea class="comment-ta" id="qc-comment" placeholder="Ghi chú thêm..."></textarea>
+      </div>
+      ${currentStep === 'delivered' ? `
+      <div class="qc-section">
+        <div class="qc-label">Hình lúc giao (tuỳ chọn)</div>
+        <div class="photo-grid" id="photo-grid">
+          <div class="photo-add" onclick="document.getElementById('photo-inp').click()">
+            <span>📷</span><span>Chụp / Thêm</span>
+          </div>
+        </div>
+        <input type="file" accept="image/*" capture="environment" multiple id="photo-inp" class="photo-upload-inp" onchange="handlePhotoSelect(this)">
+        <div class="photo-uploading" id="photo-status"></div>
+      </div>` : ''}
+      <div class="who-row">
+        <span class="who-lbl">Người quét:</span>
+        <select class="who-sel" id="who-sel">${whoOpts}</select>
+      </div>
+      <button class="confirm-btn ${btnCls}" onclick="recordEvent('${qrId}')">
+        ${STEPS[currentStep]?.icon} Xác nhận ${currentStep.toUpperCase()}
+      </button>`;
   }
 
-  document.getElementById('result-panel').innerHTML = `
-    <div class="item-card">
-      <div class="item-card-header">
-        <div>
-          <div class="item-qr-id">${qrId}</div>
-          <div class="item-order">${order ? (order.customers?.name || '') + ' · ' + item.order_id : item.order_id}</div>
-        </div>
-        <div style="font-size:11px;color:rgba(255,255,255,0.4)">Item #${item.item_no}</div>
-      </div>
-      <div class="item-desc">${item.description || '—'}</div>
-      ${dim ? `<div class="item-dim">${dim} in</div>` : ''}
-      <div class="status-row" style="margin-top:12px">
-        ${chipFor('loaded')}${chipFor('unloaded')}${chipFor('delivered')}
-      </div>
-      ${actionBtn}
-    </div>
-    <div style="text-align:center;margin-top:8px">
-      <button onclick="resumeScan()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:13px;cursor:pointer;font-family:inherit;padding:8px">← Scan another</button>
-    </div>`;
+  backdrop.querySelector('.popup').innerHTML = `
+    <div class="popup-handle"></div>
+    <div class="popup-qrid">${qrId}</div>
+    <div class="popup-name">${item.description || '—'}</div>
+    <div class="popup-meta">${dim ? dim + ' in · ' : ''}Qty: ${item.qty||1} · ${order?.customers?.name||item.order_id}</div>
+    ${histHTML}
+    ${actionHTML}`;
 }
 
-async function recordEvent(qrId, orderId, itemId, eventType) {
+function selectPF(val) {
+  qcPassState = val;
+  document.getElementById('pf-pass')?.classList.toggle('selected', val === 'pass');
+  document.getElementById('pf-fail')?.classList.toggle('selected', val === 'fail');
+  const btn = document.getElementById('confirm-btn');
+  if (btn) {
+    if (val === 'pass') { btn.className = 'confirm-btn qc-pass'; btn.textContent = '✅ Xác nhận PASS'; }
+    else { btn.className = 'confirm-btn qc-fail'; btn.textContent = '❌ Xác nhận FAIL'; }
+  }
+}
+
+function handlePhotoSelect(input) {
+  const files = Array.from(input.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      pendingPhotos.push({ file, dataUrl: e.target.result });
+      renderPhotoGrid();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function renderPhotoGrid() {
+  const grid = document.getElementById('photo-grid');
+  if (!grid) return;
+  const thumbs = pendingPhotos.map((p,i) => `<img class="photo-thumb" src="${p.dataUrl}" onclick="openLightbox('${p.dataUrl}')">`).join('');
+  grid.innerHTML = thumbs + `<div class="photo-add" onclick="document.getElementById('photo-inp').click()"><span>📷</span><span>Thêm</span></div>`;
+}
+
+async function recordEvent(qrId) {
+  if (currentStep === 'qc' && qcPassState === null) {
+    alert('Vui lòng chọn Pass hoặc Fail trước khi xác nhận');
+    return;
+  }
+  const btn = document.querySelector('.confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang lưu...'; }
+
+  const comment = document.getElementById('qc-comment')?.value?.trim() || '';
   const who = document.getElementById('who-sel')?.value || '';
-  const btn = document.querySelector('.action-btn:not(.btn-done)');
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const { item } = currentPopupData || {};
 
-  await sb.from('qr_scan_events').insert({ qr_id: qrId, order_id: orderId, event_type: eventType, scanned_by: who });
+  const eventPayload = {
+    qr_id: qrId, order_id: item?.order_id || '',
+    event_type: currentStep, scanned_by: who, comment,
+    ...(currentStep === 'qc' ? { qc_pass: qcPassState === 'pass' } : {}),
+  };
 
-  // Flash success
-  document.getElementById('flash-msg').textContent = EVENT_LABELS[eventType];
+  const { data: eventRow, error } = await sb.from('qr_scan_events').insert(eventPayload).select().single();
+  if (error) { if(btn){btn.disabled=false;btn.textContent='Thử lại';} alert('Lỗi lưu: '+error.message); return; }
+
+  // Upload photos
+  if (pendingPhotos.length && eventRow) {
+    document.getElementById('photo-status') && (document.getElementById('photo-status').textContent = `Đang upload ${pendingPhotos.length} hình...`);
+    for (const p of pendingPhotos) {
+      const ext = p.file.name.split('.').pop() || 'jpg';
+      const path = `${qrId}/${eventRow.id}_${Date.now()}.${ext}`;
+      const { error: upErr } = await sb.storage.from('qr-photos').upload(path, p.file, { contentType: p.file.type, upsert: true });
+      if (!upErr) {
+        const { data: urlData } = sb.storage.from('qr-photos').getPublicUrl(path);
+        await sb.from('qr_scan_photos').insert({ scan_event_id: eventRow.id, qr_id: qrId, photo_url: urlData.publicUrl });
+      }
+    }
+  }
+
+  // Track session progress
+  if (!scannedThisSession.includes(qrId)) scannedThisSession.push(qrId);
+
+  // Flash
+  const isPass = qcPassState === 'pass', isFail = qcPassState === 'fail';
+  document.getElementById('flash-icon').textContent = isFail ? '❌' : '✅';
+  document.getElementById('flash-msg').textContent = isFail ? 'Fail — đã ghi nhận' : 'Đã lưu!';
+  document.getElementById('flash-sub').textContent = STEPS[currentStep]?.label || '';
+  document.getElementById('flash').style.background = isFail ? 'rgba(220,38,38,.92)' : 'rgba(5,150,105,.92)';
   const flash = document.getElementById('flash');
   flash.classList.add('show');
-  setTimeout(() => {
+  setTimeout(async () => {
     flash.classList.remove('show');
-    // Reload item to show updated status
-    handleScan(qrId);
-  }, 1500);
+    closePopup();
+    // Reload progress if we have an order context
+    if (currentOrderId) await loadOrderProgress(currentOrderId);
+    resumeCamera();
+  }, 1600);
 }
 
-startCamera();
+function closePopup() {
+  document.getElementById('popup-bd')?.remove();
+}
+
+// ─── SEARCH ───
+async function searchItem() {
+  const qrId = document.getElementById('search-qrid')?.value?.trim();
+  if (!qrId) return;
+  currentStep = null; // view-only mode
+  document.getElementById('hdr-sub').textContent = 'Item Detail';
+  showScreen('scr-cam');
+  document.getElementById('cam-wrap').style.display = 'none';
+  document.getElementById('scan-info').innerHTML = '';
+  await openItemPopup(qrId);
+}
+
+// ─── LIGHTBOX ───
+function openLightbox(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lightbox-img').src = '';
+}
 </script>
 </body>
 </html>
