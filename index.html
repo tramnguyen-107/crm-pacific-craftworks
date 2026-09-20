@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
   /* DOCUMENTS */
   .doc-list { display:flex; flex-direction:column; gap:8px; }
@@ -1370,6 +1371,24 @@ async function loadAllData() {
   const srRow = (settingsRes.data || []).find(r => r.key === 'sales_reps');
   if (srRow) { try { salesReps = JSON.parse(srRow.value); } catch(e) {} }
   populateSalesFilters();
+
+  const allOrderIds = customers.flatMap(c => c.orders.map(o => o.id));
+  if (allOrderIds.length) {
+    const [plRes, invRes] = await Promise.all([
+      sb.from('packing_list_items').select('*').in('order_id', allOrderIds).order('item_no'),
+      sb.from('invoice_items').select('*').in('order_id', allOrderIds).order('sort_order'),
+    ]);
+    packingItems = {};
+    (plRes.data || []).forEach(item => {
+      if (!packingItems[item.order_id]) packingItems[item.order_id] = [];
+      packingItems[item.order_id].push(item);
+    });
+    invoiceItems = {};
+    (invRes.data || []).forEach(item => {
+      if (!invoiceItems[item.order_id]) invoiceItems[item.order_id] = [];
+      invoiceItems[item.order_id].push(item);
+    });
+  }
 }
 
 // ============================================================
@@ -1742,6 +1761,8 @@ let containerPlans = [];
 const LEAD_STATUSES = ['New', 'Contacted', 'Quoting', 'Quoted', 'Follow-up'];
 let salesReps = ['JJ','Cezar','Dustin','Darrel','Andy'];
 let orderActivity = {}; // { orderId: { tasks:[], comments:[] } }
+let packingItems = {}; // { orderId: [items] }
+let invoiceItems = {}; // { orderId: [items] }
 
 let activeCustomerId = null;
 let activePanelTab = 0;
@@ -2038,7 +2059,7 @@ function switchPanelTab(idx, el) {
 function renderPanelTab(idx) {
   const c = customers.find(x => x.id === activeCustomerId);
   const body = document.getElementById('panel-body');
-  if      (idx === 0) body.innerHTML = buildOrdersTab(c);
+  if      (idx === 0) { body.innerHTML = buildOrdersTab(c); renderQRCodes(); }
   else if (idx === 1) buildDocumentsTab(c, body);
   else if (idx === 2) body.innerHTML = buildContactTab(c);
   else                body.innerHTML = buildHistoryTab(c);
@@ -2566,7 +2587,349 @@ function buildOrderDetail(order, customer) {
 }
 
 function buildFullOrderDetail(order, customer) {
-  return buildOrderDetail(order, customer) + buildTasksSection(order.id) + buildCommentsSection(order.id);
+  return buildOrderDetail(order, customer) + buildPackingListSection(order, customer) + buildInvoiceSection(order, customer) + buildTasksSection(order.id) + buildCommentsSection(order.id);
+}
+
+// =====================
+// PACKING LIST
+// =====================
+function generateQRId(order, itemNo) {
+  const name = order.project_name || order.id || '';
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const abbrev = words.length >= 2
+    ? words.map(w => w[0]).join('').toUpperCase().slice(0, 4)
+    : name.replace(/[^A-Za-z0-9]/g,'').slice(0, 4).toUpperCase();
+  return `PCW-${abbrev||'ORD'}-${String(itemNo).padStart(4,'0')}`;
+}
+
+function buildPackingListSection(order, customer) {
+  const items = packingItems[order.id] || [];
+  const rows = items.map(item => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 8px;font-weight:700;color:var(--brand);white-space:nowrap">${item.item_no}</td>
+      <td style="padding:4px 6px"><input class="lp-input" style="width:100%;min-width:120px;font-size:11px" value="${(item.description||'').replace(/"/g,'&quot;')}" onchange="savePackingField('${item.id}','${order.id}','description',this.value)"></td>
+      <td style="padding:4px 6px;white-space:nowrap">
+        <div style="display:flex;gap:3px;align-items:center">
+          <input class="lp-input" style="width:38px;font-size:11px;text-align:center;padding:4px" value="${item.width_in||''}" placeholder="W" onchange="savePackingField('${item.id}','${order.id}','width_in',this.value)">
+          <span style="color:var(--muted);font-size:10px">×</span>
+          <input class="lp-input" style="width:38px;font-size:11px;text-align:center;padding:4px" value="${item.height_in||''}" placeholder="H" onchange="savePackingField('${item.id}','${order.id}','height_in',this.value)">
+          <span style="color:var(--muted);font-size:10px">×</span>
+          <input class="lp-input" style="width:38px;font-size:11px;text-align:center;padding:4px" value="${item.depth_in||''}" placeholder="D" onchange="savePackingField('${item.id}','${order.id}','depth_in',this.value)">
+          <span style="font-size:9px;color:var(--muted)">in</span>
+        </div>
+      </td>
+      <td style="padding:4px 6px"><input class="lp-input" style="width:46px;font-size:11px;text-align:center" type="number" min="1" value="${item.qty||1}" onchange="savePackingField('${item.id}','${order.id}','qty',this.value)"></td>
+      <td style="padding:4px 6px"><input class="lp-input" style="width:100%;min-width:90px;font-size:11px" value="${(item.notes||'').replace(/"/g,'&quot;')}" onchange="savePackingField('${item.id}','${order.id}','notes',this.value)"></td>
+      <td style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--brand);white-space:nowrap">${item.qr_id}</td>
+      <td style="padding:4px 8px"><div id="qr-${item.id}" data-qr-text="${item.qr_id}" style="width:52px;height:52px"></div></td>
+      <td style="padding:4px 6px"><button onclick="deletePackingItem('${item.id}','${order.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" title="Delete">🗑</button></td>
+    </tr>`).join('');
+
+  return `<div class="activity-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="section-title" style="margin:0">📦 Packing List <span style="font-size:11px;color:var(--muted);font-weight:400">${items.length} item${items.length!==1?'s':''}</span></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="addPackingItem('${order.id}')">+ Add Item</button>
+        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printPackingList('${order.id}','${customer.id}')">🖨️ Print PDF</button>` : ''}
+      </div>
+    </div>
+    ${items.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:var(--surface);border-bottom:2px solid var(--border)">
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">#</th>
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Description</th>
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap">W × H × D (in)</th>
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Qty</th>
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Notes</th>
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">QR ID</th>
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">QR Code</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>` : `<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No items yet. Click "+ Add Item" to start.</div>`}
+  </div>`;
+}
+
+async function addPackingItem(orderId) {
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const existing = packingItems[orderId] || [];
+  const itemNo = existing.length + 1;
+  const qrId = generateQRId(order, itemNo);
+  const newItem = { order_id: orderId, item_no: itemNo, description: '', qty: 1, notes: '', qr_id: qrId };
+  const res = (await sb.from('packing_list_items').insert(newItem).select().single()).data;
+  if (!res) return showToast('❌ Error adding item');
+  if (!packingItems[orderId]) packingItems[orderId] = [];
+  packingItems[orderId].push(res);
+  const detailEl = document.getElementById('detail-' + orderId);
+  if (detailEl) { detailEl.innerHTML = buildFullOrderDetail(order, c); renderQRCodes(); }
+}
+
+async function savePackingField(itemId, orderId, field, value) {
+  const items = packingItems[orderId] || [];
+  const item = items.find(i => i.id === itemId);
+  if (item) item[field] = field === 'qty' ? Number(value) : (field === 'width_in'||field === 'height_in'||field === 'depth_in' ? (value?Number(value):null) : value);
+  await sb.from('packing_list_items').update({[field]: item[field]}).eq('id', itemId);
+}
+
+async function deletePackingItem(itemId, orderId) {
+  if (!confirm('Delete this item?')) return;
+  packingItems[orderId] = (packingItems[orderId]||[]).filter(i => i.id !== itemId);
+  await sb.from('packing_list_items').delete().eq('id', itemId);
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  const detailEl = document.getElementById('detail-' + orderId);
+  if (detailEl && order) { detailEl.innerHTML = buildFullOrderDetail(order, c); renderQRCodes(); }
+}
+
+function renderQRCodes() {
+  requestAnimationFrame(() => {
+    document.querySelectorAll('[data-qr-text]').forEach(el => {
+      if (el.dataset.qrRendered || !el.dataset.qrText) return;
+      el.dataset.qrRendered = '1';
+      try {
+        new QRCode(el, { text: el.dataset.qrText, width: 52, height: 52, correctLevel: QRCode.CorrectLevel.M });
+      } catch(e) {}
+    });
+  });
+}
+
+function printPackingList(orderId, customerId) {
+  const c = customers.find(x => x.id === Number(customerId) || x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  const items = packingItems[orderId] || [];
+  if (!items.length) return showToast('No items to print');
+
+  const rows = items.map(item => {
+    const dim = [item.width_in, item.height_in, item.depth_in].filter(Boolean).join(' × ') || '—';
+    return `<tr>
+      <td>${item.item_no}</td>
+      <td>${item.description||'—'}</td>
+      <td>${dim}</td>
+      <td>${item.qty||1}</td>
+      <td>${item.notes||''}</td>
+      <td><strong>${item.qr_id}</strong></td>
+      <td><div id="print-qr-${item.id}" style="width:64px;height:64px"></div></td>
+    </tr>`;
+  }).join('');
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Packing List — ${order?.project_name||orderId}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; color: #000; }
+    h1 { font-size: 18px; margin: 0 0 4px } h2 { font-size: 13px; font-weight: normal; color: #555; margin: 0 0 16px }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #000; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f0f0f0; padding: 7px 10px; text-align: left; font-size: 11px; border: 1px solid #ccc; }
+    td { padding: 6px 10px; border: 1px solid #ddd; vertical-align: middle; }
+    .total { margin-top: 12px; text-align: right; font-weight: bold; font-size: 13px; }
+    @media print { body { margin: 10px } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
+  </head><body>
+  <div class="header">
+    <div>
+      <h1>PACIFIC CRAFTWORKS</h1>
+      <h2>Packing List — ${order?.project_name||orderId}</h2>
+      <div>Customer: <strong>${c?.name||'—'}</strong> &nbsp;|&nbsp; Order: <strong>${orderId}</strong> &nbsp;|&nbsp; Date: <strong>${new Date().toLocaleDateString('en-US')}</strong></div>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Description</th><th>Dimensions (W×H×D in)</th><th>Qty</th><th>Notes</th><th>QR ID</th><th>QR Code</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="total">Total Items: ${items.reduce((s,i)=>s+(i.qty||1),0)} &nbsp;|&nbsp; Total Lines: ${items.length}</div>
+  <script>
+    window.onload = function() {
+      document.querySelectorAll('[id^="print-qr-"]').forEach(el => {
+        const id = el.id.replace('print-qr-','');
+        const qrText = ${JSON.stringify(items.reduce((m,i)=>{m[i.id]=i.qr_id;return m},{}))}[id];
+        if (qrText) new QRCode(el, { text: qrText, width: 64, height: 64, correctLevel: QRCode.CorrectLevel.M });
+      });
+      setTimeout(() => window.print(), 800);
+    };
+  <\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+// =====================
+// INVOICE
+// =====================
+function buildInvoiceSection(order, customer) {
+  const items = invoiceItems[order.id] || [];
+  const subtotal = items.reduce((s, i) => s + (i.qty||1) * (i.unit_price||0), 0);
+  const deposit = order.deposit_amount || 0;
+  const balance = subtotal - deposit;
+
+  const rows = items.map((item, idx) => {
+    const amt = (item.qty||1) * (item.unit_price||0);
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:4px 6px"><input class="lp-input" style="width:100%;min-width:140px;font-size:11px" value="${(item.description||'').replace(/"/g,'&quot;')}" onchange="saveInvoiceField('${item.id}','${order.id}','description',this.value)"></td>
+      <td style="padding:4px 6px"><input class="lp-input" style="width:46px;font-size:11px;text-align:center" type="number" min="1" value="${item.qty||1}" onchange="saveInvoiceField('${item.id}','${order.id}','qty',this.value);refreshInvoiceTotals('${order.id}')"></td>
+      <td style="padding:4px 6px"><input class="lp-input" style="width:80px;font-size:11px;text-align:right" type="number" min="0" step="0.01" value="${item.unit_price||0}" onchange="saveInvoiceField('${item.id}','${order.id}','unit_price',this.value);refreshInvoiceTotals('${order.id}')"></td>
+      <td style="padding:6px 8px;font-weight:600;text-align:right;white-space:nowrap">$${amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="padding:4px 6px"><button onclick="deleteInvoiceItem('${item.id}','${order.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" title="Delete">🗑</button></td>
+    </tr>`;
+  }).join('');
+
+  const invoiceNum = order.invoice_number || `PCW-INV-${new Date().getFullYear()}-${order.id.slice(-4).toUpperCase()}`;
+
+  return `<div class="activity-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="section-title" style="margin:0">🧾 Invoice</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="addInvoiceItem('${order.id}')">+ Add Line</button>
+        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printInvoice('${order.id}','${customer.id}')">🖨️ Print PDF</button>` : ''}
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+      <div class="lp-field" style="flex:1;min-width:140px"><label class="lp-label">Invoice #</label>
+        <input class="lp-input" style="font-size:11px" value="${invoiceNum}" onchange="saveOrderField(${customer.id},'${order.id}','invoice_number',this.value)"></div>
+      <div class="lp-field" style="flex:1;min-width:120px"><label class="lp-label">Invoice Date</label>
+        <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" style="font-size:11px" value="${order.invoice_date||''}" onchange="saveOrderField(${customer.id},'${order.id}','invoice_date',this.value)"></div>
+    </div>
+    ${items.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:var(--surface);border-bottom:2px solid var(--border)">
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Description</th>
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Qty</th>
+        <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Unit Price</th>
+        <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--muted);font-weight:600">Amount</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div id="inv-totals-${order.id}" style="margin-top:10px;padding:10px 12px;background:var(--surface);border-radius:8px;border:1px solid var(--border)">
+      ${buildInvoiceTotalsHTML(order.id, customer.id)}
+    </div></div>` : `<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No line items yet. Click "+ Add Line" to start.</div>`}
+    <div class="lp-field" style="margin-top:10px"><label class="lp-label">Notes</label>
+      <textarea class="lp-input" rows="2" style="font-size:11px;resize:vertical" onchange="saveOrderField(${customer.id},'${order.id}','invoice_notes',this.value)">${order.invoice_notes||''}</textarea>
+    </div>
+  </div>`;
+}
+
+function buildInvoiceTotalsHTML(orderId, customerId) {
+  const c = customers.find(x => x.id === customerId || x.id === Number(customerId));
+  const order = c?.orders.find(o => o.id === orderId);
+  const items = invoiceItems[orderId] || [];
+  const subtotal = items.reduce((s, i) => s + (i.qty||1) * (i.unit_price||0), 0);
+  const deposit = order?.deposit_amount || 0;
+  const balance = subtotal - deposit;
+  return `<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;font-size:12px">
+    <div style="display:flex;gap:24px"><span style="color:var(--muted)">Subtotal</span><span style="font-weight:600;min-width:90px;text-align:right">$${subtotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+    <div style="display:flex;gap:24px"><span style="color:var(--muted)">Deposit Paid</span><span style="font-weight:600;color:#059669;min-width:90px;text-align:right">− $${Number(deposit).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+    <div style="display:flex;gap:24px;padding-top:6px;border-top:1px solid var(--border)"><span style="font-weight:700">Balance Due</span><span style="font-weight:700;color:${balance>0?'#EF4444':'#059669'};font-size:14px;min-width:90px;text-align:right">$${balance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+  </div>`;
+}
+
+function refreshInvoiceTotals(orderId) {
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  const el = document.getElementById('inv-totals-' + orderId);
+  if (el && c) el.innerHTML = buildInvoiceTotalsHTML(orderId, c.id);
+}
+
+async function addInvoiceItem(orderId) {
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const existing = invoiceItems[orderId] || [];
+  const newItem = { order_id: orderId, description: '', qty: 1, unit_price: 0, sort_order: existing.length };
+  const res = (await sb.from('invoice_items').insert(newItem).select().single()).data;
+  if (!res) return showToast('❌ Error adding line');
+  if (!invoiceItems[orderId]) invoiceItems[orderId] = [];
+  invoiceItems[orderId].push(res);
+  const detailEl = document.getElementById('detail-' + orderId);
+  if (detailEl) { detailEl.innerHTML = buildFullOrderDetail(order, c); renderQRCodes(); }
+}
+
+async function saveInvoiceField(itemId, orderId, field, value) {
+  const items = invoiceItems[orderId] || [];
+  const item = items.find(i => i.id === itemId);
+  if (item) item[field] = (field==='qty'||field==='unit_price') ? Number(value) : value;
+  await sb.from('invoice_items').update({[field]: item[field]}).eq('id', itemId);
+}
+
+async function deleteInvoiceItem(itemId, orderId) {
+  if (!confirm('Delete this line?')) return;
+  invoiceItems[orderId] = (invoiceItems[orderId]||[]).filter(i => i.id !== itemId);
+  await sb.from('invoice_items').delete().eq('id', itemId);
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  const detailEl = document.getElementById('detail-' + orderId);
+  if (detailEl && order) { detailEl.innerHTML = buildFullOrderDetail(order, c); renderQRCodes(); }
+}
+
+function printInvoice(orderId, customerId) {
+  const c = customers.find(x => x.id === Number(customerId) || x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  const items = invoiceItems[orderId] || [];
+  const subtotal = items.reduce((s, i) => s + (i.qty||1) * (i.unit_price||0), 0);
+  const deposit = order?.deposit_amount || 0;
+  const balance = subtotal - deposit;
+  const invoiceNum = order?.invoice_number || `PCW-INV-${new Date().getFullYear()}-${orderId.slice(-4).toUpperCase()}`;
+  const invoiceDate = order?.invoice_date || new Date().toLocaleDateString('en-US');
+
+  const rows = items.map(item => {
+    const amt = (item.qty||1) * (item.unit_price||0);
+    return `<tr>
+      <td>${item.description||'—'}</td>
+      <td style="text-align:center">${item.qty||1}</td>
+      <td style="text-align:right">$${Number(item.unit_price||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="text-align:right;font-weight:600">$${amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+    </tr>`;
+  }).join('');
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invoiceNum}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; margin: 30px; color: #000; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 30px; padding-bottom: 16px; border-bottom: 2px solid #000; }
+    .company { font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+    .inv-label { font-size: 24px; font-weight: 700; color: #555; }
+    .bill-to { margin-bottom: 20px; }
+    .bill-to strong { font-size: 11px; text-transform: uppercase; color: #888; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th { background: #f0f0f0; padding: 8px 10px; text-align: left; font-size: 11px; border: 1px solid #ccc; }
+    td { padding: 7px 10px; border: 1px solid #ddd; }
+    .totals { margin-left: auto; width: 280px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; }
+    .totals-row.balance { font-size: 15px; font-weight: 800; border-top: 2px solid #000; padding-top: 8px; margin-top: 4px; }
+    .notes { margin-top: 20px; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; }
+    .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #999; }
+    @media print { body { margin: 15px } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <div class="company">PACIFIC CRAFTWORKS</div>
+      <div style="font-size:11px;color:#666;margin-top:4px">Custom Kitchen Cabinetry</div>
+    </div>
+    <div style="text-align:right">
+      <div class="inv-label">INVOICE</div>
+      <div style="font-size:12px;margin-top:6px"><strong>Invoice #:</strong> ${invoiceNum}</div>
+      <div style="font-size:12px"><strong>Date:</strong> ${invoiceDate}</div>
+      <div style="font-size:12px"><strong>Order:</strong> ${orderId}</div>
+    </div>
+  </div>
+  <div class="bill-to">
+    <strong>Bill To</strong>
+    <div style="font-size:14px;font-weight:700;margin-top:4px">${c?.name||'—'}</div>
+    ${c?.phone ? `<div>${c.phone}</div>` : ''}
+    ${order?.project_name ? `<div style="color:#555">${order.project_name}</div>` : ''}
+  </div>
+  <table>
+    <thead><tr><th>Description</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Amount</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="totals">
+    <div class="totals-row"><span>Subtotal</span><span>$${subtotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+    <div class="totals-row" style="color:#059669"><span>Deposit Paid</span><span>− $${Number(deposit).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+    <div class="totals-row balance"><span>Balance Due</span><span style="color:${balance>0?'#c00':'#059669'}">$${balance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+  </div>
+  ${order?.invoice_notes ? `<div class="notes"><strong>Notes:</strong> ${order.invoice_notes}</div>` : ''}
+  <div class="footer">Thank you for your business — Pacific Craftworks</div>
+  <script>window.onload = () => setTimeout(() => window.print(), 300);<\/script>
+  </body></html>`);
+  win.document.close();
 }
 
 // =====================
@@ -2584,7 +2947,7 @@ async function saveDeadlineAndETA(customerId, orderId, date) {
   const sub = document.querySelector(`#order-item-${orderId} .order-item-sub`);
   if (sub) sub.textContent = `Balance: $${Number(order.balance||0).toLocaleString()} · ETA ${date}`;
   const detailEl = document.getElementById('detail-' + orderId);
-  if (detailEl) detailEl.innerHTML = buildFullOrderDetail(order, c);
+  if (detailEl) { detailEl.innerHTML = buildFullOrderDetail(order, c); renderQRCodes(); }
 }
 
 async function saveOrderField(customerId, orderId, field, value, {silent=false}={}) {
@@ -2599,6 +2962,7 @@ async function saveOrderField(customerId, orderId, field, value, {silent=false}=
   const detailEl = document.getElementById('detail-' + orderId);
   if (detailEl) {
     detailEl.innerHTML = buildFullOrderDetail(order, c);
+    renderQRCodes();
   }
 }
 
@@ -4745,7 +5109,7 @@ async function saveNotesFields(customerId, orderId) {
   await dbUpdate('orders', {id: orderId}, {drive_link: dl, order_notes: notes});
   showToast('✅ Notes saved');
   const detailEl = document.getElementById('detail-' + orderId);
-  if (detailEl) detailEl.innerHTML = buildFullOrderDetail(order, c);
+  if (detailEl) { detailEl.innerHTML = buildFullOrderDetail(order, c); renderQRCodes(); }
 }
 
 // Batch save lead contact text fields
