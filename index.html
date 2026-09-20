@@ -928,12 +928,7 @@
         <div style="font-size:13px;color:var(--muted);margin-top:2px" id="report-period-label">—</div>
       </div>
       <div style="display:flex;gap:8px">
-        <select id="report-month-sel" class="form-select" style="width:120px;font-size:12px;padding:7px 10px" onchange="renderReport()">
-          <option value="5">June 2026</option>
-          <option value="4" selected>May 2026</option>
-          <option value="3">April 2026</option>
-          <option value="2">March 2026</option>
-        </select>
+        <select id="report-month-sel" class="form-select" style="width:140px;font-size:12px;padding:7px 10px" onchange="renderReport()"></select>
       </div>
     </div>
 
@@ -5745,12 +5740,38 @@ async function duplicateFPO(id) {
 // =====================
 // REPORTS
 // =====================
+function initReportMonthDropdown() {
+  const sel = document.getElementById('report-month-sel');
+  if (!sel || sel.options.length > 0) return;
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const now = new Date();
+  // Show last 12 months, most recent first
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const opt = document.createElement('option');
+    opt.value = `${d.getFullYear()}-${d.getMonth()}`;
+    opt.textContent = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+    if (i === 0) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
 function renderReport() {
+  initReportMonthDropdown();
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const selMonth = parseInt(document.getElementById('report-month-sel')?.value ?? 4);
-  const selYear = 2026;
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const rawVal = document.getElementById('report-month-sel')?.value || '';
+  let selMonth, selYear;
+  if (rawVal.includes('-')) {
+    [selYear, selMonth] = rawVal.split('-').map(Number);
+  } else {
+    const now = new Date();
+    selMonth = now.getMonth(); selYear = now.getFullYear();
+  }
   const monthName = months[selMonth];
-  const nextMonthName = months[(selMonth + 1) % 12];
+  const nextMIdx = (selMonth + 1) % 12;
+  const nextYear = nextMIdx === 0 ? selYear + 1 : selYear;
+  const nextMonthName = months[nextMIdx];
 
   document.getElementById('report-period-label').textContent = `Reporting period: ${monthName} ${selYear}`;
 
@@ -5764,7 +5785,7 @@ function renderReport() {
   const nextMonthOrders = allOrders.filter(o => {
     if (!o.eta) return false;
     const d = new Date(o.eta);
-    return d.getMonth() === (selMonth + 1) % 12 && d.getFullYear() === selYear;
+    return d.getMonth() === nextMIdx && d.getFullYear() === nextYear;
   });
 
   // Leads converted (approximation: customers created in that month)
@@ -5773,7 +5794,7 @@ function renderReport() {
   const containersThisMonth = factoryPOs.filter(f => {
     if (!f.eta) return false;
     const d = new Date(f.eta);
-    return d.getMonth() === selMonth;
+    return d.getMonth() === selMonth && d.getFullYear() === selYear;
   });
   const containersFulfilled = containersThisMonth.filter(f => ['loaded','delivered'].includes(f.status)).length;
 
