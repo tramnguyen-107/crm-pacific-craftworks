@@ -2103,6 +2103,31 @@ function buildOrdersTab(c) {
 // =====================
 // ORDER DETAIL HELPERS (Supabase-backed, snake_case fields)
 // =====================
+function buildSpecSummarySection(order, customer) {
+  const uid = 'spec-' + order.id;
+  return `
+    <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden">
+      <div onclick="toggleSpecSummary('${uid}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);cursor:pointer;user-select:none">
+        <div style="font-size:12px;font-weight:700;color:var(--brand)">📋 Xem Spec Ban Đầu (Collect Info)</div>
+        <div id="${uid}-arrow" style="font-size:12px;color:var(--muted);transition:transform 0.2s">▼</div>
+      </div>
+      <div id="${uid}" style="display:none;padding:12px 14px;border-top:1px solid var(--border)">
+        ${buildOrderQuoteSection(order)}
+        ${buildOrderSpecsSection(order)}
+        ${buildFurnitureSection(order, customer)}
+      </div>
+    </div>`;
+}
+
+function toggleSpecSummary(uid) {
+  const el = document.getElementById(uid);
+  const arrow = document.getElementById(uid + '-arrow');
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (arrow) arrow.style.transform = open ? '' : 'rotate(180deg)';
+}
+
 function buildWorkflowSection(order, customer, phases) {
   const checked = order.checked || {};
   const phaseKeys = phases || Object.keys(WORKFLOW_TASKS);
@@ -2458,6 +2483,7 @@ function buildOrderDetail(order, customer) {
       ${buildOrderQuoteSection(order)}
       ${buildOrderSpecsSection(order)}
       ${buildUrgentSection(order, customer)}
+      ${buildSpecSummarySection(order, customer)}
       ${buildWorkflowSection(order, customer, ['production'])}
       <div class="section-title">Production Timeline</div>
       <div class="timeline">
@@ -2509,6 +2535,7 @@ function buildOrderDetail(order, customer) {
         <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.port_arrival_date||''}"
           onchange="saveOrderField(${customer.id},'${order.id}','port_arrival_date',this.value)">
       </div>
+      ${buildSpecSummarySection(order, customer)}
       ${buildWorkflowSection(order, customer, ['shipping'])}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
@@ -2576,6 +2603,7 @@ function buildOrderDetail(order, customer) {
         </label>
       </div>
 
+      ${buildSpecSummarySection(order, customer)}
       ${buildWorkflowSection(order, customer, ['delivery'])}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
