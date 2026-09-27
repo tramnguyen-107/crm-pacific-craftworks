@@ -2276,24 +2276,53 @@ function toggleSpecSummary(uid) {
 function buildWorkflowSection(order, customer, phases) {
   const checked = order.checked || {};
   const phaseKeys = phases || Object.keys(WORKFLOW_TASKS);
-  let html = `<div class="wf-section"><div class="section-title">📋 Workflow Checklist</div>`;
+  let totalTasks = 0, doneTasks = 0;
+  let body = `<div class="wf-section">`;
   phaseKeys.forEach(key => {
     const phase = WORKFLOW_TASKS[key];
     if (!phase) return;
     const total = phase.tasks.length;
     const done  = phase.tasks.filter(t => checked[t.id]).length;
-    html += `<div class="wf-phase">${phase.label} <span style="font-size:10px;color:${done===total?'var(--deposit)':'var(--muted)'};margin-left:6px">${done}/${total}</span></div>`;
+    totalTasks += total; doneTasks += done;
+    body += `<div class="wf-phase">${phase.label} <span style="font-size:10px;color:${done===total?'var(--deposit)':'var(--muted)'};margin-left:6px">${done}/${total}</span></div>`;
     phase.tasks.forEach(t => {
       const isChecked = !!checked[t.id];
-      html += `<div class="wf-task${isChecked?' done':''}">
+      body += `<div class="wf-task${isChecked?' done':''}">
         <input type="checkbox" ${isChecked?'checked':''} onclick="toggleWorkflowTask(${customer.id},'${order.id}','${t.id}',this)">
         <span class="wf-assignee ${t.cls}">${t.assignee}</span>
         <span class="wf-label">${t.label}</span>
       </div>`;
     });
   });
-  html += `</div>`;
-  return html;
+  body += `</div>`;
+  const meta = totalTasks ? `${doneTasks}/${totalTasks} done` : '';
+  return buildSecCard(`wf-${order.id}`, 'stage', '☑️', 'Workflow Checklist', meta, body, true);
+}
+
+function buildProductionTimeline(order) {
+  const body = `<div class="timeline">
+    <div class="timeline-item">
+      <div class="tl-left"><div class="tl-dot done">✓</div><div class="tl-line done"></div></div>
+      <div class="tl-content"><div class="tl-title">Spec sent to factory</div><div class="tl-date">${order.spec_sent || '—'}</div></div>
+    </div>
+    <div class="timeline-item">
+      <div class="tl-left"><div class="tl-dot active">⚙</div><div class="tl-line"></div></div>
+      <div class="tl-content"><div class="tl-title">In Production</div><div class="tl-date">Est. complete: ${order.est_complete || '—'}</div></div>
+    </div>
+    <div class="timeline-item">
+      <div class="tl-left"><div class="tl-dot pending">○</div><div class="tl-line"></div></div>
+      <div class="tl-content"><div class="tl-title pending">QC & Pack</div><div class="tl-date">—</div></div>
+    </div>
+    <div class="timeline-item">
+      <div class="tl-left"><div class="tl-dot pending">○</div><div class="tl-line"></div></div>
+      <div class="tl-content"><div class="tl-title pending">Load Container</div><div class="tl-date">—</div></div>
+    </div>
+    <div class="timeline-item">
+      <div class="tl-left"><div class="tl-dot pending">○</div></div>
+      <div class="tl-content"><div class="tl-title pending">Delivered</div><div class="tl-date">ETA: ${order.eta || '—'}</div></div>
+    </div>
+  </div>`;
+  return buildSecCard(`tl-${order.id}`, 'stage', '📅', 'Production Timeline', '', body, false);
 }
 
 async function toggleWorkflowTask(customerId, orderId, taskId, el) {
@@ -2729,29 +2758,7 @@ function buildOrderDetailStage(order, customer) {
       ${buildUrgentSection(order, customer)}
       ${buildSpecSummarySection(order, customer)}
       ${buildWorkflowSection(order, customer, ['production'])}
-      <div class="section-title">Production Timeline</div>
-      <div class="timeline">
-        <div class="timeline-item">
-          <div class="tl-left"><div class="tl-dot done">✓</div><div class="tl-line done"></div></div>
-          <div class="tl-content"><div class="tl-title">Spec sent to factory</div><div class="tl-date">${order.spec_sent || '—'}</div></div>
-        </div>
-        <div class="timeline-item">
-          <div class="tl-left"><div class="tl-dot active">⚙</div><div class="tl-line"></div></div>
-          <div class="tl-content"><div class="tl-title">In Production</div><div class="tl-date">Est. complete: ${order.est_complete || '—'}</div></div>
-        </div>
-        <div class="timeline-item">
-          <div class="tl-left"><div class="tl-dot pending">○</div><div class="tl-line"></div></div>
-          <div class="tl-content"><div class="tl-title tl-title pending">QC & Pack</div><div class="tl-date">—</div></div>
-        </div>
-        <div class="timeline-item">
-          <div class="tl-left"><div class="tl-dot pending">○</div><div class="tl-line"></div></div>
-          <div class="tl-content"><div class="tl-title tl-title pending">Load Container</div><div class="tl-date">—</div></div>
-        </div>
-        <div class="timeline-item">
-          <div class="tl-left"><div class="tl-dot pending">○</div></div>
-          <div class="tl-content"><div class="tl-title tl-title pending">Delivered</div><div class="tl-date">ETA: ${order.eta || '—'}</div></div>
-        </div>
-      </div>
+      ${buildProductionTimeline(order)}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
         <button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Send to QC →</button>
