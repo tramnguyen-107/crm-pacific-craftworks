@@ -2747,12 +2747,44 @@ function buildOrderDetail(order, customer) {
         </label>
       </div>
 
+      <!-- Section 3: Balance Collection -->
+      <div class="section-title">💰 Thu Balance Còn Lại</div>
+      ${order.balance_collected ? `
+      <div style="padding:14px;background:#052e16;border:1px solid #16a34a;border-radius:10px;margin-bottom:12px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">✅</span>
+        <div>
+          <div style="font-size:13px;font-weight:800;color:#4ade80">Balance Đã Thu — $${Number(order.balance||0).toLocaleString()}</div>
+          <div style="font-size:11px;color:#4ade80;opacity:.7;margin-top:2px">Ngày thu: ${order.balance_collected_date||'—'}</div>
+        </div>
+      </div>` : `
+      <div style="padding:14px;background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:2px">SỐ TIỀN CẦN THU</div>
+            <div style="font-size:28px;font-weight:900;color:#92400E">$${Number(order.balance||0).toLocaleString()}</div>
+            <div style="font-size:11px;color:#92400E;opacity:.7;margin-top:2px">
+              Deposit đã nhận: $${Number(order.deposit_amount||0).toLocaleString()} · Tổng đơn: $${(Number(order.balance||0)+Number(order.deposit_amount||0)).toLocaleString()}
+            </div>
+          </div>
+        </div>
+        <div class="lp-field" style="margin-bottom:10px">
+          <label class="lp-label">Chi phí sản xuất / COGS (USD) — để tính lợi nhuận gộp</label>
+          <div class="field-row">
+            <input class="lp-input" id="cogs_${order.id}" type="number" min="0" placeholder="0" value="${order.cost_of_goods||''}">
+            <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','cost_of_goods','cogs_${order.id}')">Lưu</button>
+          </div>
+        </div>
+        <button onclick="collectBalance(${customer.id},'${order.id}')" style="width:100%;padding:14px;background:#059669;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:.3px">
+          💰 Đã Thu $${Number(order.balance||0).toLocaleString()} → Hoàn Tất Đơn Hàng
+        </button>
+      </div>`}
+
       ${buildSpecSummarySection(order, customer)}
       ${buildWorkflowSection(order, customer, ['delivery'])}
       ${buildNotesSection(order, customer)}
-      <div class="action-bar">
-        <button class="btn btn-primary" ${!canDone?'disabled title="Warehouse arrival + installation + customer confirm required"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Mark as Delivered & Done</button>
-      </div>`;
+      ${!order.balance_collected ? `<div class="action-bar">
+        <button class="btn btn-outline" style="font-size:12px" ${!canDone?'disabled title="Warehouse arrival + installation + customer confirm required"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Hoàn tất (không thu tiền)</button>
+      </div>` : ''}`;
   }
 
   return `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">✅ Order completed.</div>`;
@@ -3733,6 +3765,30 @@ async function moveToDeliveryStage(customerId, orderId) {
   ]);
   renderBoard(); renderPanelTab(activePanelTab);
   showToast('🚛 Order moved to Delivery');
+}
+
+async function collectBalance(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const balanceAmt = Number(order.balance || 0);
+  if (!confirm(`Xác nhận đã thu $${balanceAmt.toLocaleString()} balance từ ${c.name}?\n\nThao tác này sẽ hoàn tất đơn hàng ${orderId}.`)) return;
+  const today = new Date().toISOString().split('T')[0];
+  order.balance_collected = true;
+  order.balance_collected_date = today;
+  order.stage = 'done';
+  const allDone = c.orders.every(o => o.stage === 'done');
+  if (allDone) c.stage = 'done';
+  await Promise.all([
+    dbUpdate('orders', {id: orderId}, {
+      balance_collected: true,
+      balance_collected_date: today,
+      stage: 'done'
+    }),
+    allDone ? dbUpdate('customers', {id: customerId}, {stage: 'done'}) : Promise.resolve()
+  ]);
+  renderBoard(); renderPanelTab(activePanelTab);
+  showToast(`✅ Đã thu $${balanceAmt.toLocaleString()} — Đơn hàng ${orderId} hoàn tất!`);
 }
 
 async function markDone(customerId, orderId) {
@@ -5951,16 +6007,35 @@ function renderReport() {
   });
   const containersFulfilled = containersThisMonth.filter(f => ['loaded','delivered'].includes(f.status)).length;
 
-  // Revenue (sum of balance amounts from orders)
+  // Revenue collected this month (balance_collected_date in this month)
+  const collectedThisMonth = allOrders.filter(o => {
+    if (!o.balance_collected || !o.balance_collected_date) return false;
+    const d = new Date(o.balance_collected_date);
+    return d.getMonth() === selMonth && d.getFullYear() === selYear;
+  });
+  const revenueCollected = collectedThisMonth.reduce((s, o) => s + (Number(o.balance||0) + Number(o.deposit_amount||0)), 0);
+  const balanceCollected = collectedThisMonth.reduce((s, o) => s + Number(o.balance||0), 0);
+  const cogsCollected = collectedThisMonth.reduce((s, o) => s + Number(o.cost_of_goods||0), 0);
+  const grossProfit = revenueCollected - cogsCollected;
+  const grossMargin = revenueCollected > 0 ? Math.round(grossProfit / revenueCollected * 100) : 0;
+
+  // Pending balance: orders in delivery stage not yet collected
+  const pendingDelivery = allOrders.filter(o => o.stage === 'delivery' && !o.balance_collected);
+  const pendingBalance = pendingDelivery.reduce((s, o) => s + Number(o.balance||0), 0);
+
+  // Orders completed this month
+  const completedThisMonth = collectedThisMonth.length;
+
+  // Revenue (sum of balance amounts from orders ETA this month - kept for forecast)
   const revenue = thisMonthOrders.reduce((s, o) => s + (o.balance || 0), 0);
   const nextRevEst = nextMonthOrders.reduce((s, o) => s + (o.balance || 0), 0);
 
   // KPIs
   const kpis = [
-    { label: 'Orders (ETA this month)', value: thisMonthOrders.length, color: 'var(--brand)', icon: '📋' },
-    { label: 'Revenue (balance)', value: '$' + revenue.toLocaleString(), color: 'var(--done)', icon: '💰' },
-    { label: 'Leads → Customer', value: leadsConverted, color: 'var(--production)', icon: '🔄' },
-    { label: 'New Leads', value: newLeadsThisMonth, color: 'var(--lead)', icon: '🎯' },
+    { label: 'Doanh thu thu được', value: '$' + revenueCollected.toLocaleString(), color: '#059669', icon: '💰' },
+    { label: 'Lợi nhuận gộp', value: cogsCollected ? '$' + grossProfit.toLocaleString() + ' (' + grossMargin + '%)' : '—', color: grossProfit >= 0 ? '#059669' : '#dc2626', icon: '📈' },
+    { label: 'Đơn hoàn tất', value: completedThisMonth, color: 'var(--done)', icon: '✅' },
+    { label: 'Balance chờ thu', value: pendingBalance > 0 ? '$' + pendingBalance.toLocaleString() : '$0', color: pendingBalance > 0 ? '#D97706' : 'var(--muted)', icon: '⏳' },
     { label: 'Containers Loaded', value: containersFulfilled + ' / ' + containersThisMonth.length, color: 'var(--shipped)', icon: '🚢' },
   ];
   document.getElementById('report-kpi').innerHTML = kpis.map(k => `
@@ -5987,12 +6062,27 @@ function renderReport() {
       </div>
     </div>`;
 
+  // Completed orders detail
+  const completedRows = collectedThisMonth.map(o => {
+    const total = Number(o.balance||0) + Number(o.deposit_amount||0);
+    const cogs = Number(o.cost_of_goods||0);
+    const gp = cogs ? total - cogs : null;
+    const gpStr = gp !== null ? ` · GP: $${gp.toLocaleString()} (${Math.round(gp/total*100)}%)` : '';
+    return bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`, '$' + total.toLocaleString(), o.balance_collected_date + gpStr, '#059669');
+  }).join('');
+
+  // Pending delivery rows
+  const pendingRows = pendingDelivery.map(o =>
+    bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`, '$' + Number(o.balance||0).toLocaleString(), 'balance chờ thu', '#D97706')
+  ).join('');
+
   document.getElementById('report-breakdown').innerHTML =
-    `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">By Type</div>` +
-    Object.entries(typeCount).map(([t, n]) => bRow(t, n)).join('') +
-    `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin:12px 0 8px">By Stage</div>` +
-    Object.entries(stageCount).map(([s, n]) => bRow(stageLabel[s] || s, n, '', stageColor[s] || 'var(--text)')).join('') ||
-    '<div style="color:var(--muted);font-size:13px">No orders with ETA this month.</div>';
+    `<div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">✅ Đơn hoàn tất tháng này</div>` +
+    (completedRows || '<div style="font-size:12px;color:var(--muted);padding:8px 0">Chưa có đơn nào hoàn tất tháng này</div>') +
+    (revenueCollected > 0 ? bRow('Tổng doanh thu', '$' + revenueCollected.toLocaleString(), '', '#059669') : '') +
+    (cogsCollected > 0 ? bRow('Tổng COGS', '$' + cogsCollected.toLocaleString(), '', '#dc2626') + bRow('Lợi nhuận gộp', '$' + grossProfit.toLocaleString() + ' (' + grossMargin + '%)', '', grossProfit>=0?'#059669':'#dc2626') : '') +
+    (pendingRows ? `<div style="font-size:11px;font-weight:700;color:#D97706;text-transform:uppercase;letter-spacing:0.4px;margin:14px 0 8px">⏳ Balance chờ thu (đang Delivery)</div>` + pendingRows : '') ||
+    '<div style="color:var(--muted);font-size:13px">No data for this period.</div>';
 
   // Forecast next month
   const inProdNow = allOrders.filter(o => o.stage === 'production').length;
