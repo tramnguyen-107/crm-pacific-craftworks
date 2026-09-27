@@ -872,13 +872,13 @@
     <div class="column-header"><div class="col-title">🔵 In Production</div><div class="col-count" id="count-production">0</div></div>
     <div class="column-body" id="col-production"></div>
   </div>
-  <div class="column col-shipped">
-    <div class="column-header"><div class="col-title">🚢 Loaded / Shipped</div><div class="col-count" id="count-shipped">0</div></div>
-    <div class="column-body" id="col-shipped"></div>
-  </div>
   <div class="column col-qc">
     <div class="column-header"><div class="col-title">🔍 QC Check</div><div class="col-count" id="count-qc">0</div></div>
     <div class="column-body" id="col-qc"></div>
+  </div>
+  <div class="column col-shipped">
+    <div class="column-header"><div class="col-title">🚢 Loaded / Shipped</div><div class="col-count" id="count-shipped">0</div></div>
+    <div class="column-body" id="col-shipped"></div>
   </div>
   <div class="column col-unloaded">
     <div class="column-header"><div class="col-title">🏭 Unloaded</div><div class="col-count" id="count-unloaded">0</div></div>
@@ -1801,7 +1801,7 @@ function renderBoard() {
   const filterSales = document.getElementById('filter-sales')?.value || '';
   const searchQ     = (document.getElementById('search-input')?.value || '').toLowerCase();
 
-  const activeStages = ['deposit','collect','production','shipped','qc','unloaded','delivery'];
+  const activeStages = ['deposit','collect','production','qc','shipped','unloaded','delivery'];
   const colIds   = { lead:'col-lead', deposit:'col-deposit', collect:'col-collect', production:'col-production', shipped:'col-shipped', qc:'col-qc', unloaded:'col-unloaded', delivery:'col-delivery', done:'col-done' };
   const countIds = { lead:'count-lead', deposit:'count-deposit', collect:'count-collect', production:'count-production', shipped:'count-shipped', qc:'count-qc', unloaded:'count-unloaded', delivery:'count-delivery', done:'count-done' };
 
@@ -2598,7 +2598,7 @@ function buildOrderDetail(order, customer) {
       </div>
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="markLoaded(${customer.id}, '${order.id}')">Mark as Loaded →</button>
+        <button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Gửi QC →</button>
       </div>`;
   }
 
@@ -2627,7 +2627,7 @@ function buildOrderDetail(order, customer) {
       ${buildWorkflowSection(order, customer, ['shipping'])}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Chuyển sang QC →</button>
+        <button class="btn btn-primary" onclick="moveToUnloaded(${customer.id},'${order.id}')">🏭 Container Đến Mỹ → Unloaded</button>
       </div>`;
   }
 
@@ -2658,7 +2658,7 @@ function buildOrderDetail(order, customer) {
       ${buildSpecSummarySection(order, customer)}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToUnloaded(${customer.id},'${order.id}')">🏭 QC Xong → Chuyển Unloaded</button>
+        <button class="btn btn-primary" onclick="markLoaded(${customer.id},'${order.id}')">🚢 QC Xong → Xếp Hàng (Load Container)</button>
       </div>`;
   }
 
@@ -2666,24 +2666,49 @@ function buildOrderDetail(order, customer) {
     const items = packingItems[order.id] || [];
     const unloadEvents = items.map(i => (qrScanEvents[i.qr_id]||[]).find(e => e.event_type === 'unloaded')).filter(Boolean);
     return `
-      <div class="section-title">🏭 Unloaded at US Warehouse</div>
-      <div style="display:flex;gap:10px;margin-bottom:14px">
+      <div class="section-title">🏭 Đã Dỡ Hàng tại Mỹ</div>
+      ${order.warehouse_arrival_date ? `<div style="padding:8px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;margin-bottom:12px;font-size:12px;color:#1D4ED8;font-weight:700">📅 Arrival date: ${order.warehouse_arrival_date}</div>` : ''}
+      <div style="display:flex;gap:10px;margin-bottom:12px">
         <div style="flex:1;padding:12px;background:#1e3a8a;border:1px solid #2563EB;border-radius:10px;text-align:center">
           <div style="font-size:22px;font-weight:800;color:#93c5fd">${unloadEvents.length}</div>
-          <div style="font-size:10px;color:#93c5fd;font-weight:700">✅ UNLOADED</div>
+          <div style="font-size:10px;color:#93c5fd;font-weight:700">✅ SCANNED UNLOADED</div>
         </div>
         <div style="flex:1;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:var(--muted)">${items.length - unloadEvents.length}</div>
-          <div style="font-size:10px;color:var(--muted);font-weight:700">⏳ PENDING</div>
+          <div style="font-size:22px;font-weight:800;color:var(--muted)">${Math.max(0,items.length - unloadEvents.length)}</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700">⏳ PENDING SCAN</div>
         </div>
       </div>
       ${items.length ? `<div style="margin-bottom:12px">
         <button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=unloaded&order=${encodeURIComponent(order.id)}','_blank')">📱 Mở Unload Session</button>
       </div>` : ''}
+
+      <div class="section-title">📅 Sắp Xếp Ngày Delivery</div>
+      <div style="padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:12px">
+        <div class="lp-contact-grid">
+          <div class="lp-field"><label class="lp-label">Installer / Crew *</label>
+            <div class="field-row">
+              <input class="lp-input" id="installer_name_${order.id}" type="text" placeholder="Tên thợ hoặc công ty" value="${order.installer_name||''}">
+              <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','installer_name','installer_name_${order.id}')">Lưu</button>
+            </div></div>
+          <div class="lp-field"><label class="lp-label">Ngày Install *</label>
+            <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.install_date||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','install_date',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Giờ Install</label>
+            <input class="lp-input" type="time" value="${order.install_time||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','install_time',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">SĐT Khách</label>
+            <input class="lp-input" type="text" value="${customer.phone||''}" readonly style="background:var(--surface);color:var(--muted)"></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
+          <input type="checkbox" ${order.install_confirmed?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','install_confirmed',this.checked)">
+          Khách đã xác nhận ngày giao hàng ✓
+        </label>
+      </div>
+
       ${buildSpecSummarySection(order, customer)}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Chuyển sang Delivery →</button>
+        <button class="btn btn-primary" ${!order.install_date?'disabled title="Nhập ngày install trước"':''} onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Sẵn Sàng → Chuyển Delivery</button>
       </div>`;
   }
 
@@ -3645,18 +3670,19 @@ async function pushToFactory(customerId, orderId) {
 }
 
 async function markLoaded(customerId, orderId) {
-  const c = customers.find(x => x.id === customerId);
-  const order = c.orders.find(o => o.id === orderId);
+  const c = customers.find(x => Number(x.id) === Number(customerId));
+  const order = c?.orders.find(o => String(o.id) === String(orderId));
+  if (!order) return;
   const today = new Date().toISOString().split('T')[0];
-  const ctnNum = 'MSCU' + Math.floor(Math.random()*9000000+1000000);
-  order.stage = 'shipped'; order.loadDate = today; order.container = ctnNum;
-  const allShipped = c.orders.every(o => ['shipped','done'].includes(o.stage));
+  order.stage = 'shipped'; order.load_date = today;
+  const allShipped = c.orders.every(o => ['shipped','unloaded','delivery','done'].includes(o.stage));
   if (allShipped) c.stage = 'shipped';
-  renderBoard(); renderPanelTab(0);
+  renderBoard(); renderPanelTab(activePanelTab);
   await Promise.all([
-    dbUpdate('orders', {id: orderId}, {stage: 'shipped', load_date: today, container: ctnNum}),
+    dbUpdate('orders', {id: orderId}, {stage: 'shipped', load_date: today}),
     allShipped ? dbUpdate('customers', {id: customerId}, {stage: 'shipped'}) : Promise.resolve()
   ]);
+  showToast('🚢 Order loaded onto container');
 }
 
 async function saveCtnField(ctnId, field, value) {
@@ -3677,24 +3703,26 @@ async function markTruckingAssigned(ctnId) {
     showToast('📋 Trucking assigned — click again when container is picked up');
     return;
   }
-  // Second click: mark picked up → move all POs to delivery
-  if (!confirm('Mark container as picked up by trucking? All POs in this container will move to Delivery stage.')) return;
+  // Second click: mark container arrived → move all POs to Unloaded
+  if (!confirm('Xác nhận container đã đến Mỹ? Tất cả PO trong container sẽ chuyển sang Unloaded.')) return;
   ctn.trucking_confirmed = true;
   await dbUpdate('container_plans', {id: ctnId}, {trucking_confirmed: true});
+  const today = new Date().toISOString().split('T')[0];
   for (const ref of ctn.orderRefs) {
-    const cust = customers.find(c => c.id === ref.customerId);
-    const order = cust?.orders.find(o => o.id === ref.orderId);
-    if (order && order.stage === 'shipped') {
-      order.stage = 'qc';
-      await dbUpdate('orders', {id: order.id}, {stage: 'qc'});
+    const cust = customers.find(c => Number(c.id) === Number(ref.customerId));
+    const order = cust?.orders.find(o => String(o.id) === String(ref.orderId));
+    if (order && ['shipped','qc'].includes(order.stage)) {
+      order.stage = 'unloaded';
+      order.warehouse_arrival_date = today;
+      await dbUpdate('orders', {id: order.id}, {stage: 'unloaded', warehouse_arrival_date: today});
     }
-    if (cust && cust.orders.every(o => ['qc','unloaded','delivery','done'].includes(o.stage))) {
-      cust.stage = 'qc';
-      await dbUpdate('customers', {id: cust.id}, {stage: 'qc'});
+    if (cust && cust.orders.every(o => ['unloaded','delivery','done'].includes(o.stage))) {
+      cust.stage = 'unloaded';
+      await dbUpdate('customers', {id: cust.id}, {stage: 'unloaded'});
     }
   }
   renderContainerView(); renderBoard();
-  showToast('🚛 Container picked up — all POs moved to Delivery');
+  showToast('🏭 Container arrived — all POs moved to Unloaded');
 }
 
 async function dropCard(e, newStage) {
@@ -3723,29 +3751,31 @@ async function markPortArrival(customerId, orderId) {
 }
 
 async function moveToQC(customerId, orderId) {
-  const c = customers.find(x => x.id === customerId);
-  const order = c?.orders.find(o => o.id === orderId);
+  const c = customers.find(x => Number(x.id) === Number(customerId));
+  const order = c?.orders.find(o => String(o.id) === String(orderId));
   if (!order) return;
   order.stage = 'qc';
-  const allBeyond = c.orders.every(o => ['qc','unloaded','delivery','done'].includes(o.stage));
+  const allBeyond = c.orders.every(o => ['qc','shipped','unloaded','delivery','done'].includes(o.stage));
   if (allBeyond) c.stage = 'qc';
   await Promise.all([
     dbUpdate('orders', {id: orderId}, {stage: 'qc'}),
     allBeyond ? dbUpdate('customers', {id: customerId}, {stage: 'qc'}) : Promise.resolve()
   ]);
   renderBoard(); renderPanelTab(activePanelTab);
-  showToast('🔍 Order moved to QC Check');
+  showToast('🔍 Chuyển sang QC Check');
 }
 
 async function moveToUnloaded(customerId, orderId) {
-  const c = customers.find(x => x.id === customerId);
-  const order = c?.orders.find(o => o.id === orderId);
+  const c = customers.find(x => Number(x.id) === Number(customerId));
+  const order = c?.orders.find(o => String(o.id) === String(orderId));
   if (!order) return;
+  const today = new Date().toISOString().split('T')[0];
   order.stage = 'unloaded';
+  order.warehouse_arrival_date = order.warehouse_arrival_date || today;
   const allBeyond = c.orders.every(o => ['unloaded','delivery','done'].includes(o.stage));
   if (allBeyond) c.stage = 'unloaded';
   await Promise.all([
-    dbUpdate('orders', {id: orderId}, {stage: 'unloaded'}),
+    dbUpdate('orders', {id: orderId}, {stage: 'unloaded', warehouse_arrival_date: order.warehouse_arrival_date}),
     allBeyond ? dbUpdate('customers', {id: customerId}, {stage: 'unloaded'}) : Promise.resolve()
   ]);
   renderBoard(); renderPanelTab(activePanelTab);
