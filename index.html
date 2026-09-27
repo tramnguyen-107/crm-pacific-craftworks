@@ -176,12 +176,18 @@
   .col-collect .col-title { color: var(--collect); }
   .col-collect .col-count { background: var(--collect); color: white; }
   /* Workflow checklist */
-  .wf-section { margin-bottom:14px; }
-  .wf-phase { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:10px; }
-  .wf-phase:first-child { border-top:none;margin-top:0; }
-  .wf-task { display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px; }
-  .wf-task input[type=checkbox] { width:15px;height:15px;cursor:pointer;accent-color:var(--brand); }
-  .wf-task.done .wf-label { text-decoration:line-through;color:var(--muted); }
+  .wf-section { margin-bottom:0; }
+  .wf-phase-hdr { display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border-radius:8px;margin-bottom:2px; }
+  .wf-phase-label { font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.4px;flex:1; }
+  .wf-phase-count { font-size:10px;font-weight:700; }
+  .wf-prog-wrap { width:52px;height:5px;background:var(--border);border-radius:99px;overflow:hidden;flex-shrink:0; }
+  .wf-prog-fill { height:100%;border-radius:99px;transition:width .3s; }
+  .wf-phase-block { margin-bottom:10px; }
+  .wf-phase-block:last-child { margin-bottom:0; }
+  .wf-task { font-size:12px;border-bottom:1px solid var(--border); }
+  .wf-task:last-child { border-bottom:none; }
+  .wf-task input[type=checkbox] { width:15px;height:15px;cursor:pointer;accent-color:var(--brand);flex-shrink:0; }
+  .wf-task.done .wf-task-label { text-decoration:line-through;color:var(--muted); }
   .wf-assignee { font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;white-space:nowrap;flex-shrink:0; }
   .wf-a-tram { background:#EEF2FF;color:#4338CA; }
   .wf-a-thanh { background:#FEF3C7;color:#92400E; }
@@ -2284,15 +2290,27 @@ function buildWorkflowSection(order, customer, phases) {
     const total = phase.tasks.length;
     const done  = phase.tasks.filter(t => checked[t.id]).length;
     totalTasks += total; doneTasks += done;
-    body += `<div class="wf-phase">${phase.label} <span style="font-size:10px;color:${done===total?'var(--deposit)':'var(--muted)'};margin-left:6px">${done}/${total}</span></div>`;
-    phase.tasks.forEach(t => {
+    const pct = total ? Math.round(done/total*100) : 0;
+    const allDone = done === total;
+    body += `<div class="wf-phase-block">
+      <div class="wf-phase-hdr">
+        <span class="wf-phase-label">${phase.label}</span>
+        <span class="wf-phase-count" id="wf-cnt-${order.id}-${key}" style="color:${allDone?'#059669':'var(--muted)'}">${done}/${total}</span>
+        <div class="wf-prog-wrap"><div class="wf-prog-fill" id="wf-bar-${order.id}-${key}" style="width:${pct}%;background:${allDone?'#059669':'var(--brand)'}"></div></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <tbody>`;
+    phase.tasks.forEach((t, i) => {
       const isChecked = !!checked[t.id];
-      body += `<div class="wf-task${isChecked?' done':''}">
-        <input type="checkbox" ${isChecked?'checked':''} onclick="toggleWorkflowTask(${customer.id},'${order.id}','${t.id}',this)">
-        <span class="wf-assignee ${t.cls}">${t.assignee}</span>
-        <span class="wf-label">${t.label}</span>
-      </div>`;
+      const rowBg = i%2===0 ? '' : 'background:var(--surface)';
+      body += `<tr class="wf-task${isChecked?' done':''}" style="${rowBg}">
+        <td style="padding:7px 8px;width:26px;text-align:center"><input type="checkbox" ${isChecked?'checked':''} onclick="toggleWorkflowTask(${customer.id},'${order.id}','${t.id}',this,'${key}')"></td>
+        <td style="padding:7px 4px;width:20px;color:var(--muted);font-size:10px;font-weight:700;text-align:center">${i+1}</td>
+        <td style="padding:7px 6px;width:60px"><span class="wf-assignee ${t.cls}">${t.assignee}</span></td>
+        <td class="wf-task-label" style="padding:7px 8px 7px 4px;font-size:12px;${isChecked?'text-decoration:line-through;color:var(--muted)':''}">${t.label}</td>
+      </tr>`;
     });
+    body += `</tbody></table></div>`;
   });
   body += `</div>`;
   const meta = totalTasks ? `${doneTasks}/${totalTasks} done` : '';
@@ -2325,13 +2343,39 @@ function buildProductionTimeline(order) {
   return buildSecCard(`tl-${order.id}`, 'stage', '📅', 'Production Timeline', '', body, false);
 }
 
-async function toggleWorkflowTask(customerId, orderId, taskId, el) {
+async function toggleWorkflowTask(customerId, orderId, taskId, el, phaseKey) {
   const c = customers.find(x => x.id == customerId);
   const order = c?.orders.find(o => o.id === orderId);
   if (!order) return;
   order.checked = order.checked || {};
   order.checked[taskId] = el.checked;
-  el.closest('.wf-task').classList.toggle('done', el.checked);
+  const row = el.closest('.wf-task');
+  if (row) {
+    row.classList.toggle('done', el.checked);
+    const lbl = row.querySelector('.wf-task-label');
+    if (lbl) { lbl.style.textDecoration = el.checked ? 'line-through' : ''; lbl.style.color = el.checked ? 'var(--muted)' : ''; }
+  }
+  if (phaseKey) {
+    const phase = WORKFLOW_TASKS[phaseKey];
+    if (phase) {
+      const done = phase.tasks.filter(t => order.checked[t.id]).length;
+      const total = phase.tasks.length;
+      const pct = total ? Math.round(done/total*100) : 0;
+      const allDone = done === total;
+      const cntEl = document.getElementById(`wf-cnt-${orderId}-${phaseKey}`);
+      const barEl = document.getElementById(`wf-bar-${orderId}-${phaseKey}`);
+      if (cntEl) { cntEl.textContent = `${done}/${total}`; cntEl.style.color = allDone ? '#059669' : 'var(--muted)'; }
+      if (barEl) { barEl.style.width = pct+'%'; barEl.style.background = allDone ? '#059669' : 'var(--brand)'; }
+    }
+  }
+  const metaEl = document.getElementById(`secmeta-wf-${orderId}`);
+  if (metaEl) {
+    let tot = 0, don = 0;
+    Object.keys(WORKFLOW_TASKS).forEach(k => {
+      WORKFLOW_TASKS[k].tasks.forEach(t => { tot++; if (order.checked[t.id]) don++; });
+    });
+    metaEl.textContent = `${don}/${tot} done`;
+  }
   await dbUpdate('orders', {id: orderId}, {checked: order.checked});
 }
 
