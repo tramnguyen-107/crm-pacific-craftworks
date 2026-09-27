@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   /* DOCUMENTS */
   .doc-list { display:flex; flex-direction:column; gap:8px; }
@@ -2996,7 +2997,9 @@ function buildPackingListSection(order, customer) {
       <div class="section-title" style="margin:0">📦 Packing List <span style="font-size:11px;color:var(--muted);font-weight:400">${items.length} item${items.length!==1?'s':''}</span></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="addPackingItem('${order.id}')">+ Add Item</button>
-        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printPackingList('${order.id}','${customer.id}')">🖨️ Print PDF</button>` : ''}
+        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printPackingList('${order.id}','${customer.id}')">🖨️ PDF</button>` : ''}
+        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px;background:#166534;color:#fff;border-color:#166534" onclick="exportPackingExcel('${order.id}','${customer.id}')">📥 Excel</button>` : ''}
+        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px;background:#1e3a8a;color:#fff;border-color:#1e3a8a" onclick="printQRLabels('${order.id}','${customer.id}')">🏷️ In Tem QR</button>` : ''}
       </div>
     </div>
     ${scanBtns}
@@ -3140,6 +3143,119 @@ function printPackingList(orderId, customerId) {
         if (qrText) new QRCode(el, { text: qrText, width: 64, height: 64, correctLevel: QRCode.CorrectLevel.M });
       });
       setTimeout(() => window.print(), 800);
+    };
+  <\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+// ─── EXPORT EXCEL ───
+function exportPackingExcel(orderId, customerId) {
+  const c = customers.find(x => x.id === Number(customerId) || x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  const items = packingItems[orderId] || [];
+  if (!items.length) return showToast('Chưa có items để export');
+
+  const rows = items.map(item => ({
+    'Item #':       item.item_no,
+    'QR ID':        item.qr_id || '',
+    'Description':  item.description || '',
+    'W (in)':       item.width_in || '',
+    'H (in)':       item.height_in || '',
+    'D (in)':       item.depth_in || '',
+    'Qty':          item.qty || 1,
+    'Notes':        item.notes || '',
+    'Order ID':     orderId,
+    'Project':      order?.project_name || '',
+    'Customer':     c?.name || '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  // Column widths
+  ws['!cols'] = [
+    {wch:6},{wch:18},{wch:32},{wch:8},{wch:8},{wch:8},{wch:6},{wch:28},{wch:14},{wch:22},{wch:22}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Packing List');
+  const projectSlug = (order?.project_name || orderId).replace(/[^a-z0-9]/gi, '_').slice(0, 30);
+  XLSX.writeFile(wb, `PackingList_${projectSlug}_${orderId}.xlsx`);
+}
+
+// ─── PRINT QR LABELS ───
+function printQRLabels(orderId, customerId) {
+  const c = customers.find(x => x.id === Number(customerId) || x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  const items = packingItems[orderId] || [];
+  if (!items.length) return showToast('Chưa có items để in tem');
+
+  // Expand by qty — each unit gets its own label
+  const labels = [];
+  items.forEach(item => {
+    const qty = item.qty || 1;
+    for (let i = 1; i <= qty; i++) {
+      labels.push({ ...item, unitLabel: qty > 1 ? ` (${i}/${qty})` : '' });
+    }
+  });
+
+  const labelDivs = labels.map(item => `
+    <div class="label">
+      <div class="label-order">${orderId} · ${order?.project_name || ''}</div>
+      <div id="lbl-qr-${item.id}-${item.unitLabel.replace(/[^0-9]/g,'')}" class="qr-wrap"></div>
+      <div class="qr-id">${item.qr_id}</div>
+      <div class="item-desc">${item.description || '—'}${item.unitLabel}</div>
+      <div class="item-dims">${[item.width_in,item.height_in,item.depth_in].filter(Boolean).join('×') || ''} ${[item.width_in,item.height_in,item.depth_in].some(Boolean)?'in':''}</div>
+      <div class="customer-name">${c?.name || ''}</div>
+    </div>`).join('');
+
+  const qrMap = JSON.stringify(labels.reduce((m,item) => {
+    m[`${item.id}-${item.unitLabel.replace(/[^0-9]/g,'')}`] = item.qr_id;
+    return m;
+  }, {}));
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head>
+  <meta charset="UTF-8">
+  <title>QR Labels — ${order?.project_name || orderId}</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #fff; color: #000; }
+    .page-header { padding: 12px 20px; border-bottom: 2px solid #000; display: flex; justify-content: space-between; align-items: center; }
+    .page-header h1 { font-size: 16px; }
+    .page-header p { font-size: 11px; color: #555; margin-top: 2px; }
+    .label-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 16px; }
+    .label { border: 1.5px solid #999; border-radius: 8px; padding: 10px 8px 8px; text-align: center; page-break-inside: avoid; background: #fff; }
+    .label-order { font-size: 8px; color: #888; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .qr-wrap { display: flex; justify-content: center; margin-bottom: 6px; }
+    .qr-wrap canvas, .qr-wrap img { width: 90px !important; height: 90px !important; }
+    .qr-id { font-size: 10px; font-weight: 800; letter-spacing: .3px; color: #7C3F23; margin-bottom: 4px; }
+    .item-desc { font-size: 11px; font-weight: 700; line-height: 1.3; margin-bottom: 3px; }
+    .item-dims { font-size: 9px; color: #666; margin-bottom: 2px; }
+    .customer-name { font-size: 9px; color: #888; }
+    .stats { padding: 8px 20px; font-size: 11px; color: #555; border-top: 1px solid #ddd; }
+    @media print {
+      .no-print { display: none }
+      body { -webkit-print-color-adjust: exact; }
+      .label-grid { padding: 8px; }
+    }
+  </style>
+  </head><body>
+  <div class="page-header">
+    <div>
+      <h1>QR LABELS — ${order?.project_name || orderId}</h1>
+      <p>Order: ${orderId} &nbsp;|&nbsp; Customer: ${c?.name || '—'} &nbsp;|&nbsp; Date: ${new Date().toLocaleDateString('en-US')}</p>
+    </div>
+    <button class="no-print" onclick="window.print()" style="padding:8px 20px;background:#7C3F23;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:700">🖨️ Print</button>
+  </div>
+  <div class="label-grid">${labelDivs}</div>
+  <div class="stats">Tổng: ${labels.length} tem &nbsp;|&nbsp; ${items.length} loại item</div>
+  <script>
+    window.onload = function() {
+      const qrMap = ${qrMap};
+      Object.entries(qrMap).forEach(([key, text]) => {
+        const el = document.getElementById('lbl-qr-' + key);
+        if (el && text) new QRCode(el, { text, width: 90, height: 90, correctLevel: QRCode.CorrectLevel.M });
+      });
     };
   <\/script>
   </body></html>`);
