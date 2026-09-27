@@ -703,11 +703,11 @@
     <!-- Test mode panel -->
     <div id="panel-test" style="display:none">
       <div style="background:#FFF9E6;border:1px solid #FDE68A;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#92400E">
-        🧪 Test mode cho phép dùng app đầy đủ với data riêng, không ảnh hưởng data thật.
+        🧪 Test mode allows full access with separate data — does not affect real data.
       </div>
       <div class="login-field">
         <label class="login-label">Test Passcode</label>
-        <input class="login-input" id="test-code" type="password" placeholder="Nhập passcode" onkeydown="if(event.key==='Enter') doTestLogin()">
+        <input class="login-input" id="test-code" type="password" placeholder="Enter passcode" onkeydown="if(event.key==='Enter') doTestLogin()">
       </div>
       <button class="login-btn" style="background:#D97706" onclick="doTestLogin()">Enter Test Mode</button>
     </div>
@@ -721,7 +721,7 @@
     <button onclick="startDemo()" style="width:100%;margin-top:12px;padding:11px;background:transparent;color:#4338CA;border:1.5px solid #A5B4FC;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.15s" onmouseover="this.style.background='#EEF2FF'" onmouseout="this.style.background='transparent'">
       👀 Try Demo — no login required
     </button>
-    <div style="font-size:11px;color:#78898F;text-align:center;margin-top:8px">Demo dùng data mẫu, không lưu thật</div>
+    <div style="font-size:11px;color:#78898F;text-align:center;margin-top:8px">Demo uses sample data — nothing is saved</div>
   </div>
 </div>
 
@@ -748,7 +748,7 @@
 
 <!-- MODE BANNER -->
 <div id="demo-banner">
-  <span id="banner-text">🎭 Demo Mode — data mẫu, không lưu thật</span>
+  <span id="banner-text">🎭 Demo Mode — sample data, nothing saved</span>
   <a onclick="exitDemo()" id="banner-exit">Exit → Login</a>
 </div>
 
@@ -1144,7 +1144,7 @@
       </select>
     </div>
     <div class="form-group">
-      <label class="form-label">Label / Tên gọi</label>
+      <label class="form-label">Label</label>
       <input class="form-input" id="ctn-label" placeholder="vd: 40ft HQ — Aug 2026">
     </div>
     <div class="form-group">
@@ -1178,7 +1178,7 @@
       </select>
     </div>
     <div class="form-group">
-      <label class="form-label">PO ID (để trống = tự tạo)</label>
+      <label class="form-label">PO ID (leave blank to auto-generate)</label>
       <input class="form-input" id="fpo-id" placeholder="e.g. FPO-001">
     </div>
     <div class="modal-actions">
@@ -1195,15 +1195,15 @@
     <input type="hidden" id="bk-ctn-id">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group" style="margin:0">
-        <label class="form-label">Hãng tàu (Shipping Line)</label>
+        <label class="form-label">Shipping Line</label>
         <input class="form-input" id="bk-shipping-line" placeholder="e.g. Matson, Evergreen">
       </div>
       <div class="form-group" style="margin:0">
-        <label class="form-label">Số Booking</label>
+        <label class="form-label">Booking No.</label>
         <input class="form-input" id="bk-booking-no" placeholder="e.g. MAT123456">
       </div>
       <div class="form-group" style="margin:0">
-        <label class="form-label">Tên / Số hiệu tàu (Vessel)</label>
+        <label class="form-label">Vessel Name / Number</label>
         <input class="form-input" id="bk-vessel" placeholder="e.g. Maunawili V-027">
       </div>
       <div class="form-group" style="margin:0">
@@ -1211,11 +1211,11 @@
         <input class="form-input" id="bk-agency" placeholder="e.g. Pacific Freight Agency">
       </div>
       <div class="form-group" style="margin:0">
-        <label class="form-label">🚢 ETD (ngày tàu chạy)</label>
+        <label class="form-label">🚢 ETD (Departure Date)</label>
         <input class="form-input" id="bk-etd" type="date" min="2020-01-01" max="2035-12-31">
       </div>
       <div class="form-group" style="margin:0">
-        <label class="form-label">🛬 ETA Hawaii (ngày tàu đến)</label>
+        <label class="form-label">🛬 ETA Hawaii (Arrival Date)</label>
         <input class="form-input" id="bk-eta" type="date" min="2020-01-01" max="2035-12-31">
       </div>
     </div>
@@ -1245,7 +1245,7 @@ async function doLogin() {
   const password = document.getElementById('login-password').value
   const btn      = document.getElementById('login-btn')
   const errBox   = document.getElementById('login-error')
-  if (!email || !password) { showLoginError('Nhập email và password'); return }
+  if (!email || !password) { showLoginError('Please enter email and password'); return }
   btn.disabled = true; btn.textContent = 'Signing in…'
   errBox.classList.remove('show')
   const { error } = await sb.auth.signInWithPassword({ email, password })
@@ -1281,9 +1281,9 @@ function switchLoginTab(tab) {
 
 async function doTestLogin() {
   const code = document.getElementById('test-code').value.trim();
-  if (!code) { showLoginError('Nhập passcode'); return; }
+  if (!code) { showLoginError('Enter passcode'); return; }
   const correct = 'test123';
-  if (code !== correct) { showLoginError('Passcode không đúng'); return; }
+  if (code !== correct) { showLoginError('Incorrect passcode'); return; }
   isTestMode = true;
   startTestMode();
 }
@@ -1294,7 +1294,7 @@ function startTestMode() {
   // Override banner to show test mode instead of demo
   const banner = document.getElementById('demo-banner');
   banner.classList.add('test-mode');
-  document.getElementById('banner-text').textContent = '🧪 Test Mode — thử nghiệm tính năng, data không lưu thật';
+  document.getElementById('banner-text').textContent = '🧪 Test Mode — features preview, data is not saved';
 }
 
 function startDemo() {
@@ -1720,56 +1720,56 @@ const WORKFLOW_TASKS = {
   quote: {
     label: '📋 Quoting & Design',
     tasks: [
-      { id:'wq1', assignee:'Andy',  cls:'wf-a-andy',  label:'Liên lạc khách, gửi Trâm bản vẽ yêu cầu' },
-      { id:'wq2', assignee:'Giao',  cls:'wf-a-giao',  label:'Đi đo đạc tại công trình' },
-      { id:'wq3', assignee:'Giao',  cls:'wf-a-giao',  label:'Gửi thông tin cho Thành + Trâm' },
-      { id:'wq4', assignee:'Thành', cls:'wf-a-thanh', label:'Thiết kế layout theo yêu cầu khách' },
-      { id:'wq5', assignee:'Thành', cls:'wf-a-thanh', label:'Báo giá (check với nhà máy)' },
-      { id:'wq6', assignee:'Trâm',  cls:'wf-a-tram',  label:'Check giá & gửi khách bản vẽ + quotation' },
+      { id:'wq1', assignee:'Andy',  cls:'wf-a-andy',  label:'Contact client, send drawings to Trâm' },
+      { id:'wq2', assignee:'Giao',  cls:'wf-a-giao',  label:'Site measurement' },
+      { id:'wq3', assignee:'Giao',  cls:'wf-a-giao',  label:'Send site info to Thành + Trâm' },
+      { id:'wq4', assignee:'Thành', cls:'wf-a-thanh', label:'Design layout per client requirements' },
+      { id:'wq5', assignee:'Thành', cls:'wf-a-thanh', label:'Quote pricing (check with factory)' },
+      { id:'wq6', assignee:'Trâm',  cls:'wf-a-tram',  label:'Review price & send drawings + quotation to client' },
     ]
   },
   deposit: {
     label: '💰 Deposit & Confirm',
     tasks: [
-      { id:'wd1', assignee:'Trâm',  cls:'wf-a-tram',  label:'Follow up khách tiến hành deposit' },
-      { id:'wd2', assignee:'Trâm',  cls:'wf-a-tram',  label:'Thông báo chị Nhung ngay sau khi khách deposit' },
-      { id:'wd3', assignee:'Trâm',  cls:'wf-a-tram',  label:'Gửi khách proposal để xác nhận' },
-      { id:'wd4', assignee:'Trâm',  cls:'wf-a-tram',  label:'Gửi khách invoice + bản vẽ để ký xác nhận' },
-      { id:'wd5', assignee:'Thành', cls:'wf-a-thanh', label:'Sample (nếu cần) — gửi thông tin cho nhà máy' },
-      { id:'wd6', assignee:'Thành', cls:'wf-a-thanh', label:'Follow up thời gian làm sample' },
+      { id:'wd1', assignee:'Trâm',  cls:'wf-a-tram',  label:'Follow up client to collect deposit' },
+      { id:'wd2', assignee:'Trâm',  cls:'wf-a-tram',  label:'Notify Nhung immediately after deposit received' },
+      { id:'wd3', assignee:'Trâm',  cls:'wf-a-tram',  label:'Send proposal to client for confirmation' },
+      { id:'wd4', assignee:'Trâm',  cls:'wf-a-tram',  label:'Send invoice + drawings to client for signature' },
+      { id:'wd5', assignee:'Thành', cls:'wf-a-thanh', label:'Sample (if needed) — send specs to factory' },
+      { id:'wd6', assignee:'Thành', cls:'wf-a-thanh', label:'Follow up sample production timeline' },
     ]
   },
   production: {
-    label: '🏭 Sản xuất & QC',
+    label: '🏭 Production & QC',
     tasks: [
-      { id:'wp1', assignee:'Thành', cls:'wf-a-thanh', label:'Đưa xuống sản xuất (nhà máy)' },
-      { id:'wp2', assignee:'Thành', cls:'wf-a-thanh', label:'Follow up QC — đảm bảo hàng đúng ngày lên cont' },
-      { id:'wp3', assignee:'Thành', cls:'wf-a-thanh', label:'Gửi QC report cho Trâm' },
-      { id:'wp4', assignee:'Trâm',  cls:'wf-a-tram',  label:'Booking tàu, container, giấy tờ nhập hàng' },
-      { id:'wp5', assignee:'Trâm',  cls:'wf-a-tram',  label:'Nhận QC Report từ Thành' },
-      { id:'wp6', assignee:'Trâm',  cls:'wf-a-tram',  label:'QC check — sản phẩm đầy đủ theo Packing List' },
+      { id:'wp1', assignee:'Thành', cls:'wf-a-thanh', label:'Submit order to factory for production' },
+      { id:'wp2', assignee:'Thành', cls:'wf-a-thanh', label:'Follow up QC — ensure goods ready on time for container' },
+      { id:'wp3', assignee:'Thành', cls:'wf-a-thanh', label:'Send QC report to Trâm' },
+      { id:'wp4', assignee:'Trâm',  cls:'wf-a-tram',  label:'Book vessel, container, import paperwork' },
+      { id:'wp5', assignee:'Trâm',  cls:'wf-a-tram',  label:'Receive QC report from Thành' },
+      { id:'wp6', assignee:'Trâm',  cls:'wf-a-tram',  label:'QC check — verify items match packing list' },
     ]
   },
   shipping: {
-    label: '🚢 Vận chuyển & Thanh toán',
+    label: '🚢 Shipping & Payment',
     tasks: [
-      { id:'ws1', assignee:'Trâm',  cls:'wf-a-tram',  label:'Gửi Invoice & Proposal cho anh Giao' },
-      { id:'ws2', assignee:'Trâm',  cls:'wf-a-tram',  label:'Cập nhật anh Giao thời gian tàu đến Mỹ' },
-      { id:'ws3', assignee:'Giao',  cls:'wf-a-giao',  label:'Thu tiền còn lại từ khách (invoice + proposal)' },
-      { id:'ws4', assignee:'Giao',  cls:'wf-a-giao',  label:'Gửi check/tiền cho chị Nhung' },
-      { id:'ws5', assignee:'Nhung', cls:'wf-a-nhung', label:'Nhận check từ anh Giao — nộp ngân hàng' },
-      { id:'ws6', assignee:'Nhung', cls:'wf-a-nhung', label:'Wire fund từ Mỹ về VN — xử lý payroll' },
+      { id:'ws1', assignee:'Trâm',  cls:'wf-a-tram',  label:'Send invoice & proposal to Giao' },
+      { id:'ws2', assignee:'Trâm',  cls:'wf-a-tram',  label:'Update Giao on vessel ETA to US' },
+      { id:'ws3', assignee:'Giao',  cls:'wf-a-giao',  label:'Collect remaining balance from client (invoice + proposal)' },
+      { id:'ws4', assignee:'Giao',  cls:'wf-a-giao',  label:'Send check/payment to Nhung' },
+      { id:'ws5', assignee:'Nhung', cls:'wf-a-nhung', label:'Receive check from Giao — deposit to bank' },
+      { id:'ws6', assignee:'Nhung', cls:'wf-a-nhung', label:'Wire funds from US to VN — process payroll' },
     ]
   },
   delivery: {
-    label: '🚛 Giao hàng & Lắp đặt',
+    label: '🚛 Delivery & Installation',
     tasks: [
-      { id:'wdel1', assignee:'Giao', cls:'wf-a-giao', label:'Lập kế hoạch giao hàng' },
-      { id:'wdel2', assignee:'Giao', cls:'wf-a-giao', label:'Liên hệ trucking local' },
-      { id:'wdel3', assignee:'Giao', cls:'wf-a-giao', label:'Set up cho thợ unload khi container về' },
-      { id:'wdel4', assignee:'Giao', cls:'wf-a-giao', label:'Lập bảng lịch installation theo tuần/tháng — gửi Trâm' },
-      { id:'wdel5', assignee:'Giao', cls:'wf-a-giao', label:'Tiến hành lắp đặt (Phú & Pavel)' },
-      { id:'wdel6', assignee:'Giao', cls:'wf-a-giao', label:'Giám sát thi công cho đến khi hoàn thành' },
+      { id:'wdel1', assignee:'Giao', cls:'wf-a-giao', label:'Plan delivery schedule' },
+      { id:'wdel2', assignee:'Giao', cls:'wf-a-giao', label:'Contact local trucking' },
+      { id:'wdel3', assignee:'Giao', cls:'wf-a-giao', label:'Arrange unload crew for container arrival' },
+      { id:'wdel4', assignee:'Giao', cls:'wf-a-giao', label:'Create installation schedule (weekly/monthly) — send to Trâm' },
+      { id:'wdel5', assignee:'Giao', cls:'wf-a-giao', label:'Carry out installation (Phú & Pavel)' },
+      { id:'wdel6', assignee:'Giao', cls:'wf-a-giao', label:'Supervise installation until complete' },
     ]
   },
 };
@@ -2106,7 +2106,7 @@ function buildOrdersTab(c) {
     const order = c.orders.find(o => String(o.id) === String(activeFocusedOrderId));
     if (order) {
       html += `<div style="margin-bottom:12px">
-        <button class="btn btn-outline" style="font-size:12px" onclick="activeFocusedOrderId=null;renderPanelTab(0)">← Xem tất cả đơn hàng</button>
+        <button class="btn btn-outline" style="font-size:12px" onclick="activeFocusedOrderId=null;renderPanelTab(0)">← All Orders</button>
       </div>`;
       html += `<div class="order-item" id="order-item-${order.id}">
         <div class="order-detail open" id="detail-${order.id}">
@@ -2159,7 +2159,7 @@ function buildSpecSummarySection(order, customer) {
   return `
     <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden">
       <div onclick="toggleSpecSummary('${uid}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);cursor:pointer;user-select:none">
-        <div style="font-size:12px;font-weight:700;color:var(--brand)">📋 Xem Spec Ban Đầu (Collect Info)</div>
+        <div style="font-size:12px;font-weight:700;color:var(--brand)">📋 Initial Spec (Collect Info)</div>
         <div id="${uid}-arrow" style="font-size:12px;color:var(--muted);transition:transform 0.2s">▼</div>
       </div>
       <div id="${uid}" style="display:none;padding:12px 14px;border-top:1px solid var(--border)">
@@ -2569,7 +2569,7 @@ function buildOrderSummaryBanner(order, customer) {
       <div style="text-align:right;flex-shrink:0">
         <div style="font-size:10px;color:rgba(255,255,255,.5);font-weight:700">BALANCE</div>
         <div style="font-size:22px;font-weight:900;color:${order.balance_collected?'#4ade80':balance>0?'#fbbf24':'#4ade80'}">${fmt(balance)}</div>
-        ${order.balance_collected ? `<div style="font-size:10px;color:#4ade80;font-weight:700">✅ Đã thu</div>` : `<div style="font-size:10px;color:rgba(255,255,255,.5)">/ ${fmt(grandTotal)} tổng</div>`}
+        ${order.balance_collected ? `<div style="font-size:10px;color:#4ade80;font-weight:700">✅ Collected</div>` : `<div style="font-size:10px;color:rgba(255,255,255,.5)">/ ${fmt(grandTotal)} total</div>`}
       </div>
     </div>
 
@@ -2616,7 +2616,7 @@ function buildOrderDetailStage(order, customer) {
       ${buildNotesSection(order, customer)}
       ${buildFurnitureSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToDeposit(${customer.id}, '${order.id}')">💰 Khách đã Deposit →</button>
+        <button class="btn btn-primary" onclick="moveToDeposit(${customer.id}, '${order.id}')">💰 Deposit Received →</button>
       </div>`;
   }
 
@@ -2628,7 +2628,7 @@ function buildOrderDetailStage(order, customer) {
       ${buildNotesSection(order, customer)}
       ${buildFurnitureSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToCollect(${customer.id}, '${order.id}')">📋 Bắt đầu Thu thập Spec →</button>
+        <button class="btn btn-primary" onclick="moveToCollect(${customer.id}, '${order.id}')">📋 Start Collecting Specs →</button>
       </div>`;
   }
 
@@ -2727,7 +2727,7 @@ function buildOrderDetailStage(order, customer) {
       </div>
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Gửi QC →</button>
+        <button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Send to QC →</button>
       </div>`;
   }
 
@@ -2756,7 +2756,7 @@ function buildOrderDetailStage(order, customer) {
       ${buildWorkflowSection(order, customer, ['shipping'])}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToUnloaded(${customer.id},'${order.id}')">🏭 Container Đến Mỹ → Unloaded</button>
+        <button class="btn btn-primary" onclick="moveToUnloaded(${customer.id},'${order.id}')">🏭 Container Arrived → Unloaded</button>
       </div>`;
   }
 
@@ -2782,12 +2782,12 @@ function buildOrderDetailStage(order, customer) {
         </div>
       </div>
       ${items.length ? `<div style="margin-bottom:12px">
-        <button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=qc&order=${encodeURIComponent(order.id)}','_blank')">📱 Mở QC Session</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=qc&order=${encodeURIComponent(order.id)}','_blank')">📱 Open QC Session</button>
       </div>` : ''}
       ${buildSpecSummarySection(order, customer)}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" onclick="markLoaded(${customer.id},'${order.id}')">🚢 QC Xong → Xếp Hàng (Load Container)</button>
+        <button class="btn btn-primary" onclick="markLoaded(${customer.id},'${order.id}')">🚢 QC Done → Load Container</button>
       </div>`;
   }
 
@@ -2795,7 +2795,7 @@ function buildOrderDetailStage(order, customer) {
     const items = packingItems[order.id] || [];
     const unloadEvents = items.map(i => (qrScanEvents[i.qr_id]||[]).find(e => e.event_type === 'unloaded')).filter(Boolean);
     return `
-      <div class="section-title">🏭 Đã Dỡ Hàng tại Mỹ</div>
+      <div class="section-title">🏭 Unloaded at Warehouse</div>
       ${order.warehouse_arrival_date ? `<div style="padding:8px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;margin-bottom:12px;font-size:12px;color:#1D4ED8;font-weight:700">📅 Arrival date: ${order.warehouse_arrival_date}</div>` : ''}
       <div style="display:flex;gap:10px;margin-bottom:12px">
         <div style="flex:1;padding:12px;background:#1e3a8a;border:1px solid #2563EB;border-radius:10px;text-align:center">
@@ -2808,36 +2808,36 @@ function buildOrderDetailStage(order, customer) {
         </div>
       </div>
       ${items.length ? `<div style="margin-bottom:12px">
-        <button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=unloaded&order=${encodeURIComponent(order.id)}','_blank')">📱 Mở Unload Session</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=unloaded&order=${encodeURIComponent(order.id)}','_blank')">📱 Open Unload Session</button>
       </div>` : ''}
 
-      <div class="section-title">📅 Sắp Xếp Ngày Delivery</div>
+      <div class="section-title">📅 Schedule Delivery</div>
       <div style="padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:12px">
         <div class="lp-contact-grid">
           <div class="lp-field"><label class="lp-label">Installer / Crew *</label>
             <div class="field-row">
-              <input class="lp-input" id="installer_name_${order.id}" type="text" placeholder="Tên thợ hoặc công ty" value="${order.installer_name||''}">
-              <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','installer_name','installer_name_${order.id}')">Lưu</button>
+              <input class="lp-input" id="installer_name_${order.id}" type="text" placeholder="Installer or company name" value="${order.installer_name||''}">
+              <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','installer_name','installer_name_${order.id}')">Save</button>
             </div></div>
-          <div class="lp-field"><label class="lp-label">Ngày Install *</label>
+          <div class="lp-field"><label class="lp-label">Installation Date *</label>
             <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.install_date||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_date',this.value)"></div>
-          <div class="lp-field"><label class="lp-label">Giờ Install</label>
+          <div class="lp-field"><label class="lp-label">Installation Time</label>
             <input class="lp-input" type="time" value="${order.install_time||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_time',this.value)"></div>
-          <div class="lp-field"><label class="lp-label">SĐT Khách</label>
+          <div class="lp-field"><label class="lp-label">Customer Phone</label>
             <input class="lp-input" type="text" value="${customer.phone||''}" readonly style="background:var(--surface);color:var(--muted)"></div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
           <input type="checkbox" ${order.install_confirmed?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','install_confirmed',this.checked)">
-          Khách đã xác nhận ngày giao hàng ✓
+          Customer confirmed delivery date ✓
         </label>
       </div>
 
       ${buildSpecSummarySection(order, customer)}
       ${buildNotesSection(order, customer)}
       <div class="action-bar">
-        <button class="btn btn-primary" ${!order.install_date?'disabled title="Nhập ngày install trước"':''} onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Sẵn Sàng → Chuyển Delivery</button>
+        <button class="btn btn-primary" ${!order.install_date?'disabled title="Enter installation date first"':''} onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Ready → Move to Delivery</button>
       </div>`;
   }
 
@@ -2902,34 +2902,34 @@ function buildOrderDetailStage(order, customer) {
       </div>
 
       <!-- Section 3: Balance Collection -->
-      <div class="section-title">💰 Thu Balance Còn Lại</div>
+      <div class="section-title">💰 Collect Remaining Balance</div>
       ${order.balance_collected ? `
       <div style="padding:14px;background:#052e16;border:1px solid #16a34a;border-radius:10px;margin-bottom:12px;display:flex;align-items:center;gap:12px">
         <span style="font-size:24px">✅</span>
         <div>
-          <div style="font-size:13px;font-weight:800;color:#4ade80">Balance Đã Thu — $${Number(order.balance||0).toLocaleString()}</div>
-          <div style="font-size:11px;color:#4ade80;opacity:.7;margin-top:2px">Ngày thu: ${order.balance_collected_date||'—'}</div>
+          <div style="font-size:13px;font-weight:800;color:#4ade80">Balance Collected — $${Number(order.balance||0).toLocaleString()}</div>
+          <div style="font-size:11px;color:#4ade80;opacity:.7;margin-top:2px">Date collected: ${order.balance_collected_date||'—'}</div>
         </div>
       </div>` : `
       <div style="padding:14px;background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;margin-bottom:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div>
-            <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:2px">SỐ TIỀN CẦN THU</div>
+            <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:2px">AMOUNT DUE</div>
             <div style="font-size:28px;font-weight:900;color:#92400E">$${Number(order.balance||0).toLocaleString()}</div>
             <div style="font-size:11px;color:#92400E;opacity:.7;margin-top:2px">
-              Deposit đã nhận: $${Number(order.deposit_amount||0).toLocaleString()} · Tổng đơn: $${(Number(order.balance||0)+Number(order.deposit_amount||0)).toLocaleString()}
+              Deposit received: $${Number(order.deposit_amount||0).toLocaleString()} · Order total: $${(Number(order.balance||0)+Number(order.deposit_amount||0)).toLocaleString()}
             </div>
           </div>
         </div>
         <div class="lp-field" style="margin-bottom:10px">
-          <label class="lp-label">Chi phí sản xuất / COGS (USD) — để tính lợi nhuận gộp</label>
+          <label class="lp-label">Cost of Goods / COGS (USD) — for gross profit calculation</label>
           <div class="field-row">
             <input class="lp-input" id="cogs_${order.id}" type="number" min="0" placeholder="0" value="${order.cost_of_goods||''}">
-            <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','cost_of_goods','cogs_${order.id}')">Lưu</button>
+            <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','cost_of_goods','cogs_${order.id}')">Save</button>
           </div>
         </div>
         <button onclick="collectBalance(${customer.id},'${order.id}')" style="width:100%;padding:14px;background:#059669;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:.3px">
-          💰 Đã Thu $${Number(order.balance||0).toLocaleString()} → Hoàn Tất Đơn Hàng
+          💰 Collect $${Number(order.balance||0).toLocaleString()} → Complete Order
         </button>
       </div>`}
 
@@ -2937,7 +2937,7 @@ function buildOrderDetailStage(order, customer) {
       ${buildWorkflowSection(order, customer, ['delivery'])}
       ${buildNotesSection(order, customer)}
       ${!order.balance_collected ? `<div class="action-bar">
-        <button class="btn btn-outline" style="font-size:12px" ${!canDone?'disabled title="Warehouse arrival + installation + customer confirm required"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Hoàn tất (không thu tiền)</button>
+        <button class="btn btn-outline" style="font-size:12px" ${!canDone?'disabled title="Warehouse arrival + installation + customer confirm required"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Complete without collecting</button>
       </div>` : ''}`;
   }
 
@@ -3154,7 +3154,7 @@ function exportPackingExcel(orderId, customerId) {
   const c = customers.find(x => x.id === Number(customerId) || x.id === customerId);
   const order = c?.orders.find(o => o.id === orderId);
   const items = packingItems[orderId] || [];
-  if (!items.length) return showToast('Chưa có items để export');
+  if (!items.length) return showToast('No items to export');
 
   const rows = items.map(item => ({
     'Item #':       item.item_no,
@@ -3186,7 +3186,7 @@ function printQRLabels(orderId, customerId) {
   const c = customers.find(x => x.id === Number(customerId) || x.id === customerId);
   const order = c?.orders.find(o => o.id === orderId);
   const items = packingItems[orderId] || [];
-  if (!items.length) return showToast('Chưa có items để in tem');
+  if (!items.length) return showToast('No items to print');
 
   // Expand by qty — each unit gets its own label
   const labels = [];
@@ -3248,7 +3248,7 @@ function printQRLabels(orderId, customerId) {
     <button class="no-print" onclick="window.print()" style="padding:8px 20px;background:#7C3F23;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:700">🖨️ Print</button>
   </div>
   <div class="label-grid">${labelDivs}</div>
-  <div class="stats">Tổng: ${labels.length} tem &nbsp;|&nbsp; ${items.length} loại item</div>
+  <div class="stats">Total: ${labels.length} labels &nbsp;|&nbsp; ${items.length} item type${items.length!==1?'s':''}</div>
   <script>
     window.onload = function() {
       const qrMap = ${qrMap};
@@ -3948,7 +3948,7 @@ async function markTruckingAssigned(ctnId) {
     return;
   }
   // Second click: mark container arrived → move all POs to Unloaded
-  if (!confirm('Xác nhận container đã đến Mỹ? Tất cả PO trong container sẽ chuyển sang Unloaded.')) return;
+  if (!confirm('Confirm container has arrived? All POs in this container will move to Unloaded.')) return;
   ctn.trucking_confirmed = true;
   await dbUpdate('container_plans', {id: ctnId}, {trucking_confirmed: true});
   const today = new Date().toISOString().split('T')[0];
@@ -4006,7 +4006,7 @@ async function moveToQC(customerId, orderId) {
     allBeyond ? dbUpdate('customers', {id: customerId}, {stage: 'qc'}) : Promise.resolve()
   ]);
   renderBoard(); renderPanelTab(activePanelTab);
-  showToast('🔍 Chuyển sang QC Check');
+  showToast('🔍 Moved to QC Check');
 }
 
 async function moveToUnloaded(customerId, orderId) {
@@ -4046,7 +4046,7 @@ async function collectBalance(customerId, orderId) {
   const order = c?.orders.find(o => o.id === orderId);
   if (!order) return;
   const balanceAmt = Number(order.balance || 0);
-  if (!confirm(`Xác nhận đã thu $${balanceAmt.toLocaleString()} balance từ ${c.name}?\n\nThao tác này sẽ hoàn tất đơn hàng ${orderId}.`)) return;
+  if (!confirm(`Confirm collected $${balanceAmt.toLocaleString()} balance from ${c.name}?\n\nThis will complete order ${orderId}.`)) return;
   const today = new Date().toISOString().split('T')[0];
   order.balance_collected = true;
   order.balance_collected_date = today;
@@ -4062,7 +4062,7 @@ async function collectBalance(customerId, orderId) {
     allDone ? dbUpdate('customers', {id: customerId}, {stage: 'done'}) : Promise.resolve()
   ]);
   renderBoard(); renderPanelTab(activePanelTab);
-  showToast(`✅ Đã thu $${balanceAmt.toLocaleString()} — Đơn hàng ${orderId} hoàn tất!`);
+  showToast(`✅ Collected $${balanceAmt.toLocaleString()} — Order ${orderId} completed!`);
 }
 
 async function markDone(customerId, orderId) {
@@ -4210,7 +4210,7 @@ function openAddOrder(customerId) {
   // Restore draft if available
   const draft = getDraft(customerId);
   if (draft) {
-    if (confirm('Bạn có draft chưa lưu từ lần trước. Restore không?')) {
+    if (confirm('You have an unsaved draft from last time. Restore it?')) {
       virtualLead.interest = draft.interest || virtualLead.interest;
       virtualLead.notes = draft.notes || '';
       virtualLead._poNum = draft._poNum || poNum;
@@ -5132,7 +5132,7 @@ async function confirmAddContainer() {
   const factoryName = document.getElementById('ctn-factory').value;
   const otherDest   = document.getElementById('ctn-dest-other').value.trim();
   const destination = otherDest || document.getElementById('ctn-destination').value || 'Honolulu';
-  if (!label) { alert('Nhập tên container'); return; }
+  if (!label) { alert('Enter container label'); return; }
   const newId = 'CTN-'+new Date().getFullYear()+'-'+String(Date.now()).slice(-4);
   closeContainerModal();
   const newC = await dbInsert('container_plans', {
@@ -5281,7 +5281,7 @@ function closeLeadPanel(force) {
   if (activeLead?._forCustomer && !force) {
     const po = getActivePO(activeLead);
     const hasData = (po?.quote_items?.length > 0) || Object.keys(po?.collect_info || {}).some(k => po.collect_info[k]);
-    if (hasData && !confirm('Thoát ra sẽ mất dữ liệu đang nhập. Bạn chắc chưa?')) return;
+    if (hasData && !confirm('Closing will lose unsaved data. Are you sure?')) return;
   }
   if (activeLead?._forCustomer) {
     leads = leads.filter(x => x.id !== activeLead.id);
@@ -5647,7 +5647,7 @@ function buildLeadNotesTab(lead) {
   return `<div class="lp-field">
     <label class="lp-label">Notes / Conversation Log</label>
     <textarea class="lp-input" id="lead_notes_${lead.id}" rows="12" style="resize:vertical;font-size:13px;line-height:1.5"
-      placeholder="Ghi chú cuộc gọi, yêu cầu của khách, lịch sử trao đổi...">${lead.notes||''}</textarea>
+      placeholder="Call notes, client requirements, communication history...">${lead.notes||''}</textarea>
     <button class="section-save-btn" onclick="saveLeadNotesField('${lead.id}')">💾 Save notes</button>
   </div>`;
 }
@@ -6306,10 +6306,10 @@ function renderReport() {
 
   // KPIs
   const kpis = [
-    { label: 'Doanh thu thu được', value: '$' + revenueCollected.toLocaleString(), color: '#059669', icon: '💰' },
-    { label: 'Lợi nhuận gộp', value: cogsCollected ? '$' + grossProfit.toLocaleString() + ' (' + grossMargin + '%)' : '—', color: grossProfit >= 0 ? '#059669' : '#dc2626', icon: '📈' },
-    { label: 'Đơn hoàn tất', value: completedThisMonth, color: 'var(--done)', icon: '✅' },
-    { label: 'Balance chờ thu', value: pendingBalance > 0 ? '$' + pendingBalance.toLocaleString() : '$0', color: pendingBalance > 0 ? '#D97706' : 'var(--muted)', icon: '⏳' },
+    { label: 'Revenue Collected', value: '$' + revenueCollected.toLocaleString(), color: '#059669', icon: '💰' },
+    { label: 'Gross Profit', value: cogsCollected ? '$' + grossProfit.toLocaleString() + ' (' + grossMargin + '%)' : '—', color: grossProfit >= 0 ? '#059669' : '#dc2626', icon: '📈' },
+    { label: 'Completed Orders', value: completedThisMonth, color: 'var(--done)', icon: '✅' },
+    { label: 'Pending Balance', value: pendingBalance > 0 ? '$' + pendingBalance.toLocaleString() : '$0', color: pendingBalance > 0 ? '#D97706' : 'var(--muted)', icon: '⏳' },
     { label: 'Containers Loaded', value: containersFulfilled + ' / ' + containersThisMonth.length, color: 'var(--shipped)', icon: '🚢' },
   ];
   document.getElementById('report-kpi').innerHTML = kpis.map(k => `
@@ -6347,15 +6347,15 @@ function renderReport() {
 
   // Pending delivery rows
   const pendingRows = pendingDelivery.map(o =>
-    bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`, '$' + Number(o.balance||0).toLocaleString(), 'balance chờ thu', '#D97706')
+    bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`, '$' + Number(o.balance||0).toLocaleString(), 'balance pending', '#D97706')
   ).join('');
 
   document.getElementById('report-breakdown').innerHTML =
-    `<div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">✅ Đơn hoàn tất tháng này</div>` +
-    (completedRows || '<div style="font-size:12px;color:var(--muted);padding:8px 0">Chưa có đơn nào hoàn tất tháng này</div>') +
-    (revenueCollected > 0 ? bRow('Tổng doanh thu', '$' + revenueCollected.toLocaleString(), '', '#059669') : '') +
-    (cogsCollected > 0 ? bRow('Tổng COGS', '$' + cogsCollected.toLocaleString(), '', '#dc2626') + bRow('Lợi nhuận gộp', '$' + grossProfit.toLocaleString() + ' (' + grossMargin + '%)', '', grossProfit>=0?'#059669':'#dc2626') : '') +
-    (pendingRows ? `<div style="font-size:11px;font-weight:700;color:#D97706;text-transform:uppercase;letter-spacing:0.4px;margin:14px 0 8px">⏳ Balance chờ thu (đang Delivery)</div>` + pendingRows : '') ||
+    `<div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">✅ Completed this month</div>` +
+    (completedRows || '<div style="font-size:12px;color:var(--muted);padding:8px 0">No completed orders this month</div>') +
+    (revenueCollected > 0 ? bRow('Total Revenue', '$' + revenueCollected.toLocaleString(), '', '#059669') : '') +
+    (cogsCollected > 0 ? bRow('Total COGS', '$' + cogsCollected.toLocaleString(), '', '#dc2626') + bRow('Gross Profit', '$' + grossProfit.toLocaleString() + ' (' + grossMargin + '%)', '', grossProfit>=0?'#059669':'#dc2626') : '') +
+    (pendingRows ? `<div style="font-size:11px;font-weight:700;color:#D97706;text-transform:uppercase;letter-spacing:0.4px;margin:14px 0 8px">⏳ Balance Pending (In Delivery)</div>` + pendingRows : '') ||
     '<div style="color:var(--muted);font-size:13px">No data for this period.</div>';
 
   // Forecast next month
