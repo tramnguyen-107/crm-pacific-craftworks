@@ -416,8 +416,35 @@
   .lead-type-badge.internal-sales { background:#F5F3FF; color:#6D28D9; }
   .already-customer-badge { display:flex; align-items:center; gap:6px; margin-top:6px; padding:5px 8px; background:#F0FDF4; border:1px solid #BBF7D0; border-radius:6px; font-size:11px; color:#065F46; font-weight:600; }
 
-  /* TASKS & COMMENTS */
-  .activity-section { border-top:2px solid var(--border); margin-top:16px; padding-top:14px; }
+  /* COLLAPSIBLE SECTION CARDS */
+  .sec-card { border:1.5px solid var(--border); border-radius:12px; margin-top:12px; overflow:hidden; }
+  .sec-card-hdr { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; cursor:pointer; user-select:none; background:var(--surface); border-bottom:1.5px solid var(--border); transition:background .15s; }
+  .sec-card-hdr:hover { background:var(--border); }
+  .sec-card-hdr.open { border-bottom-color:var(--border); }
+  .sec-card-hdr.closed { border-bottom:none; border-radius:0 0 10px 10px; }
+  .sec-card-left { display:flex; align-items:center; gap:8px; }
+  .sec-card-icon { font-size:16px; }
+  .sec-card-title { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; }
+  .sec-card-meta { font-size:11px; font-weight:400; color:var(--muted); margin-left:4px; }
+  .sec-card-toggle { font-size:12px; color:var(--muted); transition:transform .2s; }
+  .sec-card-toggle.open { transform:rotate(180deg); }
+  .sec-card-body { padding:14px; }
+  .sec-card-body.hidden { display:none; }
+
+  /* Section accent colors */
+  .sec-card.sec-packing .sec-card-hdr  { border-left:4px solid #92400e; }
+  .sec-card.sec-packing .sec-card-title { color:#92400e; }
+  .sec-card.sec-invoice .sec-card-hdr  { border-left:4px solid #1D4ED8; }
+  .sec-card.sec-invoice .sec-card-title { color:#1D4ED8; }
+  .sec-card.sec-tasks   .sec-card-hdr  { border-left:4px solid #059669; }
+  .sec-card.sec-tasks   .sec-card-title { color:#059669; }
+  .sec-card.sec-comments .sec-card-hdr { border-left:4px solid #7C3AED; }
+  .sec-card.sec-comments .sec-card-title { color:#7C3AED; }
+  .sec-card.sec-stage   .sec-card-hdr  { border-left:4px solid var(--brand); }
+  .sec-card.sec-stage   .sec-card-title { color:var(--brand); }
+
+  /* TASKS & COMMENTS (legacy, keep for inner content spacing) */
+  .activity-section { margin-top:0; padding-top:0; border-top:none; }
   .activity-section .section-title { margin-bottom:10px; }
   .task-add-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
   .task-add-row input, .task-add-row select { flex:1; min-width:80px; }
@@ -2944,8 +2971,42 @@ function buildOrderDetailStage(order, customer) {
   return `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">✅ Order completed.</div>`;
 }
 
+function buildSecCard(id, type, icon, title, meta, bodyHtml, defaultOpen = true) {
+  const open = defaultOpen;
+  return `<div class="sec-card sec-${type}" id="seccard-${id}">
+    <div class="sec-card-hdr ${open?'open':'closed'}" onclick="toggleSecCard('${id}')">
+      <div class="sec-card-left">
+        <span class="sec-card-icon">${icon}</span>
+        <span class="sec-card-title">${title}</span>
+        ${meta ? `<span class="sec-card-meta">${meta}</span>` : ''}
+      </div>
+      <span class="sec-card-toggle ${open?'open':''}">▼</span>
+    </div>
+    <div class="sec-card-body ${open?'':'hidden'}" id="secbody-${id}">${bodyHtml}</div>
+  </div>`;
+}
+
+function toggleSecCard(id) {
+  const hdr  = document.querySelector(`#seccard-${id} .sec-card-hdr`);
+  const body = document.getElementById(`secbody-${id}`);
+  const tog  = document.querySelector(`#seccard-${id} .sec-card-toggle`);
+  const isOpen = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', isOpen);
+  hdr.classList.toggle('open', !isOpen);
+  hdr.classList.toggle('closed', isOpen);
+  tog.classList.toggle('open', !isOpen);
+}
+
 function buildFullOrderDetail(order, customer) {
-  return buildOrderDetail(order, customer) + buildPackingListSection(order, customer) + buildInvoiceSection(order, customer) + buildTasksSection(order.id) + buildCommentsSection(order.id);
+  const items = packingItems[order.id] || [];
+  const totalCBM = items.reduce((s,i) => s + (calcCBM(i.width_in,i.height_in,i.depth_in)||0) * (i.qty||1), 0);
+  const packingMeta = items.length ? `${items.length} item${items.length!==1?'s':''} · ${totalCBM.toFixed(4)} CBM` : 'No items';
+
+  return buildOrderDetail(order, customer)
+    + buildSecCard(`pack-${order.id}`,    'packing',  '📦', 'Packing List', packingMeta, buildPackingListSection(order, customer), false)
+    + buildSecCard(`inv-${order.id}`,     'invoice',  '🧾', 'Invoice',      '', buildInvoiceSection(order, customer), false)
+    + buildSecCard(`tasks-${order.id}`,   'tasks',    '✅', 'Tasks',        '', buildTasksSection(order.id), false)
+    + buildSecCard(`comments-${order.id}`,'comments', '💬', 'Comments',     '', buildCommentsSection(order.id), false);
 }
 
 // =====================
