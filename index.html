@@ -2978,7 +2978,7 @@ function buildSecCard(id, type, icon, title, meta, bodyHtml, defaultOpen = true)
       <div class="sec-card-left">
         <span class="sec-card-icon">${icon}</span>
         <span class="sec-card-title">${title}</span>
-        ${meta ? `<span class="sec-card-meta">${meta}</span>` : ''}
+        ${meta ? `<span class="sec-card-meta" id="secmeta-${id}">${meta}</span>` : ''}
       </div>
       <span class="sec-card-toggle ${open?'open':''}">▼</span>
     </div>
@@ -3000,7 +3000,8 @@ function toggleSecCard(id) {
 function buildFullOrderDetail(order, customer) {
   const items = packingItems[order.id] || [];
   const totalCBM = items.reduce((s,i) => s + (calcCBM(i.width_in,i.height_in,i.depth_in)||0) * (i.qty||1), 0);
-  const packingMeta = items.length ? `${items.length} item${items.length!==1?'s':''} · ${totalCBM.toFixed(4)} CBM` : 'No items';
+  const totalQty0 = items.reduce((s,i) => s + (i.qty||1), 0);
+  const packingMeta = items.length ? `${items.length} line${items.length!==1?'s':''} · ${totalQty0} pcs · ${totalCBM.toFixed(4)} CBM` : 'No items';
 
   return buildOrderDetail(order, customer)
     + buildSecCard(`pack-${order.id}`,    'packing',  '📦', 'Packing List', packingMeta, buildPackingListSection(order, customer), false)
@@ -3038,24 +3039,27 @@ function buildPackingListSection(order, customer) {
     return `
     <tr style="border-bottom:1px solid var(--border)">
       <td style="padding:6px 8px;font-weight:700;color:var(--brand);white-space:nowrap;text-align:center">${item.item_no}</td>
-      <td style="padding:4px 6px"><input class="lp-input" style="width:100%;min-width:140px;font-size:11px" value="${(item.description||'').replace(/"/g,'&quot;')}" onchange="savePackingField('${item.id}','${order.id}','description',this.value)"></td>
-      <td style="padding:4px 6px"><input class="lp-input" style="width:70px;font-size:11px;text-align:center;font-weight:700" value="${(item.drawing_code||'').replace(/"/g,'&quot;')}" placeholder="e.g. TP" onchange="savePackingField('${item.id}','${order.id}','drawing_code',this.value)"></td>
+      <td style="padding:4px 6px"><input id="pi-desc-${item.id}" class="lp-input" style="width:100%;min-width:140px;font-size:11px" value="${(item.description||'').replace(/"/g,'&quot;')}"></td>
+      <td style="padding:4px 6px"><input id="pi-code-${item.id}" class="lp-input" style="width:70px;font-size:11px;text-align:center;font-weight:700" value="${(item.drawing_code||'').replace(/"/g,'&quot;')}" placeholder="e.g. TP"></td>
       <td style="padding:4px 6px;white-space:nowrap">
         <div style="display:flex;gap:3px;align-items:center">
-          <input class="lp-input" style="width:38px;font-size:11px;text-align:center;padding:4px" value="${item.width_in||''}" placeholder="W" onchange="savePackingField('${item.id}','${order.id}','width_in',this.value)">
+          <input id="pi-w-${item.id}" class="lp-input" style="width:38px;font-size:11px;text-align:center;padding:4px" value="${item.width_in||''}" placeholder="W" oninput="liveCBM('${item.id}','${order.id}')">
           <span style="color:var(--muted);font-size:10px">×</span>
-          <input class="lp-input" style="width:38px;font-size:11px;text-align:center;padding:4px" value="${item.height_in||''}" placeholder="H" onchange="savePackingField('${item.id}','${order.id}','height_in',this.value)">
+          <input id="pi-h-${item.id}" class="lp-input" style="width:38px;font-size:11px;text-align:center;padding:4px" value="${item.height_in||''}" placeholder="H" oninput="liveCBM('${item.id}','${order.id}')">
           <span style="color:var(--muted);font-size:10px">×</span>
-          <input class="lp-input" style="width:38px;font-size:11px;text-align:center;padding:4px" value="${item.depth_in||''}" placeholder="D" onchange="savePackingField('${item.id}','${order.id}','depth_in',this.value)">
+          <input id="pi-d-${item.id}" class="lp-input" style="width:38px;font-size:11px;text-align:center;padding:4px" value="${item.depth_in||''}" placeholder="D" oninput="liveCBM('${item.id}','${order.id}')">
           <span style="font-size:9px;color:var(--muted)">in</span>
         </div>
       </td>
-      <td style="padding:4px 6px;text-align:center"><input class="lp-input" style="width:46px;font-size:11px;text-align:center" type="number" min="1" value="${item.qty||1}" onchange="savePackingField('${item.id}','${order.id}','qty',this.value)"></td>
-      <td style="padding:6px 8px;font-size:11px;font-weight:700;color:var(--muted);text-align:center;white-space:nowrap">${cbmDisplay}</td>
+      <td style="padding:4px 6px;text-align:center"><input id="pi-qty-${item.id}" class="lp-input" style="width:46px;font-size:11px;text-align:center" type="number" min="1" value="${item.qty||1}" oninput="liveCBM('${item.id}','${order.id}')"></td>
+      <td id="pi-cbm-${item.id}" style="padding:6px 8px;font-size:11px;font-weight:700;color:var(--muted);text-align:center;white-space:nowrap">${cbmDisplay}</td>
       <td style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--brand);white-space:nowrap">${item.qr_id}</td>
       <td style="padding:4px 8px"><div id="qr-${item.id}" data-qr-text="${item.qr_id}" style="width:52px;height:52px"></div></td>
       <td style="padding:4px 8px">${buildQRStatusChips(item.qr_id)}</td>
-      <td style="padding:4px 6px"><button onclick="deletePackingItem('${item.id}','${order.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" title="Delete">🗑</button></td>
+      <td style="padding:4px 6px;white-space:nowrap">
+        <button onclick="savePackingRow('${item.id}','${order.id}')" style="background:#065f46;border:none;cursor:pointer;color:#fff;font-size:11px;padding:3px 8px;border-radius:6px;margin-right:3px" title="Save">💾 Save</button>
+        <button onclick="deletePackingItem('${item.id}','${order.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" title="Delete">🗑</button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -3071,16 +3075,15 @@ function buildPackingListSection(order, customer) {
   const totalRow = items.length ? `
     <tr style="background:var(--surface);border-top:2px solid var(--border);font-weight:700">
       <td colspan="4" style="padding:8px;text-align:right;font-size:12px;color:var(--muted)">TOTAL</td>
-      <td style="padding:8px;text-align:center;font-size:13px;color:var(--brand)">${totalQty}</td>
-      <td style="padding:8px;text-align:center;font-size:13px;color:var(--brand)">${totalCBM.toFixed(4)}</td>
+      <td id="pack-total-qty-${order.id}" style="padding:8px;text-align:center;font-size:13px;color:var(--brand)">${totalQty}</td>
+      <td id="pack-total-cbm-${order.id}" style="padding:8px;text-align:center;font-size:13px;color:var(--brand)">${totalCBM.toFixed(4)}</td>
       <td colspan="4"></td>
     </tr>` : '';
 
   return `<div class="activity-section">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="section-title" style="margin:0">📦 Packing List <span style="font-size:11px;color:var(--muted);font-weight:400">${items.length} item${items.length!==1?'s':''} · ${totalCBM.toFixed(4)} CBM</span></div>
+      <div class="section-title" style="margin:0">📦 Packing List <span style="font-size:11px;color:var(--muted);font-weight:400">${items.length} line${items.length!==1?'s':''} · ${totalQty} pcs · ${totalCBM.toFixed(4)} CBM</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-        <button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="addPackingItem('${order.id}')">+ Add Item</button>
         ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printPackingList('${order.id}','${customer.id}')">🖨️ PDF</button>` : ''}
         ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px;background:#166534;color:#fff;border-color:#166534" onclick="exportPackingExcel('${order.id}','${customer.id}')">📥 Excel</button>` : ''}
         ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px;background:#1e3a8a;color:#fff;border-color:#1e3a8a" onclick="printQRLabels('${order.id}','${customer.id}')">🏷️ QR Labels</button>` : ''}
@@ -3101,7 +3104,10 @@ function buildPackingListSection(order, customer) {
         <th></th>
       </tr></thead>
       <tbody>${rows}${totalRow}</tbody>
-    </table></div>` : `<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No items yet. Click "+ Add Item" to start.</div>`}
+    </table></div>` : `<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No items yet.</div>`}
+    <div style="margin-top:10px">
+      <button class="btn btn-outline" style="font-size:12px;padding:5px 14px;width:100%" onclick="addPackingItem('${order.id}')">+ Add Item</button>
+    </div>
   </div>`;
 }
 
@@ -3144,6 +3150,52 @@ async function addPackingItem(orderId) {
   packingItems[orderId].push(res);
   const detailEl = document.getElementById('detail-' + orderId);
   if (detailEl) { detailEl.innerHTML = buildFullOrderDetail(order, c); renderQRCodes(); }
+}
+
+function liveCBM(itemId, orderId) {
+  const w = parseFloat(document.getElementById('pi-w-'+itemId)?.value);
+  const h = parseFloat(document.getElementById('pi-h-'+itemId)?.value);
+  const d = parseFloat(document.getElementById('pi-d-'+itemId)?.value);
+  const qty = parseInt(document.getElementById('pi-qty-'+itemId)?.value) || 1;
+  const cell = document.getElementById('pi-cbm-'+itemId);
+  if (cell) {
+    const cbm = calcCBM(w, h, d);
+    cell.textContent = cbm ? cbm.toFixed(4) : '—';
+  }
+  if (!orderId) return;
+  const allItems = packingItems[orderId] || [];
+  let totalCBM = 0, totalQty = 0;
+  allItems.forEach(it => {
+    const iw = it.id === itemId ? w : it.width_in;
+    const ih = it.id === itemId ? h : it.height_in;
+    const id2 = it.id === itemId ? d : it.depth_in;
+    const iq = it.id === itemId ? qty : (it.qty||1);
+    totalCBM += (calcCBM(iw,ih,id2)||0) * iq;
+    totalQty += iq;
+  });
+  const tcbmEl = document.getElementById('pack-total-cbm-'+orderId);
+  const tqtyEl = document.getElementById('pack-total-qty-'+orderId);
+  if (tcbmEl) tcbmEl.textContent = totalCBM.toFixed(4);
+  if (tqtyEl) tqtyEl.textContent = totalQty;
+}
+
+async function savePackingRow(itemId, orderId) {
+  const desc = document.getElementById('pi-desc-'+itemId)?.value || '';
+  const code = document.getElementById('pi-code-'+itemId)?.value || '';
+  const w = parseFloat(document.getElementById('pi-w-'+itemId)?.value) || null;
+  const h = parseFloat(document.getElementById('pi-h-'+itemId)?.value) || null;
+  const d = parseFloat(document.getElementById('pi-d-'+itemId)?.value) || null;
+  const qty = parseInt(document.getElementById('pi-qty-'+itemId)?.value) || 1;
+  const allItems = packingItems[orderId] || [];
+  const item = allItems.find(i => i.id === itemId);
+  if (item) { item.description=desc; item.drawing_code=code; item.width_in=w; item.height_in=h; item.depth_in=d; item.qty=qty; }
+  await sb.from('packing_list_items').update({ description:desc, drawing_code:code, width_in:w, height_in:h, depth_in:d, qty }).eq('id', itemId);
+  liveCBM(itemId, orderId);
+  let totalCBM = 0, totalQty = 0;
+  allItems.forEach(it => { totalCBM += (calcCBM(it.width_in,it.height_in,it.depth_in)||0)*(it.qty||1); totalQty += (it.qty||1); });
+  const metaEl = document.getElementById('secmeta-pack-'+orderId);
+  if (metaEl) metaEl.textContent = `${allItems.length} line${allItems.length!==1?'s':''} · ${totalQty} pcs · ${totalCBM.toFixed(4)} CBM`;
+  showToast('✅ Saved');
 }
 
 async function savePackingField(itemId, orderId, field, value) {
