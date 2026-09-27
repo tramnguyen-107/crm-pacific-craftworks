@@ -2478,7 +2478,106 @@ function buildOrderSpecsSection(order) {
   </div>`;
 }
 
+function buildOrderSummaryBanner(order, customer) {
+  const STAGE_FLOW = ['lead','deposit','collect','production','qc','shipped','unloaded','delivery','done'];
+  const STAGE_ICONS = { lead:'🎯', deposit:'💰', collect:'📋', production:'⚙️', qc:'🔍', shipped:'🚢', unloaded:'🏭', delivery:'🚛', done:'✅' };
+  const STAGE_LABELS = { lead:'Lead', deposit:'Deposit', collect:'Collecting', production:'Production', qc:'QC', shipped:'Shipped', unloaded:'Unloaded', delivery:'Delivery', done:'Done' };
+  const curIdx = STAGE_FLOW.indexOf(order.stage);
+
+  // Stage progress bar
+  const stageBar = STAGE_FLOW.filter(s => s !== 'lead').map((s, i) => {
+    const idx = STAGE_FLOW.indexOf(s);
+    const done = idx < curIdx, active = idx === curIdx;
+    return `<div title="${STAGE_LABELS[s]}" style="flex:1;height:5px;border-radius:99px;margin:0 1px;background:${done?'#059669':active?'#7C3F23':'rgba(0,0,0,0.1)'}"></div>`;
+  }).join('');
+
+  // Financial
+  const items = order.quote_items || [];
+  const shipping = parseFloat(order.shipping_cost) || 0;
+  const subtotal = items.reduce((s, it) => s + (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0), 0);
+  const grandTotal = subtotal + shipping;
+  const deposit = parseFloat(order.deposit_amount) || 0;
+  const balance = Math.max(0, (order.balance != null ? Number(order.balance) : Math.max(0, grandTotal - deposit)));
+  const fmt = n => '$' + Number(n).toLocaleString('en-US');
+
+  // Factory
+  const fpo = factoryPOs.find(f => (f.customerOrders||[]).some(r => String(r.orderId||r.order_id) === String(order.id)));
+  const factoryName = order.factory_name || fpo?.factory_name || fpo?.factory || '—';
+
+  // Spec summary
+  const ci = order.collect_info || {};
+  const specParts = [
+    ci.box_species && `Box: ${ci.box_species}`,
+    ci.box_finish && `${ci.box_finish}`,
+    ci.door_style && `Door: ${ci.door_style}`,
+    ci.door_stain && `${ci.door_stain}`,
+    ci.drawer_slide && `Slide: ${ci.drawer_slide}`,
+    ci.hinge && `Hinge: ${ci.hinge}`,
+  ].filter(Boolean);
+
+  // Dates timeline
+  const dates = [
+    order.spec_sent   && { label:'Spec Sent', val: order.spec_sent },
+    order.load_date   && { label:'Loaded', val: order.load_date },
+    order.warehouse_arrival_date && { label:'Arrived US', val: order.warehouse_arrival_date },
+    order.install_date && { label:'Install', val: order.install_date },
+    order.eta         && { label:'ETA', val: order.eta },
+  ].filter(Boolean);
+
+  return `<div style="background:linear-gradient(135deg,#3d1a0a 0%,#5a2d18 100%);border-radius:12px;padding:14px 16px;margin-bottom:14px;color:#fff">
+    <!-- Header row -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px">
+      <div style="min-width:0">
+        <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.5);letter-spacing:.5px;text-transform:uppercase">${order.id} · ${customer.name}</div>
+        <div style="font-size:16px;font-weight:800;margin-top:2px;line-height:1.2">${order.project_name || order.type || 'Order'}</div>
+        <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px">
+          ${(order.sales_rep||customer.sales_rep) ? `<span style="background:rgba(255,255,255,.15);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">👤 ${order.sales_rep||customer.sales_rep}</span>` : ''}
+          ${factoryName!=='—' ? `<span style="background:rgba(255,255,255,.15);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">🏭 ${factoryName}</span>` : ''}
+          ${order.container ? `<span style="background:rgba(255,255,255,.15);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">📦 ${order.container}</span>` : ''}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:10px;color:rgba(255,255,255,.5);font-weight:700">BALANCE</div>
+        <div style="font-size:22px;font-weight:900;color:${order.balance_collected?'#4ade80':balance>0?'#fbbf24':'#4ade80'}">${fmt(balance)}</div>
+        ${order.balance_collected ? `<div style="font-size:10px;color:#4ade80;font-weight:700">✅ Đã thu</div>` : `<div style="font-size:10px;color:rgba(255,255,255,.5)">/ ${fmt(grandTotal)} tổng</div>`}
+      </div>
+    </div>
+
+    <!-- Stage progress -->
+    <div style="display:flex;align-items:center;margin-bottom:8px">${stageBar}</div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,.4);margin-bottom:10px">
+      <span>Deposit</span><span>QC</span><span>Shipped</span><span>Unloaded</span><span>Delivery</span><span>Done</span>
+    </div>
+
+    <!-- Financial summary -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+      <div style="background:rgba(255,255,255,.1);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:9px;color:rgba(255,255,255,.5);font-weight:700;text-transform:uppercase">Total</div>
+        <div style="font-size:14px;font-weight:800;margin-top:2px">${fmt(grandTotal)}</div>
+      </div>
+      <div style="background:rgba(255,255,255,.1);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:9px;color:rgba(255,255,255,.5);font-weight:700;text-transform:uppercase">Deposit</div>
+        <div style="font-size:14px;font-weight:800;margin-top:2px;color:#4ade80">${deposit>0?fmt(deposit):'—'}</div>
+      </div>
+      <div style="background:rgba(255,255,255,.1);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:9px;color:rgba(255,255,255,.5);font-weight:700;text-transform:uppercase">Balance</div>
+        <div style="font-size:14px;font-weight:800;margin-top:2px;color:${balance>0?'#fbbf24':'#4ade80'}">${fmt(balance)}</div>
+      </div>
+    </div>
+
+    <!-- Spec summary (if any) -->
+    ${specParts.length ? `<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:rgba(255,255,255,.8);line-height:1.6">${specParts.join(' · ')}</div>` : ''}
+
+    <!-- Key dates -->
+    ${dates.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${dates.map(d => `<span style="background:rgba(255,255,255,.1);padding:2px 8px;border-radius:20px;font-size:10px;color:rgba(255,255,255,.7)"><span style="color:rgba(255,255,255,.4)">${d.label}:</span> ${d.val}</span>`).join('')}</div>` : ''}
+  </div>`;
+}
+
 function buildOrderDetail(order, customer) {
+  return buildOrderSummaryBanner(order, customer) + buildOrderDetailStage(order, customer);
+}
+
+function buildOrderDetailStage(order, customer) {
   if (order.stage === 'lead') {
     return `
       ${buildDepositSection(order, customer)}
