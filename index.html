@@ -888,7 +888,7 @@
     <div class="column-header"><div class="col-title">🚛 Delivery</div><div class="col-count" id="count-delivery">0</div></div>
     <div class="column-body" id="col-delivery"></div>
   </div>
-  <div class="column col-done" id="col-done-wrap" style="display:none">
+  <div class="column col-done" id="col-done-wrap">
     <div class="column-header"><div class="col-title">✅ Done / Archive</div><div class="col-count" id="count-done">0</div></div>
     <div class="column-body" id="col-done"></div>
   </div>
@@ -1801,13 +1801,13 @@ function renderBoard() {
   const filterSales = document.getElementById('filter-sales')?.value || '';
   const searchQ     = (document.getElementById('search-input')?.value || '').toLowerCase();
 
-  const activeStages = ['deposit','collect','production','qc','shipped','unloaded','delivery'];
+  const activeStages = ['deposit','collect','production','qc','shipped','unloaded','delivery','done'];
   const colIds   = { lead:'col-lead', deposit:'col-deposit', collect:'col-collect', production:'col-production', shipped:'col-shipped', qc:'col-qc', unloaded:'col-unloaded', delivery:'col-delivery', done:'col-done' };
   const countIds = { lead:'count-lead', deposit:'count-deposit', collect:'count-collect', production:'count-production', shipped:'count-shipped', qc:'count-qc', unloaded:'count-unloaded', delivery:'count-delivery', done:'count-done' };
 
   // Show/hide archive column
-  document.getElementById('col-done-wrap').style.display = showArchived ? '' : 'none';
-  const stages = showArchived ? [...activeStages, 'done'] : activeStages;
+  document.getElementById('col-done-wrap').style.display = '';
+  const stages = activeStages;
 
   // Build active filter tags
   const tags = [];
