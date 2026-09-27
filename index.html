@@ -1843,10 +1843,14 @@ function renderBoard() {
       if (filterType && o.type !== filterType) return false;
       if (filterSales && (o.sales_rep||c.sales_rep||'') !== filterSales) return false;
       if (filterYear || (filterMonth !== '' && filterMonth !== undefined)) {
-        const d = toVN(o.created_at) || toVN(c.created_at);
-        if (!d) return false;
-        if (filterYear && String(d.getFullYear()) !== filterYear) return false;
-        if (filterMonth !== '' && filterMonth !== undefined && d.getMonth() !== parseInt(filterMonth)) return false;
+        const allDates = [o.created_at, o.eta, o.load_date, o.install_date, c.created_at]
+          .map(d => toVN(d)).filter(Boolean);
+        if (allDates.length === 0) return false;
+        if (filterYear && !allDates.some(d => String(d.getFullYear()) === filterYear)) return false;
+        if (filterMonth !== '' && filterMonth !== undefined) {
+          const d = toVN(o.created_at) || toVN(o.eta) || toVN(c.created_at);
+          if (!d || d.getMonth() !== parseInt(filterMonth)) return false;
+        }
       }
       return true;
     });
