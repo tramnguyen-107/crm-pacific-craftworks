@@ -2470,7 +2470,7 @@ function buildNotesSection(order, customer, defaultOpen = false) {
     <textarea class="order-notes-ta" id="order_notes_${order.id}" placeholder="Notes, special instructions...">${order.order_notes || ''}</textarea>
     <button class="section-save-btn" onclick="saveNotesFields(${customer.id},'${order.id}')">💾 Save notes</button>
   </div>`;
-  return buildSecCard(`notes-${order.id}`, 'stage', '📋', 'Order Info', '', body, defaultOpen);
+  return buildSecCard(`notes-${order.id}`, 'stage', '🚚', 'Order Delivery Info', '', body, defaultOpen);
 }
 
 function buildFurnitureSection(order, customer) {
@@ -2755,9 +2755,8 @@ function buildOrderDetailStage(order, customer) {
 
     let html = deadlineBanner + buildDepositSection(order, customer);
     html += buildOrderQuoteSection(order);
-    html += buildOrderSpecsSection(order);
     html += buildUrgentSection(order, customer);
-    html += buildNotesSection(order, customer, true);
+    html += buildSecCard(`ci-${order.id}`, 'stage', '📋', 'Order Info', '', buildOrderCollectInfoForm(order, customer), true);
     html += `<div class="checklist-progress">
       <div class="cp-label">Info Checklist</div>
       <div class="cp-bar"><div class="cp-fill" id="cp-fill-${order.id}" style="width:${pct}%"></div></div>
@@ -2792,6 +2791,7 @@ function buildOrderDetailStage(order, customer) {
 
     html += buildFurnitureSection(order, customer);
     html += buildWorkflowSection(order, customer, ['quote','deposit','production']);
+    html += buildNotesSection(order, customer);
     html += `<div class="action-bar">
       <button class="btn btn-primary" ${!canPush ? 'disabled title="Need deposit + complete checklist"' : ''} onclick="pushToFactory(${customer.id}, '${order.id}')">Push to Factory →</button>
     </div>`;
