@@ -2663,7 +2663,7 @@ function buildOrderSummaryBanner(order, customer) {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px">
       <div style="min-width:0">
         <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.5);letter-spacing:.5px;text-transform:uppercase">${order.id} · ${customer.name}</div>
-        <div style="font-size:16px;font-weight:800;margin-top:2px;line-height:1.2">${order.project_name || order.type || 'Order'}</div>
+        <div onclick="renameProject(${customer.id},'${order.id}')" title="Click to edit project name" style="font-size:16px;font-weight:800;margin-top:2px;line-height:1.2;cursor:pointer">${order.project_name || '<span style="opacity:.6;font-style:italic">Untitled project</span>'} <span style="font-size:11px;opacity:.6">✏️</span></div>
         <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px">
           ${(order.sales_rep||customer.sales_rep) ? `<span style="background:rgba(255,255,255,.15);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">👤 ${order.sales_rep||customer.sales_rep}</span>` : ''}
           ${factoryName!=='—' ? `<span style="background:rgba(255,255,255,.15);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">🏭 ${factoryName}</span>` : ''}
@@ -3663,6 +3663,16 @@ async function saveDeadlineAndETA(customerId, orderId, date) {
   if (sub) sub.textContent = `Balance: $${Number(order.balance||0).toLocaleString()} · ETA ${date}`;
   const detailEl = document.getElementById('detail-' + orderId);
   if (detailEl) { detailEl.innerHTML = buildFullOrderDetail(order, c); renderQRCodes(); }
+}
+
+async function renameProject(customerId, orderId) {
+  const c = customers.find(x => x.id === customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const name = prompt('Project name:', order.project_name || '');
+  if (name === null) return;
+  await saveOrderField(customerId, orderId, 'project_name', name.trim());
+  renderBoard();
 }
 
 async function saveOrderField(customerId, orderId, field, value, {silent=false}={}) {
