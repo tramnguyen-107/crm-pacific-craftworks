@@ -834,7 +834,7 @@
       <input class="search-input" type="text" id="lead-search" placeholder="Search lead..." oninput="renderLeads()" style="width:200px">
       <select id="lead-filter-source" class="form-select" style="width:120px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
         <option value="">All sources</option>
-        <option>Web Form</option><option>Referral</option><option>Email</option><option>Phone</option><option>Walk-in</option>
+        <option>Web Form</option><option>Referral</option><option>Email</option><option>Phone</option><option>Walk-in</option><option>Sales Rep</option>
       </select>
       <select id="lead-filter-type" class="form-select" style="width:130px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
         <option value="">All types</option>
@@ -1096,6 +1096,7 @@
         <option>Email</option>
         <option>Phone</option>
         <option>Walk-in</option>
+        <option>Sales Rep</option>
       </select>
     </div>
     <div class="form-group">
@@ -2408,7 +2409,7 @@ function buildUrgentSection(order, customer) {
 
 function buildNotesSection(order, customer) {
   const link = order.drive_link || '';
-  return `<div class="notes-section">
+  const body = `<div class="notes-section" style="margin-bottom:0">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
       <div>
         <div class="notes-label">🚢 ETD — Est. Departure</div>
@@ -2467,6 +2468,7 @@ function buildNotesSection(order, customer) {
     <textarea class="order-notes-ta" id="order_notes_${order.id}" placeholder="Notes, special instructions...">${order.order_notes || ''}</textarea>
     <button class="section-save-btn" onclick="saveNotesFields(${customer.id},'${order.id}')">💾 Save notes</button>
   </div>`;
+  return buildSecCard(`notes-${order.id}`, 'stage', '📋', 'Order Info', '', body, false);
 }
 
 function buildFurnitureSection(order, customer) {
@@ -5826,7 +5828,7 @@ function buildLeadContactTab(lead) {
       </select></div>
     <div class="lp-field"><label class="lp-label">Source</label>
       <select class="lp-input" onchange="saveLeadField('${lead.id}','source',this.value)">
-        ${['Web Form','Referral','Email','Phone','Walk-in'].map(s=>`<option${lead.source===s?' selected':''}>${s}</option>`).join('')}
+        ${['Web Form','Referral','Email','Phone','Walk-in','Sales Rep'].map(s=>`<option${lead.source===s?' selected':''}>${s}</option>`).join('')}
       </select></div>
     <div class="lp-field"><label class="lp-label">Interest</label>
       <select class="lp-input" onchange="saveLeadField('${lead.id}','interest',this.value)">
