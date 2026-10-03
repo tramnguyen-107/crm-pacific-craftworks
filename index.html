@@ -2047,7 +2047,9 @@ function buildOrderCard(order, customer) {
   const missingInfo = order.stage === 'collect' && Object.values(order.checked || {}).filter(Boolean).length < TOTAL_CHECKS;
   const fpo = factoryPOs.find(f => (f.customerOrders||[]).some(r => r.orderId === order.id));
   const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => r.orderId === order.id));
-  const projectName = order.project_name || order.id;
+  const projectName = order.project_name
+    ? order.project_name
+    : `<span style="color:var(--muted);font-style:italic;font-weight:600">Untitled project</span>`;
   const archiveBadge = order.stage === 'done' ? `<div class="card-archive-badge">📁 Archived — Completed</div>` : '';
 
   div.innerHTML = `
