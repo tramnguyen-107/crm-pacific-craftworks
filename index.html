@@ -2409,7 +2409,7 @@ function buildUrgentSection(order, customer) {
   </div>`;
 }
 
-function buildNotesSection(order, customer) {
+function buildNotesSection(order, customer, defaultOpen = false) {
   const link = order.drive_link || '';
   const body = `<div class="notes-section" style="margin-bottom:0">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
@@ -2470,7 +2470,7 @@ function buildNotesSection(order, customer) {
     <textarea class="order-notes-ta" id="order_notes_${order.id}" placeholder="Notes, special instructions...">${order.order_notes || ''}</textarea>
     <button class="section-save-btn" onclick="saveNotesFields(${customer.id},'${order.id}')">💾 Save notes</button>
   </div>`;
-  return buildSecCard(`notes-${order.id}`, 'stage', '📋', 'Order Info', '', body, false);
+  return buildSecCard(`notes-${order.id}`, 'stage', '📋', 'Order Info', '', body, defaultOpen);
 }
 
 function buildFurnitureSection(order, customer) {
@@ -2757,6 +2757,7 @@ function buildOrderDetailStage(order, customer) {
     html += buildOrderQuoteSection(order);
     html += buildOrderSpecsSection(order);
     html += buildUrgentSection(order, customer);
+    html += buildNotesSection(order, customer, true);
     html += `<div class="checklist-progress">
       <div class="cp-label">Info Checklist</div>
       <div class="cp-bar"><div class="cp-fill" id="cp-fill-${order.id}" style="width:${pct}%"></div></div>
@@ -2791,7 +2792,6 @@ function buildOrderDetailStage(order, customer) {
 
     html += buildFurnitureSection(order, customer);
     html += buildWorkflowSection(order, customer, ['quote','deposit','production']);
-    html += buildNotesSection(order, customer);
     html += `<div class="action-bar">
       <button class="btn btn-primary" ${!canPush ? 'disabled title="Need deposit + complete checklist"' : ''} onclick="pushToFactory(${customer.id}, '${order.id}')">Push to Factory →</button>
     </div>`;
