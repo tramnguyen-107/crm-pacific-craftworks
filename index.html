@@ -2195,12 +2195,10 @@ function buildSpecSummarySection(order, customer) {
   return `
     <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden">
       <div onclick="toggleSpecSummary('${uid}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);cursor:pointer;user-select:none">
-        <div style="font-size:12px;font-weight:700;color:var(--brand)">📋 Initial Spec (Collect Info)</div>
+        <div style="font-size:12px;font-weight:700;color:var(--brand)">✅ Collect Checklist & Furniture</div>
         <div id="${uid}-arrow" style="font-size:12px;color:var(--muted);transition:transform 0.2s">▼</div>
       </div>
       <div id="${uid}" style="display:none;padding:12px 14px;border-top:1px solid var(--border)">
-        ${buildOrderQuoteSection(order)}
-        ${buildOrderCollectInfoForm(order, customer)}
         ${buildFurnitureSection(order, customer)}
         ${buildOrderChecklistSummary(order)}
       </div>
@@ -2208,40 +2206,8 @@ function buildSpecSummarySection(order, customer) {
 }
 
 function buildOrderCollectInfoForm(order, customer) {
-  const ci = order.collect_info || {};
-  const cid = customer.id; const oid = order.id;
-  const sel = (field, opts) => `<select class="lp-input" style="font-size:11px" onchange="saveOrderCI(${cid},'${oid}','${field}',this.value)">
-    <option value="">— select —</option>
-    ${opts.map(o => `<option${ci[field]===o?' selected':''}>${o}</option>`).join('')}
-  </select>`;
-  const inp = (field, ph='') => `<input class="lp-input" style="font-size:11px" placeholder="${ph}" value="${(ci[field]||'').replace(/"/g,'&quot;')}" onchange="saveOrderCI(${cid},'${oid}','${field}',this.value)">`;
-
-  return `<div style="margin-bottom:12px">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2);margin-bottom:8px">🪵 Cabinet Box</div>
-    <div class="lp-contact-grid" style="margin-bottom:8px">
-      <div class="lp-field"><label class="lp-label">Species</label>${sel('box_species',['Plywood Birch','MDF','Other'])}</div>
-      <div class="lp-field"><label class="lp-label">Finish</label>${sel('box_finish',['NC','UV','PU','Stain Only'])}</div>
-      <div class="lp-field"><label class="lp-label">Color Outside</label>${inp('box_color_outside','Standard')}</div>
-      <div class="lp-field"><label class="lp-label">Color Inside</label>${inp('box_color_inside','Stain match door faces')}</div>
-    </div>
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2);margin-bottom:8px">🚪 Cabinet Door / Drawer Face</div>
-    <div class="lp-contact-grid" style="margin-bottom:8px">
-      <div class="lp-field"><label class="lp-label">Species</label>${inp('door_species','e.g. Acacia, Oak...')}</div>
-      <div class="lp-field"><label class="lp-label">Color / Stain</label>${inp('door_stain','e.g. Sample, White...')}</div>
-      <div class="lp-field"><label class="lp-label">Finish</label>${sel('door_finish',['NC','UV','PU','Stain Only'])}</div>
-      <div class="lp-field"><label class="lp-label">Door Style</label>${inp('door_style','e.g. Shaker, Slab...')}</div>
-      <div class="lp-field"><label class="lp-label">Grain Direction</label>${sel('grain_dir',['Vertical','Horizontal'])}</div>
-    </div>
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2);margin-bottom:8px">🔩 Drawer & Hardware</div>
-    <div class="lp-contact-grid">
-      <div class="lp-field"><label class="lp-label">Drawer Species</label>${inp('drawer_species','')}</div>
-      <div class="lp-field"><label class="lp-label">Drawer Style</label>${inp('drawer_style','e.g. Dovetail...')}</div>
-      <div class="lp-field"><label class="lp-label">Drawer Slide</label>${sel('drawer_slide',['Soft-close undermount','Side mount','Standard'])}</div>
-      <div class="lp-field"><label class="lp-label">Hinge</label>${sel('hinge',['Soft-close','Standard'])}</div>
-      <div class="lp-field"><label class="lp-label">Fridge Panel</label>${inp('appl_fridge','')}</div>
-      <div class="lp-field"><label class="lp-label">Cooktop</label>${inp('appl_cooktop','')}</div>
-    </div>
-  </div>`;
+  const save = (field, val) => `saveOrderCI(${customer.id},'${order.id}','${field}',${val})`;
+  return buildCollectSpecForm(order.collect_info || {}, save, 'o' + order.id, false);
 }
 
 function buildOrderChecklistSummary(order) {
@@ -2711,11 +2677,21 @@ function buildOrderDetail(order, customer) {
   return buildOrderSummaryBanner(order, customer) + buildOrderDetailStage(order, customer);
 }
 
+// Same top block on every order, whatever its stage or how it was created
+function buildOrderCommonTop(order, customer) {
+  return buildOrderQuoteSection(order)
+    + buildSecCard(`ci-${order.id}`, 'stage', '📋', 'Order Info', '', buildOrderCollectInfoForm(order, customer), true)
+    + buildUrgentSection(order, customer);
+}
+
 function buildOrderDetailStage(order, customer) {
+  return buildOrderCommonTop(order, customer) + buildOrderDetailStageBody(order, customer);
+}
+
+function buildOrderDetailStageBody(order, customer) {
   if (order.stage === 'lead') {
     return `
       ${buildDepositSection(order, customer)}
-      ${buildUrgentSection(order, customer)}
       ${buildWorkflowSection(order, customer, ['quote'])}
       ${buildNotesSection(order, customer)}
       ${buildFurnitureSection(order, customer)}
@@ -2727,7 +2703,6 @@ function buildOrderDetailStage(order, customer) {
   if (order.stage === 'deposit') {
     return `
       ${buildDepositSection(order, customer)}
-      ${buildUrgentSection(order, customer)}
       ${buildWorkflowSection(order, customer, ['quote','deposit'])}
       ${buildNotesSection(order, customer)}
       ${buildFurnitureSection(order, customer)}
@@ -2754,9 +2729,6 @@ function buildOrderDetailStage(order, customer) {
       : '';
 
     let html = deadlineBanner + buildDepositSection(order, customer);
-    html += buildOrderQuoteSection(order);
-    html += buildUrgentSection(order, customer);
-    html += buildSecCard(`ci-${order.id}`, 'stage', '📋', 'Order Info', '', buildOrderCollectInfoForm(order, customer), true);
     html += `<div class="checklist-progress">
       <div class="cp-label">Info Checklist</div>
       <div class="cp-bar"><div class="cp-fill" id="cp-fill-${order.id}" style="width:${pct}%"></div></div>
@@ -2801,9 +2773,6 @@ function buildOrderDetailStage(order, customer) {
   if (order.stage === 'production') {
     return `
       ${order.deposit_received ? buildDepositSection(order, customer) : ''}
-      ${buildOrderQuoteSection(order)}
-      ${buildOrderSpecsSection(order)}
-      ${buildUrgentSection(order, customer)}
       ${buildSpecSummarySection(order, customer)}
       ${buildWorkflowSection(order, customer, ['production'])}
       ${buildProductionTimeline(order)}
@@ -5570,59 +5539,38 @@ function collectProgress(po) {
   return { filled, total: required.length, pct: Math.round(filled / required.length * 100) };
 }
 
-function buildLeadInfoTab(lead, po) {
-  if (!po) return '<div style="padding:20px;color:var(--muted)">No PO selected.</div>';
-  const c = getCI(po);
-  const prog = collectProgress(po);
-  const id = lead.id;
-  const pid = po.id;
-
+// Shared spec form — used by Leads (Collect tab) and every pipeline order (Order Info)
+// save(field, valueExpr) returns the inline JS call that persists one field
+function buildCollectSpecForm(c, save, key, showDrive = true) {
   function sel(field, opts, extra='') {
-    return `<select class="lp-input" onchange="saveCI('${id}','${pid}','${field}',this.value)" ${extra}>
+    return `<select class="lp-input" onchange="${save(field,'this.value')}" ${extra}>
       <option value="">— select —</option>
       ${opts.map(o => `<option${c[field]===o?' selected':''}>${o}</option>`).join('')}
     </select>`;
   }
   function inp(field, placeholder='', type='text', extra='') {
     return `<input class="lp-input" type="${type}" placeholder="${placeholder}" value="${c[field]||''}"
-      onchange="saveCI('${id}','${pid}','${field}',this.value)" ${extra}>`;
+      onchange="${save(field,'this.value')}" ${extra}>`;
   }
   function yn(field, label) {
     const v = c[field];
     return `<div class="ci-yn-row">
       <span class="ci-yn-label">${label}</span>
-      <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="saveCI('${id}','${pid}','${field}','yes')"> Yes</label>
-      <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="saveCI('${id}','${pid}','${field}','no')"> No</label>
+      <label class="ci-yn-opt"><input type="radio" name="${key}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="${save(field,"'yes'")}"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${key}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="${save(field,"'no'")}"> No</label>
     </div>`;
   }
   function ynDate(field, label) {
     const v = c[field]; const d = c[field+'_date']||'';
     return `<div class="ci-yn-row">
       <span class="ci-yn-label">${label}</span>
-      <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="saveCI('${id}','${pid}','${field}','yes')"> Yes</label>
-      <label class="ci-yn-opt"><input type="radio" name="${pid}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="saveCI('${id}','${pid}','${field}','no')"> No</label>
-      <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${d}" style="width:130px;margin-left:auto" onchange="saveCI('${id}','${pid}','${field}_date',this.value)">
+      <label class="ci-yn-opt"><input type="radio" name="${key}_${field}" value="yes" ${v==='yes'?'checked':''} onchange="${save(field,"'yes'")}"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${key}_${field}" value="no"  ${v==='no' ?'checked':''} onchange="${save(field,"'no'")}"> No</label>
+      <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${d}" style="width:130px;margin-left:auto" onchange="${save(field+'_date','this.value')}">
     </div>`;
   }
 
-  const progressColor = prog.pct >= 80 ? '#059669' : prog.pct >= 50 ? '#D97706' : '#6366F1';
-
   return `
-  <!-- Progress bar -->
-  <div style="margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <span style="font-size:11px;font-weight:700;color:${progressColor};text-transform:uppercase;letter-spacing:0.4px">Collecting Info</span>
-      <span id="ci-progress-pct" style="font-size:11px;color:var(--muted)">${prog.filled}/${prog.total} filled</span>
-    </div>
-    <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden">
-      <div id="ci-progress-bar" style="height:100%;width:${prog.pct}%;background:${progressColor};border-radius:99px;transition:width 0.3s"></div>
-    </div>
-    <button id="ci-ready-btn" onclick="markReadyToQuote('${id}')"
-      style="display:${prog.pct>=80?'block':'none'};width:100%;margin-top:10px;padding:10px;background:#059669;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
-      ✅ Info Complete — Move to Quote
-    </button>
-  </div>
-
   <!-- CABINET SPECS -->
   <div class="ci-section">
     <div class="ci-section-title">🪵 Cabinet Box</div>
@@ -5695,9 +5643,9 @@ function buildLeadInfoTab(lead, po) {
     ${yn('roll_trays','Roll-out Trays')}
     <div class="ci-yn-row">
       <span class="ci-yn-label">Glass Door</span>
-      <label class="ci-yn-opt"><input type="radio" name="${pid}_glass_door" value="yes" ${c.glass_door==='yes'?'checked':''} onchange="saveCI('${id}','${pid}','glass_door','yes')"> Yes</label>
-      <label class="ci-yn-opt"><input type="radio" name="${pid}_glass_door" value="no"  ${c.glass_door==='no' ?'checked':''} onchange="saveCI('${id}','${pid}','glass_door','no')"> No</label>
-      ${c.glass_door==='yes' ? `<select class="lp-input" style="width:120px;margin-left:auto" onchange="saveCI('${id}','${pid}','glass_type',this.value)">
+      <label class="ci-yn-opt"><input type="radio" name="${key}_glass_door" value="yes" ${c.glass_door==='yes'?'checked':''} onchange="${save('glass_door',"'yes'")}"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${key}_glass_door" value="no"  ${c.glass_door==='no' ?'checked':''} onchange="${save('glass_door',"'no'")}"> No</label>
+      ${c.glass_door==='yes' ? `<select class="lp-input" style="width:120px;margin-left:auto" onchange="${save('glass_type','this.value')}">
         ${['Molded','Etched','Clear','Frosted'].map(t=>`<option${c.glass_type===t?' selected':''}>${t}</option>`).join('')}
       </select>` : ''}
     </div>
@@ -5734,17 +5682,47 @@ function buildLeadInfoTab(lead, po) {
     </div>
   </div>
 
-  <!-- GOOGLE DRIVE -->
+  ${showDrive ? `<!-- GOOGLE DRIVE -->
   <div class="ci-section" style="margin-bottom:24px">
     <div class="ci-section-title">🗂 Google Drive — Customer Folder</div>
     <div class="lp-field">
       <label class="lp-label">Drive Link</label>
       <input class="lp-input" type="url" placeholder="https://drive.google.com/..." value="${c.drive_link||''}"
-        onchange="saveCI('${id}','drive_link',this.value)">
+        onchange="${save('drive_link','this.value')}">
     </div>
     ${c.drive_link ? `<a href="${c.drive_link}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--brand);text-decoration:none;font-weight:600">
       📂 Open Folder →</a>` : ''}
-  </div>`;
+  </div>` : ''}`;
+}
+
+function buildLeadInfoTab(lead, po) {
+  if (!po) return '<div style="padding:20px;color:var(--muted)">No PO selected.</div>';
+  const c = getCI(po);
+  const prog = collectProgress(po);
+  const id = lead.id;
+  const pid = po.id;
+
+  const save = (field, val) => `saveCI('${id}','${pid}','${field}',${val})`;
+
+  const progressColor = prog.pct >= 80 ? '#059669' : prog.pct >= 50 ? '#D97706' : '#6366F1';
+
+  return `
+  <!-- Progress bar -->
+  <div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <span style="font-size:11px;font-weight:700;color:${progressColor};text-transform:uppercase;letter-spacing:0.4px">Collecting Info</span>
+      <span id="ci-progress-pct" style="font-size:11px;color:var(--muted)">${prog.filled}/${prog.total} filled</span>
+    </div>
+    <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden">
+      <div id="ci-progress-bar" style="height:100%;width:${prog.pct}%;background:${progressColor};border-radius:99px;transition:width 0.3s"></div>
+    </div>
+    <button id="ci-ready-btn" onclick="markReadyToQuote('${id}')"
+      style="display:${prog.pct>=80?'block':'none'};width:100%;margin-top:10px;padding:10px;background:#059669;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+      ✅ Info Complete — Move to Quote
+    </button>
+  </div>
+
+  ${buildCollectSpecForm(c, save, pid)}`;
 }
 
 async function markReadyToQuote(leadId) {
