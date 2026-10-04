@@ -2545,8 +2545,14 @@ function buildDepositSection(order, customer) {
     return `<div class="deposit-box received">
       <div class="deposit-title">✅ Deposit Received</div>
       <div style="font-size:12px;display:flex;gap:16px;flex-wrap:wrap">
-        <span>📅 Date: <strong>${order.deposit_date || '—'}</strong></span>
-        <span>💵 Amount: <strong>${order.deposit_amount ? '$' + Number(order.deposit_amount).toLocaleString() : '—'}</strong></span>
+        <label style="display:flex;align-items:center;gap:6px">📅 Date:
+          <input type="date" min="2020-01-01" max="2035-12-31" value="${order.deposit_date || ''}"
+            style="padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;font-weight:600;background:white"
+            onchange="saveOrderField(${customer.id},'${order.id}','deposit_date',this.value)"></label>
+        <label style="display:flex;align-items:center;gap:6px">💵 Amount: $
+          <input type="number" min="0" step="0.01" value="${order.deposit_amount ?? ''}"
+            style="width:120px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;font-weight:600;background:white"
+            onchange="updateDepositAmount(${customer.id},'${order.id}',this.value)"></label>
       </div>
       ${dl ? `<div class="deadline-tag ${dlClass}" style="margin-top:8px">
         ⏰ Delivery deadline: <strong>${dl}</strong>
@@ -3750,6 +3756,22 @@ function orderQuoteTotal(order) {
   const items = order.quote_items || [];
   const subtotal = items.reduce((s, it) => s + (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0), 0);
   return subtotal + (parseFloat(order.shipping_cost) || 0);
+}
+
+// Edit an already-recorded deposit; balance is recomputed the same way as recordDeposit
+async function updateDepositAmount(customerId, orderId, value) {
+  const c = customers.find(x => x.id == customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const amount = Math.max(0, parseFloat(value) || 0);
+  const quoteTotal = orderQuoteTotal(order);
+  const total = quoteTotal > 0 ? quoteTotal : (Number(order.balance) || 0) + (Number(order.deposit_amount) || 0);
+  const balance = Math.max(0, Math.round((total - amount) * 100) / 100);
+  order.deposit_amount = amount;
+  order.balance = balance;
+  await dbUpdate('orders', {id: orderId}, {deposit_amount: amount, balance});
+  showToast('✅ Deposit updated — Balance: $' + balance.toLocaleString('en-US'));
+  refreshOrderDetail(customerId, orderId);
 }
 
 async function recordDeposit(customerId, orderId) {
