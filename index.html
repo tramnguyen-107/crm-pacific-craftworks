@@ -3072,23 +3072,27 @@ const numOrNull = v => { if (v === null || v === undefined || v === '') return n
 
 // Reads the factory quote / packing sheet (No · Description · Species · W H D · Unit · Q'ty · … · CBM).
 // Numbered rows start a group; un-numbered rows below are its parts; text-only rows are section headers.
-function parseFactorySheet(rows) {
+function parseFactorySheet(rows, defaultCategory = '') {
   const norm = v => String(v ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
   const hr = rows.findIndex(r => (r || []).some(c => norm(c) === 'DESCRIPTION'));
   if (hr < 0) throw new Error('Không tìm thấy cột "DESCRIPTION" trong file.');
   const H = rows[hr] || [], H2 = rows[hr + 1] || [];
   const find = re => H.findIndex(c => re.test(norm(c)));
+  const findSub = re => H2.findIndex(c => re.test(norm(c)));
   const col = {
-    no: find(/^NO\.?$/), desc: find(/^DESCRIPTION$/), species: find(/SPECIES/), code: find(/CODE/),
+    no: find(/^NO\.?$/), desc: find(/^DESCRIPTION$/), species: find(/SPECIES/),
+    code: find(/CODE/) >= 0 ? find(/CODE/) : (find(/DRAWING/) >= 0 ? find(/DRAWING/) : findSub(/CODE/)),
     unit: find(/^UNIT$/), qty: find(/Q'?\s*TY|^QTY|QUANTITY/), cbm: find(/^CBM$/),
-    w: H2.findIndex(c => norm(c) === 'W'), h: H2.findIndex(c => norm(c) === 'H'), d: H2.findIndex(c => norm(c) === 'D'),
+    w: findSub(/^W$|^WIDTH$/), h: findSub(/^H$|^HEIGHT$/), d: findSub(/^D$|^DEPTH$/),
   };
   const dimsInSub = col.w >= 0;
-  if (!dimsInSub) { col.w = find(/^W$|WIDTH/); col.h = find(/^H$|HEIGHT/); col.d = find(/^D$|DEPTH/); }
+  if (!dimsInSub) { col.w = find(/^W$|^WIDTH/); col.h = find(/^H$|^HEIGHT/); col.d = find(/^D$|^DEPTH/); }
+  // Summary-type sheets (no size columns) are not item lists
+  if (col.w < 0 && col.h < 0) throw new Error('Sheet không có cột kích thước.');
   if (col.no < 0) col.no = 0;
   const get = (r, k) => col[k] >= 0 ? r[col[k]] : null;
 
-  const groups = []; let cur = null, category = '';
+  const groups = []; let cur = null, category = defaultCategory;
   for (let i = hr + (dimsInSub ? 2 : 1); i < rows.length; i++) {
     const r = rows[i] || [];
     const cells = r.map(norm).filter(Boolean);
@@ -3110,7 +3114,8 @@ function parseFactorySheet(rows) {
     } else if (desc && cur && (qty !== null || base.unit)) {
       cur.components.push(base);
     } else if (cells.length === 1 && qty === null) {
-      category = String(r.find(c => norm(c)) ?? '').trim(); cur = null;   // section header e.g. "Door"
+      const sec = String(r.find(c => norm(c)) ?? '').trim();   // section header e.g. "Door"
+      category = defaultCategory ? defaultCategory + ' · ' + sec : sec; cur = null;
     } else if (desc && cur) {
       cur.components.push(base);
     }
@@ -3214,8 +3219,16 @@ function openPackingImport(orderId) {
     const file = inp.files[0]; if (!file) return;
     try {
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null });
-      pkImport = { orderId, fileName: file.name, groups: isJobSheet(rows) ? parseJobSheet(rows) : parseFactorySheet(rows) };
+      const groups = [], skipped = [];
+      wb.SheetNames.forEach(name => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+        try {
+          groups.push(...(isJobSheet(rows) ? parseJobSheet(rows) : parseFactorySheet(rows, wb.SheetNames.length > 1 ? name : '')));
+        } catch (e) { skipped.push(name); }
+      });
+      if (!groups.length) throw new Error('Không đọc được dòng hàng nào trong file.');
+      groups.forEach((g, i) => g.no = i + 1);
+      pkImport = { orderId, fileName: file.name, groups, skipped };
       showPackingImportPreview();
     } catch (e) { alert('❌ Import lỗi: ' + e.message); }
   };
@@ -3242,7 +3255,7 @@ function showPackingImportPreview() {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML = `<div style="background:var(--bg, #FAF7F2);border-radius:14px;max-width:760px;width:100%;max-height:90vh;overflow:auto;padding:18px">
     <div style="font-size:15px;font-weight:800;margin-bottom:2px">📥 Import Packing List</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${fileName} · ${groups.length} group(s) · ${totalCbm.toFixed(4)} CBM</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${fileName} · ${groups.length} line(s) · ${totalCbm.toFixed(4)} CBM${pkImport.skipped?.length ? ` · bỏ qua sheet: ${pkImport.skipped.join(', ')}` : ''}</div>
     <div class="sub-title">Theo dõi QR</div>
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:6px;cursor:pointer">
       <input type="radio" name="pk-mode" value="set" ${defMode==='set'?'checked':''}>
