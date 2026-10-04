@@ -1746,6 +1746,65 @@ const CHECKLIST = {
 
 const TOTAL_CHECKS = Object.values(CHECKLIST).flat().length; // 19
 
+// Door orders — follows NEW ORDER FORM_DOOR (Order Checklist section)
+const DOOR_CHECKLIST = {
+  contact: [
+    { id: 'dc1', label: 'Customer name' },
+    { id: 'dc2', label: 'Customer e-mail' },
+    { id: 'dc3', label: 'Main contact number' },
+    { id: 'dc4', label: 'Job site address' },
+  ],
+  entry: [
+    { id: 'de1', label: 'Invoice number' },
+    { id: 'de2', label: 'Form submission date' },
+    { id: 'de3', label: 'Expected delivery date' },
+    { id: 'de4', label: 'Expected container date' },
+    { id: 'de5', label: 'Production order date' },
+  ],
+  hardware: [
+    { id: 'dh1', label: 'DW floor track' },
+    { id: 'dh2', label: 'Door hinges' },
+    { id: 'dh3', label: 'Door locksets (drill hole + hardware)' },
+    { id: 'dh4', label: 'Door handles (drill hole + hardware)' },
+  ],
+  glass: [
+    { id: 'dg1', label: 'Glass door' },
+  ],
+  service: [
+    { id: 'ds1', label: 'Delivery (tentative date)' },
+    { id: 'ds2', label: 'Installation (tentative date)' },
+    { id: 'ds3', label: 'Demolition (tentative date)' },
+    { id: 'ds4', label: 'Plumbing (tentative date)' },
+    { id: 'ds5', label: 'Electrical (tentative date)' },
+  ],
+};
+
+// Product type of an order/PO: 'cabinet' (default) or 'door'
+function orderProduct(order) {
+  return (order?.collect_info || {}).product === 'door' ? 'door' : 'cabinet';
+}
+function checklistGroups(order) {
+  if (orderProduct(order) === 'door') return [
+    { key: 'contact',  label: '👤 Contact Information', items: DOOR_CHECKLIST.contact },
+    { key: 'entry',    label: '🧾 Order Entry',         items: DOOR_CHECKLIST.entry },
+    { key: 'hardware', label: '🔩 Hardware',            items: DOOR_CHECKLIST.hardware },
+    { key: 'glass',    label: '🪟 Checklist',           items: DOOR_CHECKLIST.glass },
+    { key: 'service',  label: '🔧 Service',             items: DOOR_CHECKLIST.service },
+  ];
+  return [
+    { key: 'dimensions', label: '📐 Dimensions & Finish', items: CHECKLIST.dimensions },
+    { key: 'drawings',   label: '📄 Drawings',            items: CHECKLIST.drawings },
+    { key: 'stone',      label: '🪨 Stone',               items: CHECKLIST.stone },
+    { key: 'hardware',   label: '🔩 Hardware',            items: CHECKLIST.hardware },
+  ];
+}
+function totalChecks(order) { return checklistGroups(order).reduce((n, g) => n + g.items.length, 0); }
+// Only counts items that belong to this order's checklist
+function checkedCount(order) {
+  const ch = order?.checked || {};
+  return checklistGroups(order).reduce((n, g) => n + g.items.filter(i => ch[i.id]).length, 0);
+}
+
 // ============================================================
 // WORKFLOW TASKS — mapped from PCW business process flow
 // Assignees: Trâm, Thành, Andy, Giao, Nhung
@@ -1974,7 +2033,7 @@ function buildCard(customer) {
     const eta = o.eta || '—';
     const stageColor = stageColors[o.stage] || '#78898F';
     const stageLabel = stageLabels[o.stage] || o.stage;
-    const missingInfo = o.stage === 'collect' && Object.values(o.checked || {}).filter(Boolean).length < TOTAL_CHECKS;
+    const missingInfo = o.stage === 'collect' && checkedCount(o) < totalChecks(o);
     const fpo = factoryPOs.find(f => (f.customerOrders||[]).some(r => r.orderId === o.id));
     const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => r.orderId === o.id));
 
@@ -2044,7 +2103,7 @@ function buildOrderCard(order, customer) {
   const stageColor = stageColors[order.stage] || '#78898F';
   const stageLabel = stageLabels[order.stage] || order.stage;
   const isUrgent = order.urgent;
-  const missingInfo = order.stage === 'collect' && Object.values(order.checked || {}).filter(Boolean).length < TOTAL_CHECKS;
+  const missingInfo = order.stage === 'collect' && checkedCount(order) < totalChecks(order);
   const fpo = factoryPOs.find(f => (f.customerOrders||[]).some(r => r.orderId === order.id));
   const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => r.orderId === order.id));
   const projectName = order.project_name
@@ -2159,8 +2218,8 @@ function buildOrdersTab(c) {
     ${c.stage !== 'done' ? `<button class="btn btn-danger" onclick="archiveCustomer(${c.id})">📁 Archive</button>` : `<span style="font-size:11px;color:var(--muted);align-self:center;padding:0 8px">📁 Archived</span>`}
   </div>`;
   c.orders.forEach((order, i) => {
-    const checked = Object.values(order.checked || {}).filter(Boolean).length;
-    const pct = Math.round((checked / TOTAL_CHECKS) * 100);
+    const checked = checkedCount(order);
+    const pct = Math.round((checked / totalChecks(order)) * 100);
     const stageLabel = { lead: 'Lead', deposit: 'Deposit', collect: 'Collecting Info', production: 'In Production', shipped: 'Shipped', done: 'Done' };
     const stageBadge = { lead: 'badge-lead', deposit: 'badge-deposit', collect: 'badge-collect', production: 'badge-production', shipped: 'badge-shipped', done: 'badge-done' };
     const barColor = pct === 100 ? '#10B981' : pct > 50 ? '#3B82F6' : '#F59E0B';
@@ -2207,17 +2266,23 @@ function buildSpecSummarySection(order, customer) {
 
 function buildOrderCollectInfoForm(order, customer) {
   const save = (field, val) => `saveOrderCI(${customer.id},'${order.id}','${field}',${val})`;
-  return buildCollectSpecForm(order.collect_info || {}, save, 'o' + order.id, false);
+  return buildCollectSpecForm(order.collect_info || {}, save, 'o' + order.id, false,
+    `refreshOrderDetail(${customer.id},'${order.id}')`);
+}
+
+// Re-render one order's detail block + the board (e.g. after switching Cabinet/Door)
+function refreshOrderDetail(customerId, orderId) {
+  const c = customers.find(x => x.id == customerId);
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const detailEl = document.getElementById('detail-' + orderId);
+  if (detailEl) { detailEl.innerHTML = buildFullOrderDetail(order, c); renderQRCodes(); }
+  renderBoard();
 }
 
 function buildOrderChecklistSummary(order) {
   const checked = order.checked || {};
-  const groups = [
-    { label: '📐 Dimensions & Finish', items: CHECKLIST.dimensions },
-    { label: '📄 Drawings', items: CHECKLIST.drawings },
-    { label: '🪨 Stone', items: CHECKLIST.stone },
-    { label: '🔩 Hardware', items: CHECKLIST.hardware },
-  ];
+  const groups = checklistGroups(order);
   return `<div style="margin-top:8px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2);margin-bottom:8px">✅ Collect Checklist</div>
     ${groups.map(g => `
@@ -2713,9 +2778,10 @@ function buildOrderDetailStageBody(order, customer) {
 
   if (order.stage === 'collect') {
     const checked = order.checked || {};
-    const checkedCount = Object.values(checked).filter(Boolean).length;
-    const pct = Math.round((checkedCount / TOTAL_CHECKS) * 100);
-    const allDone = checkedCount === TOTAL_CHECKS;
+    const TOTAL = totalChecks(order);
+    const doneCount = checkedCount(order);
+    const pct = Math.round((doneCount / TOTAL) * 100);
+    const allDone = doneCount === TOTAL;
     const signOff = checked['dr3'];
     const canPush = allDone;
 
@@ -2732,15 +2798,10 @@ function buildOrderDetailStageBody(order, customer) {
     html += `<div class="checklist-progress">
       <div class="cp-label">Info Checklist</div>
       <div class="cp-bar"><div class="cp-fill" id="cp-fill-${order.id}" style="width:${pct}%"></div></div>
-      <div class="cp-count" id="cp-count-${order.id}">${checkedCount}/${TOTAL_CHECKS}</div>
+      <div class="cp-count" id="cp-count-${order.id}">${doneCount}/${TOTAL}</div>
     </div>`;
 
-    const groups = [
-      { key: 'dimensions', label: '📐 Dimensions & Finish', items: CHECKLIST.dimensions },
-      { key: 'drawings', label: '📄 Drawings', items: CHECKLIST.drawings },
-      { key: 'stone', label: '🪨 Stone', items: CHECKLIST.stone },
-      { key: 'hardware', label: '🔩 Hardware', items: CHECKLIST.hardware },
-    ];
+    const groups = checklistGroups(order);
     groups.forEach(g => {
       html += `<div class="checklist-group"><div class="group-label">${g.label}</div><div class="checklist">`;
       g.items.forEach(item => {
@@ -2754,7 +2815,7 @@ function buildOrderDetailStageBody(order, customer) {
     });
 
     if (!allDone) {
-      html += `<div class="alert-box alert-block">⛔ ${TOTAL_CHECKS - checkedCount} item(s) missing — complete checklist first.</div>`;
+      html += `<div class="alert-box alert-block">⛔ ${TOTAL - doneCount} item(s) missing — complete checklist first.</div>`;
     } else if (!signOff) {
       html += `<div class="alert-box alert-warning">⚠️ All items checked but client hasn't signed off on shop drawing.</div>`;
     } else {
@@ -3684,6 +3745,13 @@ function collectDeadlineStatus(order) {
   return { cls:'ok', label:`✅ ${Math.floor(hLeft)}h ${Math.round((hLeft%1)*60)}min remaining (deadline: ${dl.toLocaleString('en-US',{timeZone:'Pacific/Honolulu',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})})` };
 }
 
+// Grand total of an order's quote (items + shipping); 0 if no quote yet
+function orderQuoteTotal(order) {
+  const items = order.quote_items || [];
+  const subtotal = items.reduce((s, it) => s + (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0), 0);
+  return subtotal + (parseFloat(order.shipping_cost) || 0);
+}
+
 async function recordDeposit(customerId, orderId) {
   const c = customers.find(x => x.id === customerId);
   const order = c?.orders.find(o => o.id === orderId);
@@ -3694,14 +3762,18 @@ async function recordDeposit(customerId, orderId) {
   const today = hawaiiDateStr(hi);
   const eta = addDays(today, 84);                          // ETA = deposit + 12 weeks
   const collectDeadline = new Date(now.getTime() + 24*3600*1000).toISOString(); // +24h from now (UTC)
+  // Balance = quote total − deposit (fall back to the stored balance when there is no quote)
+  const quoteTotal = orderQuoteTotal(order);
+  const balance = Math.max(0, (quoteTotal > 0 ? quoteTotal : Number(order.balance) || 0) - amount);
   order.deposit_received = true;
   order.deposit_date = today;
   order.deposit_amount = amount;
+  order.balance = balance;
   order.eta = eta;
   order.log_in_date = now.toISOString();
   order.collect_deadline = collectDeadline;
   await dbUpdate('orders', {id: orderId}, {
-    deposit_received: true, deposit_date: today, deposit_amount: amount,
+    deposit_received: true, deposit_date: today, deposit_amount: amount, balance,
     eta, log_in_date: now.toISOString(), collect_deadline: collectDeadline
   });
   renderBoard();
@@ -4044,15 +4116,15 @@ function toggleCheck(customerId, orderId, checkId, el) {
   el.classList.toggle('checked', val);
 
   // Update progress bar
-  const checkedCount = Object.values(order.checked).filter(Boolean).length;
-  const pct = Math.round(checkedCount / TOTAL_CHECKS * 100);
+  const done = checkedCount(order), total = totalChecks(order);
+  const pct = Math.round(done / total * 100);
   const fill = document.getElementById('cp-fill-' + orderId);
   const cnt  = document.getElementById('cp-count-' + orderId);
   if (fill) fill.style.width = pct + '%';
-  if (cnt)  cnt.textContent = checkedCount + '/' + TOTAL_CHECKS;
+  if (cnt)  cnt.textContent = done + '/' + total;
 
   // Update push button state
-  const allDone = checkedCount === TOTAL_CHECKS;
+  const allDone = done === total;
   document.querySelectorAll('.action-bar .btn-primary').forEach(btn => {
     if (btn.textContent.includes('Push to Factory')) btn.disabled = !allDone;
   });
@@ -4085,8 +4157,7 @@ async function moveToCollect(customerId, orderId) {
 async function pushToFactory(customerId, orderId) {
   const c = customers.find(x => x.id === customerId);
   const order = c.orders.find(o => o.id === orderId);
-  const checked = Object.values(order.checked || {}).filter(Boolean).length;
-  if (checked < TOTAL_CHECKS) { alert('⛔ Please complete all checklist items first.'); return; }
+  if (checkedCount(order) < totalChecks(order)) { alert('⛔ Please complete all checklist items first.'); return; }
   const today = new Date().toISOString().split('T')[0];
   order.stage = 'production'; order.specSent = today;
   const allBeyond = c.orders.every(o => ['production','shipped','done'].includes(o.stage));
@@ -4493,7 +4564,7 @@ async function addOrderFromLead(virtualLeadId, poId) {
     const newO = await dbInsert('orders', {
       id: newOId, customer_id: vl._forCustomer, type: projectType,
       project_name: projectName, stage: 'collect',
-      balance: grandTotal > 0 ? grandTotal - deposit : 0,
+      balance: grandTotal > 0 ? grandTotal : 0,
       notes: vl.notes || '', checked: {}, deposit_received: false,
       collect_info: po.collect_info || {}, quote_items: po.quote_items || [], shipping_cost: po.shipping_cost || 0,
     });
@@ -4534,7 +4605,7 @@ async function addOrderFromLead(virtualLeadId, poId) {
     const newO = await dbInsert('orders', {
       id: newOId, customer_id: targetCust.id, type: projectType,
       project_name: projectName, stage: 'collect',
-      balance: grandTotal > 0 ? grandTotal - deposit : 0,
+      balance: grandTotal > 0 ? grandTotal : 0,
       notes: vl.notes || '', checked: {}, deposit_received: false,
       collect_info: po.collect_info || {}, quote_items: po.quote_items || [], shipping_cost: po.shipping_cost || 0,
     });
@@ -4600,7 +4671,7 @@ function renderDashboard() {
     { label: 'In Production', value: allOrders.filter(o => o.stage === 'production').length, sub: 'at factory now', color: '#3B82F6' },
     { label: 'Shipped YTD', value: factoryPOs.filter(f => ['loaded','delivered'].includes(f.status)).length, sub: 'containers ' + thisYear, color: '#8B5CF6' },
     { label: 'Delivered', value: allOrders.filter(o => o.stage === 'done').length, sub: 'orders completed', color: '#10B981' },
-    { label: '⚠️ Missing Info', value: allOrders.filter(o => o.stage === 'collect' && Object.values(o.checked||{}).filter(Boolean).length < TOTAL_CHECKS).length, sub: 'need attention', color: '#EF4444' },
+    { label: '⚠️ Missing Info', value: allOrders.filter(o => o.stage === 'collect' && checkedCount(o) < totalChecks(o)).length, sub: 'need attention', color: '#EF4444' },
   ];
   document.getElementById('kpi-row').innerHTML = kpis.map(k =>
     `<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value" style="color:${k.color}">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`
@@ -4647,8 +4718,8 @@ function renderDashboard() {
   customers.forEach(c => {
     c.orders.forEach(o => {
       if (o.stage === 'collect') {
-        const checked = Object.values(o.checked||{}).filter(Boolean).length;
-        if (checked < TOTAL_CHECKS) actions.push({ color: '#EF4444', bg: '#FEF2F2', text: `${o.id} — Missing info`, sub: `${c.name} · ${TOTAL_CHECKS - checked} items left`, cid: c.id });
+        const left = totalChecks(o) - checkedCount(o);
+        if (left > 0) actions.push({ color: '#EF4444', bg: '#FEF2F2', text: `${o.id} — Missing info`, sub: `${c.name} · ${left} items left`, cid: c.id });
       }
       if (o.stage === 'lead') actions.push({ color: '#F59E0B', bg: '#FFFBEB', text: `${o.id} — Follow up`, sub: `${c.name} · ${o.type}`, cid: c.id });
     });
@@ -5532,6 +5603,13 @@ async function saveCI(leadId, poId, field, value) {
 
 function collectProgress(po) {
   const c = po?.collect_info || {};
+  if (c.product === 'door') {
+    const g = (Array.isArray(c.door_groups) && c.door_groups[0]) || {};
+    const req = [g.species, g.style, g.color, g.finish, g.sample,
+      c.door_hinges, c.lockset_hw, c.handle_hw, c.lockset_drill, c.handle_drill];
+    const filled = req.filter(v => v && v !== '').length;
+    return { filled, total: req.length, pct: Math.round(filled / req.length * 100) };
+  }
   const required = ['box_species','door_species','door_stain','door_finish','door_style',
     'grain_dir','drawer_species','drawer_style','drawer_slide','hinge',
     'appl_fridge','appl_cooktop'];
@@ -5541,7 +5619,48 @@ function collectProgress(po) {
 
 // Shared spec form — used by Leads (Collect tab) and every pipeline order (Order Info)
 // save(field, valueExpr) returns the inline JS call that persists one field
-function buildCollectSpecForm(c, save, key, showDrive = true) {
+// Registry so door-group edits (array field) can be saved from inline handlers
+const CI_FORMS = {};
+function ciForm(key) { return CI_FORMS[key]; }
+function ciDoorGroups(f) {
+  if (!Array.isArray(f.c.door_groups) || !f.c.door_groups.length) f.c.door_groups = [{}];
+  return f.c.door_groups;
+}
+async function ciDoorSet(key, i, field, value) {
+  const f = ciForm(key); if (!f) return;
+  const arr = ciDoorGroups(f);
+  arr[i] = { ...(arr[i] || {}), [field]: value };
+  await f.save('door_groups', arr);
+}
+async function ciDoorAdd(key) {
+  const f = ciForm(key); if (!f) return;
+  ciDoorGroups(f).push({});
+  await f.save('door_groups', f.c.door_groups);
+  f.refresh();
+}
+async function ciDoorRemove(key, i) {
+  const f = ciForm(key); if (!f) return;
+  if (!confirm('Remove door group ' + String.fromCharCode(65 + i) + '?')) return;
+  ciDoorGroups(f).splice(i, 1);
+  await f.save('door_groups', f.c.door_groups);
+  f.refresh();
+}
+async function ciSetProduct(key, product) {
+  const f = ciForm(key); if (!f) return;
+  f.c.product = product;
+  await f.save('product', product);
+  f.refresh();
+}
+
+// refresh = inline JS that re-renders the form after a structural change
+function buildCollectSpecForm(c, save, key, showDrive = true, refresh = '') {
+  CI_FORMS[key] = {
+    c,
+    save: (field, value) => new Function('v', 'return ' + save(field, 'v'))(value),
+    refresh: () => { if (refresh) new Function(refresh)(); },
+  };
+  const product = c.product === 'door' ? 'door' : 'cabinet';
+  const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   function sel(field, opts, extra='') {
     return `<select class="lp-input" onchange="${save(field,'this.value')}" ${extra}>
       <option value="">— select —</option>
@@ -5570,7 +5689,110 @@ function buildCollectSpecForm(c, save, key, showDrive = true) {
     </div>`;
   }
 
-  return `
+  const pBtn = (val, label) => `<button type="button" onclick="ciSetProduct('${key}','${val}')"
+      style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid ${product===val?'var(--brand)':'var(--border)'};background:${product===val?'var(--brand)':'white'};color:${product===val?'white':'var(--text)'}">${label}</button>`;
+  const productToggle = `<div class="ci-section">
+    <div class="ci-section-title">🏷 Product Type</div>
+    <div style="display:flex;gap:8px">${pBtn('cabinet','🗄 Cabinet')}${pBtn('door','🚪 Door')}</div>
+  </div>`;
+  const driveHtml = showDrive ? `<div class="ci-section" style="margin-bottom:24px">
+    <div class="ci-section-title">🗂 Google Drive — Customer Folder</div>
+    <div class="lp-field">
+      <label class="lp-label">Drive Link</label>
+      <input class="lp-input" type="url" placeholder="https://drive.google.com/..." value="${esc(c.drive_link)}"
+        onchange="${save('drive_link','this.value')}">
+    </div>
+    ${c.drive_link ? `<a href="${esc(c.drive_link)}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--brand);text-decoration:none;font-weight:600">📂 Open Folder →</a>` : ''}
+  </div>` : '';
+
+  if (product === 'door') {
+    const groups = (Array.isArray(c.door_groups) && c.door_groups.length) ? c.door_groups : [{}];
+    const dInp = (i, g, field, ph='') => `<input class="lp-input" placeholder="${ph}" value="${esc(g[field])}" onchange="ciDoorSet('${key}',${i},'${field}',this.value)">`;
+    const dSel = (i, g, field, opts) => `<select class="lp-input" onchange="ciDoorSet('${key}',${i},'${field}',this.value)">
+      <option value="">— select —</option>${opts.map(o => `<option${g[field]===o?' selected':''}>${o}</option>`).join('')}</select>`;
+    const groupHtml = groups.map((g, i) => `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:white">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:12px;font-weight:800;color:var(--brand)">Door ${String.fromCharCode(65 + i)}</span>
+          ${groups.length > 1 ? `<button type="button" onclick="ciDoorRemove('${key}',${i})" style="border:none;background:none;color:#DC2626;font-size:11px;cursor:pointer;font-family:inherit">✕ Remove</button>` : ''}
+        </div>
+        <div class="lp-field" style="margin-bottom:8px"><label class="lp-label">Number of door – revision of drawing</label>${dInp(i,g,'ref','e.g. 3 doors – Rev B')}</div>
+        <div class="lp-contact-grid">
+          <div class="lp-field"><label class="lp-label">Species *</label>${dInp(i,g,'species','e.g. Acacia, Oak...')}</div>
+          <div class="lp-field"><label class="lp-label">Style *</label>${dSel(i,g,'style',['Slab','Shaker','Raised Panel','Flush','Other'])}</div>
+          <div class="lp-field"><label class="lp-label">Color / Stain *</label>${dInp(i,g,'color','e.g. Sample, White...')}</div>
+          <div class="lp-field"><label class="lp-label">Color sample for approval</label>${dSel(i,g,'sample',['New','Standard'])}</div>
+          <div class="lp-field"><label class="lp-label">Finish *</label>${dSel(i,g,'finish',['NC','PU','UV','Lacquer','Stain Only'])}</div>
+          <div class="lp-field"><label class="lp-label">Finish code</label>${dInp(i,g,'finish_code','Code')}</div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-2);margin:10px 0 6px">🔒 Mortise Lockset</div>
+        <div class="lp-contact-grid">
+          <div class="lp-field"><label class="lp-label">Lockset name</label>${dInp(i,g,'lockset_name')}</div>
+          <div class="lp-field"><label class="lp-label">Model</label>${dInp(i,g,'lockset_model')}</div>
+          <div class="lp-field"><label class="lp-label">Dimension</label>${dInp(i,g,'lockset_dim')}</div>
+          <div class="lp-field"><label class="lp-label">Link</label>${dInp(i,g,'lockset_link','https://...')}</div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-2);margin:10px 0 6px">🚪 Mortise Handle</div>
+        <div class="lp-contact-grid">
+          <div class="lp-field"><label class="lp-label">Handle name</label>${dInp(i,g,'handle_name')}</div>
+          <div class="lp-field"><label class="lp-label">Model</label>${dInp(i,g,'handle_model')}</div>
+          <div class="lp-field"><label class="lp-label">Dimension</label>${dInp(i,g,'handle_dim')}</div>
+          <div class="lp-field"><label class="lp-label">Link</label>${dInp(i,g,'handle_link','https://...')}</div>
+        </div>
+      </div>`).join('');
+    const supply = ['Factory Supply','Other Supply','Client Supply'];
+    return productToggle + `
+  <div class="ci-section">
+    <div class="ci-section-title">🚪 Door Order Information</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Special instructions: see attached drawings.</div>
+    ${groupHtml}
+    <button type="button" onclick="ciDoorAdd('${key}')" style="width:100%;padding:8px;border:1.5px dashed var(--border);border-radius:8px;background:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">+ Add door group</button>
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">📝 Special Note</div>
+    <textarea class="lp-input" rows="3" style="resize:vertical" placeholder="Special notes for the factory..." onchange="${save('special_notes','this.value')}">${esc(c.special_notes)}</textarea>
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">🔩 Hardware</div>
+    ${yn('dw_floor_track','DW Floor Track')}
+    <div class="lp-contact-grid" style="margin-top:8px">
+      <div class="lp-field"><label class="lp-label">Door Hinges *</label>${sel('door_hinges', supply)}</div>
+      <div class="lp-field"><label class="lp-label">Lockset Hardware *</label>${sel('lockset_hw', supply)}</div>
+      <div class="lp-field"><label class="lp-label">Handle Hardware *</label>${sel('handle_hw', supply)}</div>
+    </div>
+    <div style="margin-top:8px">
+      ${yn('lockset_drill','Door Locksets — drill hole')}
+      ${yn('handle_drill','Door Handles — drill hole')}
+    </div>
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">✅ Checklist</div>
+    <div class="ci-yn-row">
+      <span class="ci-yn-label">Glass Door</span>
+      <label class="ci-yn-opt"><input type="radio" name="${key}_glass_door" value="yes" ${c.glass_door==='yes'?'checked':''} onchange="${save('glass_door',"'yes'")}"> Yes</label>
+      <label class="ci-yn-opt"><input type="radio" name="${key}_glass_door" value="no"  ${c.glass_door==='no' ?'checked':''} onchange="${save('glass_door',"'no'")}"> No</label>
+      <select class="lp-input" style="width:120px;margin-left:auto" onchange="${save('glass_type','this.value')}">
+        <option value="">Glass type</option>
+        ${['Molded','Etched','Clear','Frosted'].map(t=>`<option${c.glass_type===t?' selected':''}>${t}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="ci-section">
+    <div class="ci-section-title">🔧 Services</div>
+    ${ynDate('delivery','Delivery')}
+    ${ynDate('installation','Installation')}
+    ${ynDate('demolition','Demolition')}
+    ${ynDate('plumbing','Plumbing')}
+    ${ynDate('electrical','Electrical')}
+  </div>
+  ${driveHtml}`;
+  }
+
+  return productToggle + `
   <!-- CABINET SPECS -->
   <div class="ci-section">
     <div class="ci-section-title">🪵 Cabinet Box</div>
@@ -5722,7 +5944,7 @@ function buildLeadInfoTab(lead, po) {
     </button>
   </div>
 
-  ${buildCollectSpecForm(c, save, pid)}`;
+  ${buildCollectSpecForm(c, save, pid, true, 'renderLeadTab(activeLeadTab)')}`;
 }
 
 async function markReadyToQuote(leadId) {
