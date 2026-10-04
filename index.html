@@ -438,16 +438,19 @@
   .sec-card-body.hidden { display:none; }
 
   /* Section accent colors */
-  .sec-card.sec-packing .sec-card-hdr  { border-left:4px solid #92400e; }
-  .sec-card.sec-packing .sec-card-title { color:#92400e; }
-  .sec-card.sec-invoice .sec-card-hdr  { border-left:4px solid #1D4ED8; }
-  .sec-card.sec-invoice .sec-card-title { color:#1D4ED8; }
-  .sec-card.sec-tasks   .sec-card-hdr  { border-left:4px solid #059669; }
-  .sec-card.sec-tasks   .sec-card-title { color:#059669; }
-  .sec-card.sec-comments .sec-card-hdr { border-left:4px solid #7C3AED; }
-  .sec-card.sec-comments .sec-card-title { color:#7C3AED; }
-  .sec-card.sec-stage   .sec-card-hdr  { border-left:4px solid var(--brand); }
-  .sec-card.sec-stage   .sec-card-title { color:var(--brand); }
+  /* Every order section looks the same: brand bar + brand title, numbered I, II, III… */
+  .sec-card .sec-card-hdr  { border-left:4px solid var(--brand); }
+  .sec-card .sec-card-title { color:var(--brand); }
+  .order-detail { counter-reset: sec; }
+  .order-detail .sec-card-title::before { counter-increment: sec; content: counter(sec, upper-roman) ". "; }
+  .sec-card-meta { font-size:11px; font-weight:600; color:var(--muted); margin-left:auto; text-transform:none; letter-spacing:0; }
+  .sec-card-left { flex:1; min-width:0; flex-wrap:wrap; row-gap:2px; }
+  /* Sub-sections inside a section: one neutral style everywhere */
+  .sub-title, .section-title, .group-label, .ci-section-title, .deposit-title {
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2);
+    margin:0 0 8px; padding:0 0 6px; border-bottom:1px solid var(--border); }
+  .checklist-group { margin-bottom:12px; }
+
 
   /* TASKS & COMMENTS (legacy, keep for inner content spacing) */
   .activity-section { margin-top:0; padding-top:0; border-top:none; }
@@ -608,10 +611,7 @@
   /* URGENT BADGE */
   .urgent-badge { display:inline-flex;align-items:center;gap:3px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:99px;font-size:9px;font-weight:800;padding:2px 7px;letter-spacing:0.3px; }
   /* DEPOSIT BOX */
-  .deposit-box { background:white;border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:12px; }
-  .deposit-box.received { background:#F0FDF4;border-color:#86EFAC; }
-  .deposit-box.pending { background:#FFFBEB;border-color:#FDE68A; }
-  .deposit-title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px; }
+  .deposit-box { background:none;border:none;padding:0;margin:0; }
   .deposit-input { flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit; }
   .deadline-tag { display:inline-flex;align-items:center;gap:5px;background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;margin-top:4px; }
   .deadline-tag.overdue { background:#FEF2F2;border-color:#FECACA;color:#DC2626; }
@@ -2258,21 +2258,6 @@ function buildOrdersTab(c) {
 // =====================
 // ORDER DETAIL HELPERS (Supabase-backed, snake_case fields)
 // =====================
-function buildSpecSummarySection(order, customer) {
-  const uid = 'spec-' + order.id;
-  return `
-    <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden">
-      <div onclick="toggleSpecSummary('${uid}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);cursor:pointer;user-select:none">
-        <div style="font-size:12px;font-weight:700;color:var(--brand)">✅ Collect Checklist & Furniture</div>
-        <div id="${uid}-arrow" style="font-size:12px;color:var(--muted);transition:transform 0.2s">▼</div>
-      </div>
-      <div id="${uid}" style="display:none;padding:12px 14px;border-top:1px solid var(--border)">
-        ${buildFurnitureSection(order, customer)}
-        ${buildOrderChecklistSummary(order)}
-      </div>
-    </div>`;
-}
-
 function buildOrderCollectInfoForm(order, customer) {
   const save = (field, val) => `saveOrderCI(${customer.id},'${order.id}','${field}',${val})`;
   return buildCollectSpecForm(order.collect_info || {}, save, 'o' + order.id, false,
@@ -2289,21 +2274,6 @@ function refreshOrderDetail(customerId, orderId) {
   renderBoard();
 }
 
-function buildOrderChecklistSummary(order) {
-  const checked = order.checked || {};
-  const groups = checklistGroups(order);
-  return `<div style="margin-top:8px">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2);margin-bottom:8px">✅ Collect Checklist</div>
-    ${groups.map(g => `
-      <div style="margin-bottom:8px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px">${g.label}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">
-          ${g.items.map(item => `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:${checked[item.id]?'#D1FAE5':'var(--surface)'};color:${checked[item.id]?'#065F46':'var(--muted)'};border:1px solid ${checked[item.id]?'#6EE7B7':'var(--border)'}">${checked[item.id]?'✓':''} ${item.label}</span>`).join('')}
-        </div>
-      </div>`).join('')}
-  </div>`;
-}
-
 async function saveOrderCI(customerId, orderId, field, value) {
   const c = customers.find(x => x.id === customerId);
   const order = c?.orders.find(o => o.id === orderId);
@@ -2311,15 +2281,6 @@ async function saveOrderCI(customerId, orderId, field, value) {
   if (!order.collect_info) order.collect_info = {};
   order.collect_info[field] = value;
   await sb.from('orders').update({ collect_info: order.collect_info }).eq('id', orderId);
-}
-
-function toggleSpecSummary(uid) {
-  const el = document.getElementById(uid);
-  const arrow = document.getElementById(uid + '-arrow');
-  if (!el) return;
-  const open = el.style.display !== 'none';
-  el.style.display = open ? 'none' : 'block';
-  if (arrow) arrow.style.transform = open ? '' : 'rotate(180deg)';
 }
 
 function buildWorkflowSection(order, customer, phases) {
@@ -2424,14 +2385,9 @@ async function toggleWorkflowTask(customerId, orderId, taskId, el, phaseKey) {
 
 function buildUrgentSection(order, customer) {
   const isUrgent = order.urgent;
-  const borderStyle = isUrgent ? 'border:2px solid #EF4444;border-radius:10px;overflow:hidden;margin-bottom:12px' : 'border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px';
-  const bgStyle = isUrgent ? 'background:#FEF2F2' : 'background:var(--white)';
-  const headerBg = isUrgent ? 'background:#EF4444;padding:6px 12px' : 'display:none';
-  return `<div id="urgent-${order.id}" style="${borderStyle}">
-    ${isUrgent ? `<div style="${headerBg}">
-      <span style="font-size:11px;font-weight:800;color:white;letter-spacing:0.5px;text-transform:uppercase">🚨 URGENT ORDER</span>
-    </div>` : ''}
-    <div style="${bgStyle};display:flex;align-items:center;gap:10px;padding:10px 12px;flex-wrap:wrap">
+  const bgStyle = isUrgent ? 'background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:10px 12px' : '';
+  return `<div id="urgent-${order.id}">
+    <div style="${bgStyle};display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <label class="urgent-toggle" title="Mark urgent">
         <input type="checkbox" ${isUrgent ? 'checked' : ''} onchange="toggleUrgent(${customer.id}, '${order.id}')">
         <span class="urgent-slider"></span>
@@ -2552,7 +2508,6 @@ function buildDepositSection(order, customer) {
     const dlClass = isOverdue ? 'overdue' : (dl && dl <= new Date(Date.now() + 14*24*60*60*1000).toISOString().split('T')[0]) ? '' : 'ok';
     const daysLeft = dl ? Math.round((new Date(dl) - new Date()) / 86400000) : null;
     return `<div class="deposit-box received">
-      <div class="deposit-title">✅ Deposit Received</div>
       <div style="font-size:12px;display:flex;gap:16px;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:6px">📅 Date:
           <input type="date" min="2020-01-01" max="2035-12-31" value="${order.deposit_date || ''}"
@@ -2570,9 +2525,8 @@ function buildDepositSection(order, customer) {
     </div>`;
   } else {
     return `<div class="deposit-box pending">
-      <div class="deposit-title">⏳ Awaiting Deposit</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Production starts after deposit is confirmed.</div>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span style="font-size:12px;font-weight:600;white-space:nowrap">Deposit amount $</span>
         <input class="deposit-input" id="dep-amount-${order.id}" type="number" min="0" placeholder="e.g. 10000">
         <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;white-space:nowrap" onclick="recordDeposit(${customer.id},'${order.id}')">Record Deposit ✓</button>
@@ -2604,12 +2558,8 @@ function buildOrderQuoteSection(order) {
     </tr>`;
   }).join('');
 
-  return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">
-    <div style="background:var(--surface);padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2)">💰 Quote</span>
-      <span style="font-size:12px;font-weight:700;color:var(--brand)" id="oq-grand-${oid}">Total: ${fmt(grandTotal)}</span>
-    </div>
-    <div style="padding:8px 12px">
+  return `<div>
+    <div>
       <table class="quote-table" style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="border-bottom:1px solid var(--border)">
           <th style="text-align:left;padding:4px 0;font-weight:600;color:var(--muted)">Item</th>
@@ -2637,27 +2587,6 @@ function buildOrderQuoteSection(order) {
         <span>Balance Due</span><span id="oq-balance-${oid}">${fmt(balance)}</span>
       </div>
       <button onclick="saveOrderQuote('${oid}')" style="margin-top:8px;width:100%;padding:8px;background:var(--brand);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">💾 Save Quote</button>
-    </div>
-  </div>`;
-}
-
-function buildOrderSpecsSection(order) {
-  const ci = order.collect_info || {};
-  if (Object.keys(ci).filter(k => ci[k]).length === 0) return '';
-  const row = (label, val) => val ? `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--muted);min-width:130px;flex-shrink:0">${label}</span><span style="font-weight:600">${val}</span></div>` : '';
-  return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">
-    <div style="background:var(--surface);padding:8px 12px">
-      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-2)">📋 PO Specs</span>
-    </div>
-    <div style="padding:8px 12px">
-      ${row('Box Species', ci.box_species)}${row('Box Finish', ci.box_finish)}
-      ${row('Color Outside', ci.box_color_outside)}${row('Color Inside', ci.box_color_inside)}
-      ${row('Door Species', ci.door_species)}${row('Door Style', ci.door_style)}
-      ${row('Door Stain', ci.door_stain)}${row('Door Finish', ci.door_finish)}
-      ${row('Grain Direction', ci.grain_dir)}${row('Color Sample', ci.color_sample)}
-      ${row('Drawer Species', ci.drawer_species)}${row('Drawer Style', ci.drawer_style)}
-      ${row('Drawer Slide', ci.drawer_slide)}${row('Hinge', ci.hinge)}
-      ${row('Fridge', ci.appl_fridge)}${row('Cooktop', ci.appl_cooktop)}
     </div>
   </div>`;
 }
@@ -2762,197 +2691,158 @@ function buildOrderDetail(order, customer) {
 }
 
 // Same top block on every order, whatever its stage or how it was created
-function buildOrderCommonTop(order, customer) {
-  return buildOrderQuoteSection(order)
-    + buildSecCard(`ci-${order.id}`, 'stage', '📋', 'Order Info', '', buildOrderCollectInfoForm(order, customer), true)
-    + buildUrgentSection(order, customer);
+// ============================================================
+// ORDER DETAIL LAYOUT — same numbered sections (I, II, III…) on every order:
+// Quote · Deposit · Priority & Delivery · Order Info · Info Checklist · Furniture
+// · [stage section] · Workflow · Timeline · Delivery Info · Packing · Invoice · Tasks · Comments
+// ============================================================
+const fmtUSD = n => '$' + Number(n || 0).toLocaleString('en-US', {maximumFractionDigits: 2});
+
+// Neutral stat tile — colour only on the number, and only when it carries a status
+function statTile(value, label, tone = '') {
+  const color = tone === 'good' ? '#059669' : tone === 'bad' ? '#DC2626' : 'var(--text)';
+  return `<div style="flex:1;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;text-align:center">
+    <div style="font-size:20px;font-weight:800;color:${color}">${value}</div>
+    <div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.3px">${label}</div>
+  </div>`;
+}
+const subBox = (inner, extra = '') => `<div style="padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;${extra}">${inner}</div>`;
+
+function quoteMeta(order) {
+  const total = orderQuoteTotal(order);
+  const balance = total > 0 ? Math.max(0, total - (parseFloat(order.deposit_amount) || 0)) : Number(order.balance) || 0;
+  return `<span id="oq-grand-${order.id}">Total: ${fmtUSD(total)}</span> · Balance ${fmtUSD(balance)}`;
+}
+function depositMeta(order) {
+  return order.deposit_received
+    ? `✅ ${order.deposit_amount ? fmtUSD(order.deposit_amount) : 'Received'}${order.deposit_date ? ' · ' + order.deposit_date : ''}`
+    : '⏳ Awaiting deposit';
+}
+function priorityMeta(order) {
+  if (order.urgent) return `<span style="color:#DC2626;font-weight:700">🔴 Urgent${order.delivery_deadline ? ' · by ' + order.delivery_deadline : ''}</span>`;
+  return order.delivery_deadline ? 'Deliver by ' + order.delivery_deadline : '';
+}
+function orderInfoMeta(order) {
+  return { cabinet: '🗄 Cabinet', door: '🚪 Door', both: '🗄+🚪 Cabinet + Door' }[orderProduct(order)];
+}
+function furnitureMeta(order) {
+  const f = order.furniture || [];
+  const cbm = (parseFloat(order.cabinet_cbm) || 0) + f.reduce((s, x) => s + (parseFloat(x.cbm) || 0), 0);
+  return [f.length ? f.length + ' item(s)' : '', cbm ? cbm.toFixed(1) + ' m³' : ''].filter(Boolean).join(' · ');
 }
 
-function buildOrderDetailStage(order, customer) {
-  return buildOrderCommonTop(order, customer) + buildOrderDetailStageBody(order, customer);
-}
+// Info Checklist body — editable on every stage; tabs when the order is Cabinet + Door
+function buildChecklistBody(order, customer) {
+  const checked = order.checked || {};
+  const TOTAL = totalChecks(order);
+  const done = checkedCount(order);
+  const pct = TOTAL ? Math.round(done / TOTAL * 100) : 0;
+  const isCollect = order.stage === 'collect';
+  let html = '';
 
-function buildOrderDetailStageBody(order, customer) {
-  if (order.stage === 'lead') {
-    return `
-      ${buildDepositSection(order, customer)}
-      ${buildWorkflowSection(order, customer, ['quote'])}
-      ${buildNotesSection(order, customer)}
-      ${buildFurnitureSection(order, customer)}
-      <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToDeposit(${customer.id}, '${order.id}')">💰 Deposit Received →</button>
-      </div>`;
-  }
-
-  if (order.stage === 'deposit') {
-    return `
-      ${buildDepositSection(order, customer)}
-      ${buildWorkflowSection(order, customer, ['quote','deposit'])}
-      ${buildNotesSection(order, customer)}
-      ${buildFurnitureSection(order, customer)}
-      <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToCollect(${customer.id}, '${order.id}')">📋 Start Collecting Specs →</button>
-      </div>`;
-  }
-
-  if (order.stage === 'collect') {
-    const checked = order.checked || {};
-    const TOTAL = totalChecks(order);
-    const doneCount = checkedCount(order);
-    const pct = Math.round((doneCount / TOTAL) * 100);
-    const allDone = doneCount === TOTAL;
-    const signOff = checked['dr3'];
-    const canPush = allDone;
-
-    // Collect deadline countdown
-    const dlStatus = collectDeadlineStatus(order);
+  if (isCollect) {
+    const dl = collectDeadlineStatus(order);
     const logInHI = order.log_in_date
       ? new Date(order.log_in_date).toLocaleString('en-US',{timeZone:'Pacific/Honolulu',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
       : null;
-    const deadlineBanner = dlStatus
-      ? `<div class="collect-clock ${dlStatus.cls}">⏱ ${dlStatus.label}${logInHI ? ` <span style="margin-left:auto;font-size:10px;opacity:0.7">Log in: ${logInHI} HI</span>` : ''}</div>`
-      : '';
-
-    let html = deadlineBanner + buildDepositSection(order, customer);
-    html += `<div class="checklist-progress">
-      <div class="cp-label">Info Checklist</div>
-      <div class="cp-bar"><div class="cp-fill" id="cp-fill-${order.id}" style="width:${pct}%"></div></div>
-      <div class="cp-count" id="cp-count-${order.id}">${doneCount}/${TOTAL}</div>
-    </div>`;
-
-    const groups = checklistGroups(order);
-    let lastPart = null;
-    groups.forEach(g => {
-      if (g.part && g.part !== lastPart) {
-        lastPart = g.part;
-        const partGroups = groups.filter(x => x.part === g.part);
-        const pTotal = partGroups.reduce((n, x) => n + x.items.length, 0);
-        const pDone = partGroups.reduce((n, x) => n + x.items.filter(i => checked[i.id]).length, 0);
-        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 4px;padding:6px 10px;background:var(--surface);border-radius:8px;font-size:12px;font-weight:800;color:var(--brand)">
-          <span>${g.part === 'door' ? '🚪 DOOR CHECKLIST' : '🗄 CABINET CHECKLIST'}</span><span>${pDone}/${pTotal}</span></div>`;
-      }
-      html += `<div class="checklist-group"><div class="group-label">${g.part ? g.label.split(' · ').slice(1).join(' · ') : g.label}</div><div class="checklist">`;
-      g.items.forEach(item => {
-        const isChecked = checked[item.id];
-        html += `<div class="check-item ${isChecked ? 'checked' : ''}" data-cid="${customer.id}" data-oid="${order.id}" data-chk="${item.id}">
-          <div class="check-box"><span class="check-tick">✓</span></div>
-          <div class="check-label">${item.label}</div>
-        </div>`;
-      });
-      html += `</div></div>`;
-    });
-
-    if (!allDone) {
-      html += `<div class="alert-box alert-block">⛔ ${TOTAL - doneCount} item(s) missing — complete checklist first.</div>`;
-    } else if (!signOff) {
-      html += `<div class="alert-box alert-warning">⚠️ All items checked but client hasn't signed off on shop drawing.</div>`;
-    } else {
-      html += `<div class="alert-box alert-success">✅ All complete — ready to push to factory!</div>`;
-    }
-
-    html += buildFurnitureSection(order, customer);
-    html += buildWorkflowSection(order, customer, ['quote','deposit','production']);
-    html += buildNotesSection(order, customer);
-    html += `<div class="action-bar">
-      <button class="btn btn-primary" ${!canPush ? 'disabled title="Need deposit + complete checklist"' : ''} onclick="pushToFactory(${customer.id}, '${order.id}')">Push to Factory →</button>
-    </div>`;
-    return html;
+    if (dl) html += `<div class="collect-clock ${dl.cls}">⏱ ${dl.label}${logInHI ? ` <span style="margin-left:auto;font-size:10px;opacity:0.7">Log in: ${logInHI} HI</span>` : ''}</div>`;
   }
 
-  if (order.stage === 'production') {
-    return `
-      ${order.deposit_received ? buildDepositSection(order, customer) : ''}
-      ${buildSpecSummarySection(order, customer)}
-      ${buildWorkflowSection(order, customer, ['production'])}
-      ${buildProductionTimeline(order)}
-      ${buildNotesSection(order, customer)}
-      <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Send to QC →</button>
+  html += `<div class="checklist-progress">
+    <div class="cp-label">Progress</div>
+    <div class="cp-bar"><div class="cp-fill" id="cp-fill-${order.id}" style="width:${pct}%"></div></div>
+    <div class="cp-count" id="cp-count-${order.id}">${done}/${TOTAL}</div>
+  </div>`;
+
+  const groupHtml = groups => groups.map(g => `
+    <div class="checklist-group"><div class="sub-title">${g.part ? g.label.split(' · ').slice(1).join(' · ') : g.label}</div><div class="checklist">
+      ${g.items.map(item => `<div class="check-item ${checked[item.id] ? 'checked' : ''}" data-cid="${customer.id}" data-oid="${order.id}" data-chk="${item.id}">
+        <div class="check-box"><span class="check-tick">✓</span></div>
+        <div class="check-label">${item.label}</div>
+      </div>`).join('')}
+    </div></div>`).join('');
+
+  const groups = checklistGroups(order);
+  if (orderProduct(order) === 'both') {
+    const key = 'ck' + order.id;
+    const tab = CI_TAB[key] || 'cab';
+    const part = p => groups.filter(g => g.part === p);
+    const partCount = p => { const gs = part(p); return `${gs.reduce((n, g) => n + g.items.filter(i => checked[i.id]).length, 0)}/${gs.reduce((n, g) => n + g.items.length, 0)}`; };
+    const tBtn = (val, p, label) => `<button type="button" data-citab="${key}" data-val="${val}" onclick="ciShowTab('${key}','${val}')"
+        style="flex:1;padding:7px;border-radius:8px 8px 0 0;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid var(--border);border-bottom:none;background:${tab===val?'white':'var(--surface)'};color:${tab===val?'var(--brand)':'var(--muted)'}">${label} <span id="ck-part-${order.id}-${p}">${partCount(p)}</span></button>`;
+    html += `<div style="display:flex;gap:6px">${tBtn('cab','cabinet','🗄 Cabinet')}${tBtn('door','door','🚪 Door')}</div>
+      <div style="border:1.5px solid var(--border);border-radius:0 0 10px 10px;padding:10px;background:white">
+        <div id="citab-${key}-cab" style="display:${tab==='cab'?'block':'none'}">${groupHtml(part('cabinet'))}</div>
+        <div id="citab-${key}-door" style="display:${tab==='door'?'block':'none'}">${groupHtml(part('door'))}</div>
       </div>`;
+  } else {
+    html += groupHtml(groups);
   }
 
+  if (isCollect) {
+    const signOff = orderProduct(order) === 'door' || checked['dr3'];
+    if (done < TOTAL) html += `<div class="alert-box alert-block">⛔ ${TOTAL - done} item(s) missing — complete checklist first.</div>`;
+    else if (!signOff) html += `<div class="alert-box alert-warning">⚠️ All items checked but client hasn't signed off on shop drawing.</div>`;
+    else html += `<div class="alert-box alert-success">✅ All complete — ready to push to factory!</div>`;
+  }
+  return html;
+}
+
+// Stage-specific section (only for stages that have their own content)
+function buildStageSection(order, customer) {
+  const id = `stg-${order.id}`;
   if (order.stage === 'shipped') {
-    return `
-      <div class="section-title">🚢 Shipping Info</div>
-      <div class="info-grid">
+    const body = `
+      <div class="info-grid" style="margin-bottom:10px">
         <div class="info-item"><div class="info-label">Container #</div><div class="info-value">${order.container || '—'}</div></div>
         <div class="info-item"><div class="info-label">Load Date</div><div class="info-value">${order.load_date || '—'}</div></div>
         <div class="info-item"><div class="info-label">ETA (Hawaii)</div><div class="info-value">${order.eta || '—'}</div></div>
-        <div class="info-item"><div class="info-label">Balance</div><div class="info-value">$${(order.balance||0).toLocaleString()}</div></div>
+        <div class="info-item"><div class="info-label">Balance</div><div class="info-value">${fmtUSD(order.balance)}</div></div>
       </div>
-      <div class="lp-field" style="margin:10px 0">
+      <div class="lp-field" style="margin-bottom:10px">
         <label class="lp-label">Container Tracking #</label>
         <div class="field-row">
           <input class="lp-input" id="container_tracking_${order.id}" type="text" placeholder="e.g. MSCU1234567" value="${order.container_tracking||''}">
           <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','container_tracking','container_tracking_${order.id}')">Save</button>
         </div>
       </div>
-      <div class="lp-field" style="margin-bottom:14px">
+      <div class="lp-field">
         <label class="lp-label">Port Arrival Date (estimated)</label>
         <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.port_arrival_date||''}"
           onchange="saveOrderField(${customer.id},'${order.id}','port_arrival_date',this.value)">
-      </div>
-      ${buildSpecSummarySection(order, customer)}
-      ${buildWorkflowSection(order, customer, ['shipping'])}
-      ${buildNotesSection(order, customer)}
-      <div class="action-bar">
-        <button class="btn btn-primary" onclick="moveToUnloaded(${customer.id},'${order.id}')">🏭 Container Arrived → Unloaded</button>
       </div>`;
+    return buildSecCard(id, 'stage', '🚢', 'Shipping Info', order.container || '', body, true);
   }
 
   if (order.stage === 'qc') {
     const items = packingItems[order.id] || [];
     const qcEvents = items.map(i => (qrScanEvents[i.qr_id]||[]).find(e => e.event_type === 'qc')).filter(Boolean);
-    const passCount = qcEvents.filter(e => e.qc_pass === true).length;
-    const failCount = qcEvents.filter(e => e.qc_pass === false).length;
-    return `
-      <div class="section-title">🔍 QC Check</div>
-      <div style="display:flex;gap:10px;margin-bottom:14px">
-        <div style="flex:1;padding:12px;background:#052e16;border:1px solid #16a34a;border-radius:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:#4ade80">${passCount}</div>
-          <div style="font-size:10px;color:#4ade80;font-weight:700">✅ PASS</div>
-        </div>
-        <div style="flex:1;padding:12px;background:${failCount?'#3f1515':'var(--surface)'};border:1px solid ${failCount?'#dc2626':'var(--border)'};border-radius:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:${failCount?'#fca5a5':'var(--muted)'}">${failCount}</div>
-          <div style="font-size:10px;color:${failCount?'#fca5a5':'var(--muted)'};font-weight:700">❌ FAIL</div>
-        </div>
-        <div style="flex:1;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:var(--muted)">${items.length - qcEvents.length}</div>
-          <div style="font-size:10px;color:var(--muted);font-weight:700">⏳ PENDING</div>
-        </div>
+    const pass = qcEvents.filter(e => e.qc_pass === true).length;
+    const fail = qcEvents.filter(e => e.qc_pass === false).length;
+    const body = `
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        ${statTile(pass, '✅ PASS', pass ? 'good' : '')}
+        ${statTile(fail, '❌ FAIL', fail ? 'bad' : '')}
+        ${statTile(items.length - qcEvents.length, '⏳ PENDING')}
       </div>
-      ${items.length ? `<div style="margin-bottom:12px">
-        <button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=qc&order=${encodeURIComponent(order.id)}','_blank')">📱 Open QC Session</button>
-      </div>` : ''}
-      ${buildSpecSummarySection(order, customer)}
-      ${buildNotesSection(order, customer)}
-      <div class="action-bar">
-        <button class="btn btn-primary" onclick="markLoaded(${customer.id},'${order.id}')">🚢 QC Done → Load Container</button>
-      </div>`;
+      ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=qc&order=${encodeURIComponent(order.id)}','_blank')">📱 Open QC Session</button>` : ''}`;
+    return buildSecCard(id, 'stage', '🔍', 'QC Check', `${pass} pass · ${fail} fail`, body, true);
   }
 
   if (order.stage === 'unloaded') {
     const items = packingItems[order.id] || [];
-    const unloadEvents = items.map(i => (qrScanEvents[i.qr_id]||[]).find(e => e.event_type === 'unloaded')).filter(Boolean);
-    return `
-      <div class="section-title">🏭 Unloaded at Warehouse</div>
-      ${order.warehouse_arrival_date ? `<div style="padding:8px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;margin-bottom:12px;font-size:12px;color:#1D4ED8;font-weight:700">📅 Arrival date: ${order.warehouse_arrival_date}</div>` : ''}
-      <div style="display:flex;gap:10px;margin-bottom:12px">
-        <div style="flex:1;padding:12px;background:#1e3a8a;border:1px solid #2563EB;border-radius:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:#93c5fd">${unloadEvents.length}</div>
-          <div style="font-size:10px;color:#93c5fd;font-weight:700">✅ SCANNED UNLOADED</div>
-        </div>
-        <div style="flex:1;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:var(--muted)">${Math.max(0,items.length - unloadEvents.length)}</div>
-          <div style="font-size:10px;color:var(--muted);font-weight:700">⏳ PENDING SCAN</div>
-        </div>
+    const unloaded = items.map(i => (qrScanEvents[i.qr_id]||[]).find(e => e.event_type === 'unloaded')).filter(Boolean).length;
+    const body = `
+      <div class="sub-title">🏭 Unloaded at Warehouse</div>
+      ${order.warehouse_arrival_date ? `<div style="font-size:12px;font-weight:700;margin-bottom:8px">📅 Arrival date: ${order.warehouse_arrival_date}</div>` : ''}
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        ${statTile(unloaded, '✅ SCANNED UNLOADED', unloaded ? 'good' : '')}
+        ${statTile(Math.max(0, items.length - unloaded), '⏳ PENDING SCAN')}
       </div>
-      ${items.length ? `<div style="margin-bottom:12px">
-        <button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=unloaded&order=${encodeURIComponent(order.id)}','_blank')">📱 Open Unload Session</button>
-      </div>` : ''}
+      ${items.length ? `<div style="margin-bottom:12px"><button class="btn btn-outline" style="font-size:11px;padding:5px 12px" onclick="window.open('scan.html?step=unloaded&order=${encodeURIComponent(order.id)}','_blank')">📱 Open Unload Session</button></div>` : ''}
 
-      <div class="section-title">📅 Schedule Delivery</div>
-      <div style="padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:12px">
+      <div class="sub-title">📅 Schedule Delivery</div>
+      ${subBox(`
         <div class="lp-contact-grid">
           <div class="lp-field"><label class="lp-label">Installer / Crew *</label>
             <div class="field-row">
@@ -2971,41 +2861,25 @@ function buildOrderDetailStageBody(order, customer) {
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
           <input type="checkbox" ${order.install_confirmed?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','install_confirmed',this.checked)">
           Customer confirmed delivery date ✓
-        </label>
-      </div>
-
-      ${buildSpecSummarySection(order, customer)}
-      ${buildNotesSection(order, customer)}
-      <div class="action-bar">
-        <button class="btn btn-primary" ${!order.install_date?'disabled title="Enter installation date first"':''} onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Ready → Move to Delivery</button>
-      </div>`;
+        </label>`, 'margin-bottom:0')}`;
+    return buildSecCard(id, 'stage', '🏭', 'Unloaded & Scheduling', order.install_date ? 'Install ' + order.install_date : '', body, true);
   }
 
   if (order.stage === 'delivery') {
     const warehouseOk = order.warehouse_arrived;
-    const installOk = order.install_date && order.installer_name;
-    const canDone = warehouseOk && installOk && order.install_confirmed;
-
-    // Find container trucking info
     const ctnPlan = containerPlans.find(c => c.orderRefs.some(r => r.orderId === order.id));
+    const body = `
+      <div class="sub-title">🚛 Trucking <span style="text-transform:none;font-weight:400">(managed in Containers tab)</span></div>
+      ${subBox(ctnPlan ? `
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)">
+          <span>📦 ${ctnPlan.id}</span>
+          <span>Company: <strong>${ctnPlan.trucking_company||'—'}</strong></span>
+          <span>Pick up: <strong>${ctnPlan.trucking_pickup_date||'—'}</strong>${ctnPlan.trucking_pickup_time?' '+ctnPlan.trucking_pickup_time:''}</span>
+          <span style="color:${ctnPlan.trucking_confirmed?'#059669':'#D97706'}">${ctnPlan.trucking_confirmed?'✅ Picked up':'⏳ Awaiting pick up'}</span>
+        </div>` : '<span style="font-size:12px;color:var(--muted)">No container assigned</span>')}
 
-    return `
-      <!-- Trucking ref (read-only, managed in Containers tab) -->
-      <div style="padding:10px 12px;background:#F8FAFF;border:1px solid var(--border);border-radius:8px;margin-bottom:12px;font-size:12px">
-        <div style="font-weight:700;color:var(--brand);margin-bottom:4px">🚛 Trucking (managed in Containers tab)</div>
-        ${ctnPlan ? `
-          <div style="display:flex;gap:12px;flex-wrap:wrap;color:var(--muted)">
-            <span>📦 ${ctnPlan.id}</span>
-            <span>Company: <strong>${ctnPlan.trucking_company||'—'}</strong></span>
-            <span>Pick up: <strong>${ctnPlan.trucking_pickup_date||'—'}</strong>${ctnPlan.trucking_pickup_time?' '+ctnPlan.trucking_pickup_time:''}</span>
-            <span style="color:${ctnPlan.trucking_confirmed?'#059669':'#D97706'}">${ctnPlan.trucking_confirmed?'✅ Picked up':'⏳ Awaiting pick up'}</span>
-          </div>` : '<span style="color:var(--muted)">No container assigned</span>'}
-      </div>
-
-      <!-- Section 1: Warehouse Arrival -->
-      <div class="section-title">🏭 Warehouse Arrival</div>
-      <div style="padding:10px 12px;background:${warehouseOk?'#F0FDF4':'#FFFBEB'};border:1px solid ${warehouseOk?'#BBF7D0':'#FDE68A'};border-radius:8px;margin-bottom:12px">
-        <div style="font-size:12px;font-weight:700;color:${warehouseOk?'#065F46':'#92400E'};margin-bottom:8px">${warehouseOk?'✅ Arrived at Warehouse':'⏳ Waiting for warehouse arrival'}</div>
+      <div class="sub-title">🏭 Warehouse Arrival <span style="text-transform:none;font-weight:600;color:${warehouseOk?'#059669':'#D97706'}">${warehouseOk?'✅ Arrived':'⏳ Waiting'}</span></div>
+      ${subBox(`
         <div class="lp-contact-grid">
           <div class="lp-field"><label class="lp-label">Arrival Date</label>
             <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.warehouse_arrival_date||''}"
@@ -3014,12 +2888,10 @@ function buildOrderDetailStageBody(order, customer) {
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
           <input type="checkbox" ${warehouseOk?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','warehouse_arrived',this.checked)">
           ✅ Items arrived at warehouse — verified
-        </label>
-      </div>
+        </label>`)}
 
-      <!-- Section 2: Installation (unlocks after warehouse) -->
-      <div class="section-title" style="color:${warehouseOk?'var(--text)':'var(--muted)'}">📅 Installation Scheduling ${warehouseOk?'':'— complete warehouse arrival first'}</div>
-      <div style="padding:10px 12px;background:${!warehouseOk?'var(--surface)':installOk?'#F0FDF4':'#F5F3FF'};border:1px solid ${!warehouseOk?'var(--border)':installOk?'#BBF7D0':'#DDD6FE'};border-radius:8px;margin-bottom:12px;${!warehouseOk?'opacity:0.5;pointer-events:none':''}">
+      <div class="sub-title">📅 Installation Scheduling ${warehouseOk ? '' : '<span style="text-transform:none;font-weight:400">— complete warehouse arrival first</span>'}</div>
+      ${subBox(`
         <div class="lp-contact-grid">
           <div class="lp-field"><label class="lp-label">Installer / Crew *</label>
             <div class="field-row">
@@ -3038,28 +2910,16 @@ function buildOrderDetailStageBody(order, customer) {
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
           <input type="checkbox" ${order.install_confirmed?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','install_confirmed',this.checked)">
           Customer confirmed installation ✓
-        </label>
-      </div>
+        </label>`, !warehouseOk ? 'opacity:0.5;pointer-events:none' : '')}
 
-      <!-- Section 3: Balance Collection -->
-      <div class="section-title">💰 Collect Remaining Balance</div>
-      ${order.balance_collected ? `
-      <div style="padding:14px;background:#052e16;border:1px solid #16a34a;border-radius:10px;margin-bottom:12px;display:flex;align-items:center;gap:12px">
-        <span style="font-size:24px">✅</span>
-        <div>
-          <div style="font-size:13px;font-weight:800;color:#4ade80">Balance Collected — $${Number(order.balance||0).toLocaleString()}</div>
-          <div style="font-size:11px;color:#4ade80;opacity:.7;margin-top:2px">Date collected: ${order.balance_collected_date||'—'}</div>
-        </div>
-      </div>` : `
-      <div style="padding:14px;background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;margin-bottom:12px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <div>
-            <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:2px">AMOUNT DUE</div>
-            <div style="font-size:28px;font-weight:900;color:#92400E">$${Number(order.balance||0).toLocaleString()}</div>
-            <div style="font-size:11px;color:#92400E;opacity:.7;margin-top:2px">
-              Deposit received: $${Number(order.deposit_amount||0).toLocaleString()} · Order total: $${(Number(order.balance||0)+Number(order.deposit_amount||0)).toLocaleString()}
-            </div>
-          </div>
+      <div class="sub-title">💰 Collect Remaining Balance</div>
+      ${order.balance_collected ? subBox(`
+        <div style="font-size:13px;font-weight:800;color:#059669">✅ Balance Collected — ${fmtUSD(order.balance)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Date collected: ${order.balance_collected_date||'—'}</div>`, 'margin-bottom:0') : subBox(`
+        <div style="font-size:11px;font-weight:700;color:var(--muted)">AMOUNT DUE</div>
+        <div style="font-size:26px;font-weight:900;color:var(--text)">${fmtUSD(order.balance)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+          Deposit received: ${fmtUSD(order.deposit_amount)} · Order total: ${fmtUSD(Number(order.balance||0)+Number(order.deposit_amount||0))}
         </div>
         <div class="lp-field" style="margin-bottom:10px">
           <label class="lp-label">Cost of Goods / COGS (USD) — for gross profit calculation</label>
@@ -3068,24 +2928,64 @@ function buildOrderDetailStageBody(order, customer) {
             <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','cost_of_goods','cogs_${order.id}')">Save</button>
           </div>
         </div>
-        <button onclick="collectBalance(${customer.id},'${order.id}')" style="width:100%;padding:14px;background:#059669;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:.3px">
-          💰 Collect $${Number(order.balance||0).toLocaleString()} → Complete Order
-        </button>
-      </div>`}
-
-      ${buildSpecSummarySection(order, customer)}
-      ${buildWorkflowSection(order, customer, ['delivery'])}
-      ${buildNotesSection(order, customer)}
-      ${!order.balance_collected ? `<div class="action-bar">
-        <button class="btn btn-outline" style="font-size:12px" ${!canDone?'disabled title="Warehouse arrival + installation + customer confirm required"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Complete without collecting</button>
-      </div>` : ''}`;
+        <button onclick="collectBalance(${customer.id},'${order.id}')" style="width:100%;padding:12px;background:var(--brand);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit">
+          💰 Collect ${fmtUSD(order.balance)} → Complete Order
+        </button>`, 'margin-bottom:0')}`;
+    return buildSecCard(id, 'stage', '🚛', 'Delivery & Installation', order.install_date ? 'Install ' + order.install_date : '', body, true);
   }
-
-  return `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">✅ Order completed.</div>`;
+  return '';
 }
 
+function buildActionBar(order, customer) {
+  const btn = (html) => `<div class="action-bar">${html}</div>`;
+  switch (order.stage) {
+    case 'lead':     return btn(`<button class="btn btn-primary" onclick="moveToDeposit(${customer.id}, '${order.id}')">💰 Deposit Received →</button>`);
+    case 'deposit':  return btn(`<button class="btn btn-primary" onclick="moveToCollect(${customer.id}, '${order.id}')">📋 Start Collecting Specs →</button>`);
+    case 'collect': {
+      const canPush = checkedCount(order) === totalChecks(order);
+      return btn(`<button class="btn btn-primary" ${!canPush ? 'disabled title="Need deposit + complete checklist"' : ''} onclick="pushToFactory(${customer.id}, '${order.id}')">Push to Factory →</button>`);
+    }
+    case 'production': return btn(`<button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Send to QC →</button>`);
+    case 'shipped':  return btn(`<button class="btn btn-primary" onclick="moveToUnloaded(${customer.id},'${order.id}')">🏭 Container Arrived → Unloaded</button>`);
+    case 'qc':       return btn(`<button class="btn btn-primary" onclick="markLoaded(${customer.id},'${order.id}')">🚢 QC Done → Load Container</button>`);
+    case 'unloaded': return btn(`<button class="btn btn-primary" ${!order.install_date?'disabled title="Enter installation date first"':''} onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Ready → Move to Delivery</button>`);
+    case 'delivery': {
+      if (order.balance_collected) return '';
+      const canDone = order.warehouse_arrived && order.install_date && order.installer_name && order.install_confirmed;
+      return btn(`<button class="btn btn-outline" style="font-size:12px" ${!canDone?'disabled title="Warehouse arrival + installation + customer confirm required"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Complete without collecting</button>`);
+    }
+    case 'done':     return `<div style="padding:12px;text-align:center;color:var(--muted);font-size:13px">✅ Order completed.</div>`;
+  }
+  return '';
+}
+
+const WORKFLOW_PHASES_BY_STAGE = {
+  lead: ['quote'], deposit: ['quote','deposit'], collect: ['quote','deposit','production'],
+  production: ['production'], shipped: ['shipping'], delivery: ['delivery'],
+};
+
+function buildOrderDetailStage(order, customer) {
+  const oid = order.id;
+  const isCollect = order.stage === 'collect';
+  const phases = WORKFLOW_PHASES_BY_STAGE[order.stage];
+  return [
+    buildSecCard(`q-${oid}`,   'stage', '💰', 'Quote',               quoteMeta(order),    buildOrderQuoteSection(order), false),
+    buildSecCard(`dep-${oid}`, 'stage', '💵', 'Deposit',             depositMeta(order),  buildDepositSection(order, customer), !order.deposit_received),
+    buildSecCard(`urg-${oid}`, 'stage', '🗓', 'Priority & Delivery', priorityMeta(order), buildUrgentSection(order, customer), true),
+    buildSecCard(`ci-${oid}`,  'stage', '📋', 'Order Info',          orderInfoMeta(order), buildOrderCollectInfoForm(order, customer), false),
+    buildSecCard(`ck-${oid}`,  'stage', '✅', 'Info Checklist',      `<span id="ck-meta-${oid}">${checkedCount(order)}/${totalChecks(order)}</span>`, buildChecklistBody(order, customer), isCollect),
+    buildSecCard(`fur-${oid}`, 'stage', '🪑', 'Furniture & CBM',     furnitureMeta(order), buildFurnitureSection(order, customer), false),
+    buildStageSection(order, customer),
+    phases ? buildWorkflowSection(order, customer, phases) : '',
+    order.stage === 'production' ? buildProductionTimeline(order) : '',
+    buildNotesSection(order, customer),
+    buildActionBar(order, customer),
+  ].join('');
+}
+
+const SEC_OPEN = {};
 function buildSecCard(id, type, icon, title, meta, bodyHtml, defaultOpen = true) {
-  const open = defaultOpen;
+  const open = id in SEC_OPEN ? SEC_OPEN[id] : defaultOpen;
   return `<div class="sec-card sec-${type}" id="seccard-${id}">
     <div class="sec-card-hdr ${open?'open':'closed'}" onclick="toggleSecCard('${id}')">
       <div class="sec-card-left">
@@ -3104,6 +3004,7 @@ function toggleSecCard(id) {
   const body = document.getElementById(`secbody-${id}`);
   const tog  = document.querySelector(`#seccard-${id} .sec-card-toggle`);
   const isOpen = !body.classList.contains('hidden');
+  SEC_OPEN[id] = !isOpen;
   body.classList.toggle('hidden', isOpen);
   hdr.classList.toggle('open', !isOpen);
   hdr.classList.toggle('closed', isOpen);
@@ -4189,6 +4090,14 @@ function toggleCheck(customerId, orderId, checkId, el) {
   const cnt  = document.getElementById('cp-count-' + orderId);
   if (fill) fill.style.width = pct + '%';
   if (cnt)  cnt.textContent = done + '/' + total;
+  const meta = document.getElementById('ck-meta-' + orderId);
+  if (meta) meta.textContent = done + '/' + total;
+  ['cabinet','door'].forEach(p => {
+    const el = document.getElementById(`ck-part-${orderId}-${p}`);
+    if (!el) return;
+    const gs = checklistGroups(order).filter(g => g.part === p);
+    el.textContent = gs.reduce((n, g) => n + g.items.filter(i => order.checked[i.id]).length, 0) + '/' + gs.reduce((n, g) => n + g.items.length, 0);
+  });
 
   // Update push button state
   const allDone = done === total;
