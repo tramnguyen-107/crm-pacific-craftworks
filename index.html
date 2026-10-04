@@ -1781,10 +1781,19 @@ const DOOR_CHECKLIST = {
 
 // Product type of an order/PO: 'cabinet' (default) or 'door'
 function orderProduct(order) {
-  return (order?.collect_info || {}).product === 'door' ? 'door' : 'cabinet';
+  const p = (order?.collect_info || {}).product;
+  return p === 'door' || p === 'both' ? p : 'cabinet';
 }
 function checklistGroups(order) {
-  if (orderProduct(order) === 'door') return [
+  const product = orderProduct(order);
+  if (product === 'both') {
+    const tag = (part, prefix, groups) => groups.map(g => ({ ...g, part, label: prefix + ' · ' + g.label }));
+    return [
+      ...tag('cabinet', '🗄 Cabinet', checklistGroups({ collect_info: { product: 'cabinet' } })),
+      ...tag('door',    '🚪 Door',    checklistGroups({ collect_info: { product: 'door' } })),
+    ];
+  }
+  if (product === 'door') return [
     { key: 'contact',  label: '👤 Contact Information', items: DOOR_CHECKLIST.contact },
     { key: 'entry',    label: '🧾 Order Entry',         items: DOOR_CHECKLIST.entry },
     { key: 'hardware', label: '🔩 Hardware',            items: DOOR_CHECKLIST.hardware },
@@ -2581,11 +2590,13 @@ function buildOrderQuoteSection(order) {
   const balance = Math.max(0, grandTotal - depositPaid);
   const fmt = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:0});
   const oid = order.id;
+  const both = orderProduct(order) === 'both';
 
   const rows = items.map((it, i) => {
     const lt = (parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0);
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:3px 2px"><input style="width:100%;border:none;background:transparent;font-size:12px;font-family:inherit;color:var(--text)" value="${(it.product||'').replace(/"/g,'&quot;')}" onchange="updateOrderQuoteItem('${oid}',${i},'product',this.value)" placeholder="Item name"></td>
+      ${both ? `<td style="padding:3px 2px;width:78px">${catSelect(it.category, `updateOrderQuoteItem('${oid}',${i},'category',this.value)`)}</td>` : ''}
       <td style="padding:3px 2px;width:45px"><input type="number" min="0" style="width:100%;border:none;background:transparent;font-size:12px;text-align:right;font-family:inherit;color:var(--text)" value="${it.qty||1}" oninput="updateOrderQuoteItem('${oid}',${i},'qty',this.value)"></td>
       <td style="padding:3px 2px;width:90px"><input type="number" min="0" style="width:100%;border:none;background:transparent;font-size:12px;text-align:right;font-family:inherit;color:var(--text)" value="${it.unit_cost||0}" oninput="updateOrderQuoteItem('${oid}',${i},'unit_cost',this.value)"></td>
       <td style="text-align:right;padding:3px 4px;width:70px;font-weight:600;font-size:12px" id="oq-row-${oid}-${i}">${fmt(lt)}</td>
@@ -2602,6 +2613,7 @@ function buildOrderQuoteSection(order) {
       <table class="quote-table" style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="border-bottom:1px solid var(--border)">
           <th style="text-align:left;padding:4px 0;font-weight:600;color:var(--muted)">Item</th>
+          ${both ? `<th style="text-align:left;padding:4px 0;font-weight:600;color:var(--muted);width:78px">Product</th>` : ''}
           <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:45px">Qty</th>
           <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:90px">Unit $</th>
           <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--muted);width:70px">Total</th>
@@ -2617,6 +2629,7 @@ function buildOrderQuoteSection(order) {
       <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;font-weight:700">
         <span>Grand Total</span><span id="oq-grand-total-${oid}">${fmt(grandTotal)}</span>
       </div>
+      ${both ? `<div id="oq-split-${oid}" style="font-size:11px;color:var(--muted);padding:0 0 4px;text-align:right">${quoteSplitHtml(items)}</div>` : ''}
       <div style="display:flex;justify-content:space-between;padding:2px 0;font-size:12px;color:#059669;font-weight:600">
         <span>🔒 Deposit Paid</span><span>${depositPaid > 0 ? fmt(depositPaid) : '—'}</span>
       </div>
@@ -2808,8 +2821,17 @@ function buildOrderDetailStageBody(order, customer) {
     </div>`;
 
     const groups = checklistGroups(order);
+    let lastPart = null;
     groups.forEach(g => {
-      html += `<div class="checklist-group"><div class="group-label">${g.label}</div><div class="checklist">`;
+      if (g.part && g.part !== lastPart) {
+        lastPart = g.part;
+        const partGroups = groups.filter(x => x.part === g.part);
+        const pTotal = partGroups.reduce((n, x) => n + x.items.length, 0);
+        const pDone = partGroups.reduce((n, x) => n + x.items.filter(i => checked[i.id]).length, 0);
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 4px;padding:6px 10px;background:var(--surface);border-radius:8px;font-size:12px;font-weight:800;color:var(--brand)">
+          <span>${g.part === 'door' ? '🚪 DOOR CHECKLIST' : '🗄 CABINET CHECKLIST'}</span><span>${pDone}/${pTotal}</span></div>`;
+      }
+      html += `<div class="checklist-group"><div class="group-label">${g.part ? g.label.split(' · ').slice(1).join(' · ') : g.label}</div><div class="checklist">`;
       g.items.forEach(item => {
         const isChecked = checked[item.id];
         html += `<div class="check-item ${isChecked ? 'checked' : ''}" data-cid="${customer.id}" data-oid="${order.id}" data-chk="${item.id}">
@@ -3749,6 +3771,29 @@ function collectDeadlineStatus(order) {
   if (hLeft < 0) return { cls:'overdue', label:`⏰ OVERDUE by ${Math.abs(Math.round(hLeft))}h — complete ASAP!` };
   if (hLeft < 4) return { cls:'warn', label:`⚠️ ${Math.floor(hLeft)}h ${Math.round((hLeft%1)*60)}min left to complete collecting info` };
   return { cls:'ok', label:`✅ ${Math.floor(hLeft)}h ${Math.round((hLeft%1)*60)}min remaining (deadline: ${dl.toLocaleString('en-US',{timeZone:'Pacific/Honolulu',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})})` };
+}
+
+// Quote total per product line (items tagged Cabinet / Door) — for Cabinet + Door orders
+function quoteSplit(items) {
+  const out = { cabinet: 0, door: 0, unassigned: 0 };
+  (items || []).forEach(it => {
+    const t = (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0);
+    out[it.category === 'cabinet' || it.category === 'door' ? it.category : 'unassigned'] += t;
+  });
+  return out;
+}
+function quoteSplitHtml(items) {
+  const q = quoteSplit(items);
+  const f = n => '$' + n.toLocaleString('en-US', {maximumFractionDigits:2});
+  return `🗄 Cabinet <strong>${f(q.cabinet)}</strong> · 🚪 Door <strong>${f(q.door)}</strong>` +
+    (q.unassigned ? ` · <span style="color:#D97706">⚠️ Not tagged ${f(q.unassigned)}</span>` : '');
+}
+function catSelect(value, onchange) {
+  return `<select onchange="${onchange}" style="width:100%;border:1px solid var(--border);border-radius:4px;background:white;font-size:11px;font-family:inherit;padding:2px">
+    <option value="">—</option>
+    <option value="cabinet"${value==='cabinet'?' selected':''}>Cabinet</option>
+    <option value="door"${value==='door'?' selected':''}>Door</option>
+  </select>`;
 }
 
 // Grand total of an order's quote (items + shipping); 0 if no quote yet
@@ -5625,9 +5670,12 @@ async function saveCI(leadId, poId, field, value) {
 
 function collectProgress(po) {
   const c = po?.collect_info || {};
-  if (c.product === 'door') {
+  if (c.product === 'door' || c.product === 'both') {
     const g = (Array.isArray(c.door_groups) && c.door_groups[0]) || {};
-    const req = [g.species, g.style, g.color, g.finish, g.sample,
+    const cab = c.product === 'both'
+      ? ['box_species','door_species','door_stain','door_finish','door_style','grain_dir','drawer_species','drawer_style','drawer_slide','hinge','appl_fridge','appl_cooktop'].map(f => c[f])
+      : [];
+    const req = [...cab, g.species, g.style, g.color, g.finish, g.sample,
       c.door_hinges, c.lockset_hw, c.handle_hw, c.lockset_drill, c.handle_drill];
     const filled = req.filter(v => v && v !== '').length;
     return { filled, total: req.length, pct: Math.round(filled / req.length * 100) };
@@ -5643,6 +5691,19 @@ function collectProgress(po) {
 // save(field, valueExpr) returns the inline JS call that persists one field
 // Registry so door-group edits (array field) can be saved from inline handlers
 const CI_FORMS = {};
+const CI_TAB = {};   // remembers which spec tab (cab/door) is open per form
+function ciShowTab(key, val) {
+  CI_TAB[key] = val;
+  ['cab','door'].forEach(v => {
+    const el = document.getElementById(`citab-${key}-${v}`);
+    if (el) el.style.display = v === val ? 'block' : 'none';
+  });
+  document.querySelectorAll(`[data-citab="${key}"]`).forEach(b => {
+    const on = b.dataset.val === val;
+    b.style.background = on ? 'white' : 'var(--surface)';
+    b.style.color = on ? 'var(--brand)' : 'var(--muted)';
+  });
+}
 function ciForm(key) { return CI_FORMS[key]; }
 function ciDoorGroups(f) {
   if (!Array.isArray(f.c.door_groups) || !f.c.door_groups.length) f.c.door_groups = [{}];
@@ -5681,7 +5742,7 @@ function buildCollectSpecForm(c, save, key, showDrive = true, refresh = '') {
     save: (field, value) => new Function('v', 'return ' + save(field, 'v'))(value),
     refresh: () => { if (refresh) new Function(refresh)(); },
   };
-  const product = c.product === 'door' ? 'door' : 'cabinet';
+  const product = c.product === 'door' || c.product === 'both' ? c.product : 'cabinet';
   const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   function sel(field, opts, extra='') {
     return `<select class="lp-input" onchange="${save(field,'this.value')}" ${extra}>
@@ -5715,7 +5776,7 @@ function buildCollectSpecForm(c, save, key, showDrive = true, refresh = '') {
       style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid ${product===val?'var(--brand)':'var(--border)'};background:${product===val?'var(--brand)':'white'};color:${product===val?'white':'var(--text)'}">${label}</button>`;
   const productToggle = `<div class="ci-section">
     <div class="ci-section-title">🏷 Product Type</div>
-    <div style="display:flex;gap:8px">${pBtn('cabinet','🗄 Cabinet')}${pBtn('door','🚪 Door')}</div>
+    <div style="display:flex;gap:8px">${pBtn('cabinet','🗄 Cabinet')}${pBtn('door','🚪 Door')}${pBtn('both','🗄+🚪 Cabinet + Door')}</div>
   </div>`;
   const driveHtml = showDrive ? `<div class="ci-section" style="margin-bottom:24px">
     <div class="ci-section-title">🗂 Google Drive — Customer Folder</div>
@@ -5727,7 +5788,8 @@ function buildCollectSpecForm(c, save, key, showDrive = true, refresh = '') {
     ${c.drive_link ? `<a href="${esc(c.drive_link)}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--brand);text-decoration:none;font-weight:600">📂 Open Folder →</a>` : ''}
   </div>` : '';
 
-  if (product === 'door') {
+  let doorCore = '', doorCommon = '';
+  if (product !== 'cabinet') {
     const groups = (Array.isArray(c.door_groups) && c.door_groups.length) ? c.door_groups : [{}];
     const dInp = (i, g, field, ph='') => `<input class="lp-input" placeholder="${ph}" value="${esc(g[field])}" onchange="ciDoorSet('${key}',${i},'${field}',this.value)">`;
     const dSel = (i, g, field, opts) => `<select class="lp-input" onchange="ciDoorSet('${key}',${i},'${field}',this.value)">
@@ -5763,7 +5825,7 @@ function buildCollectSpecForm(c, save, key, showDrive = true, refresh = '') {
         </div>
       </div>`).join('');
     const supply = ['Factory Supply','Other Supply','Client Supply'];
-    return productToggle + `
+    doorCore = `
   <div class="ci-section">
     <div class="ci-section-title">🚪 Door Order Information</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Special instructions: see attached drawings.</div>
@@ -5788,7 +5850,8 @@ function buildCollectSpecForm(c, save, key, showDrive = true, refresh = '') {
       ${yn('lockset_drill','Door Locksets — drill hole')}
       ${yn('handle_drill','Door Handles — drill hole')}
     </div>
-  </div>
+  </div>`;
+    doorCommon = `
 
   <div class="ci-section">
     <div class="ci-section-title">✅ Checklist</div>
@@ -5812,9 +5875,10 @@ function buildCollectSpecForm(c, save, key, showDrive = true, refresh = '') {
     ${ynDate('electrical','Electrical')}
   </div>
   ${driveHtml}`;
+    if (product === 'door') return productToggle + doorCore + doorCommon;
   }
 
-  return productToggle + `
+  const cabinetHtml = `
   <!-- CABINET SPECS -->
   <div class="ci-section">
     <div class="ci-section-title">🪵 Cabinet Box</div>
@@ -5937,6 +6001,17 @@ function buildCollectSpecForm(c, save, key, showDrive = true, refresh = '') {
     ${c.drive_link ? `<a href="${c.drive_link}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--brand);text-decoration:none;font-weight:600">
       📂 Open Folder →</a>` : ''}
   </div>` : ''}`;
+  if (product !== 'both') return productToggle + cabinetHtml;
+  // Cabinet + Door: one order, two spec tabs (services / glass / drive live in the Cabinet tab)
+  const tab = CI_TAB[key] || 'cab';
+  const tBtn = (val, label) => `<button type="button" data-citab="${key}" data-val="${val}" onclick="ciShowTab('${key}','${val}')"
+      style="flex:1;padding:7px;border-radius:8px 8px 0 0;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid var(--border);border-bottom:none;background:${tab===val?'white':'var(--surface)'};color:${tab===val?'var(--brand)':'var(--muted)'}">${label}</button>`;
+  return productToggle + `
+  <div style="display:flex;gap:6px">${tBtn('cab','🗄 Cabinet specs')}${tBtn('door','🚪 Door specs')}</div>
+  <div style="border:1.5px solid var(--border);border-radius:0 0 10px 10px;padding:10px;margin-bottom:12px;background:white">
+    <div id="citab-${key}-cab" style="display:${tab==='cab'?'block':'none'}">${cabinetHtml}</div>
+    <div id="citab-${key}-door" style="display:${tab==='door'?'block':'none'}">${doorCore}</div>
+  </div>`;
 }
 
 function buildLeadInfoTab(lead, po) {
@@ -5991,12 +6066,14 @@ function buildQuoteTab(lead, po) {
   if (!po) return '<div style="padding:20px;color:var(--muted)">No PO selected.</div>';
   const items = po.quote_items || [];
   const { subtotal, shipping, grandTotal, deposit } = calcQuote(po);
+  const both = orderProduct(po) === 'both';
 
   const rows = items.map((it, i) => {
     const lineTotal = (parseFloat(it.qty)||0) * (parseFloat(it.unit_cost)||0);
     return `<tr>
       <td><input class="quote-input" value="${it.product||''}" placeholder="Product / description"
         onchange="updateQuoteItem('${lead.id}','${po.id}',${i},'product',this.value)"></td>
+      ${both ? `<td style="width:84px">${catSelect(it.category, `updateQuoteItem('${lead.id}','${po.id}',${i},'category',this.value)`)}</td>` : ''}
       <td><input class="quote-input num" type="number" min="1" value="${it.qty||1}"
         oninput="updateQuoteItem('${lead.id}','${po.id}',${i},'qty',this.value)"></td>
       <td><input class="quote-input num" type="number" min="0" value="${it.unit_cost||''}" placeholder="0"
@@ -6008,8 +6085,8 @@ function buildQuoteTab(lead, po) {
 
   return `
     <table class="quote-table">
-      <thead><tr><th>Product</th><th style="width:60px">Qty</th><th style="width:80px">Unit $</th><th style="width:70px;text-align:right">Total</th><th style="width:28px"></th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px;font-size:12px">No items yet — add below</td></tr>'}</tbody>
+      <thead><tr><th>Product</th>${both ? '<th style="width:84px">Type</th>' : ''}<th style="width:60px">Qty</th><th style="width:80px">Unit $</th><th style="width:70px;text-align:right">Total</th><th style="width:28px"></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px;font-size:12px">No items yet — add below</td></tr>'}</tbody>
     </table>
     <button class="quote-add-btn" onclick="addQuoteItem('${lead.id}','${po.id}')">+ Add Item</button>
 
@@ -6021,6 +6098,7 @@ function buildQuoteTab(lead, po) {
           oninput="updateShipping('${lead.id}','${po.id}',this.value)"></span>
       </div>
       <div class="quote-total-row grand"><span>Grand Total</span><span id="qt-grand">$${grandTotal.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
+      ${both ? `<div id="qt-split" style="font-size:11px;color:var(--muted);text-align:right;padding:2px 0 6px">${quoteSplitHtml(items)}</div>` : ''}
       <div class="quote-total-row deposit"><span>💰 Deposit (75%)</span><span id="qt-deposit">$${deposit.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
     </div>
 
@@ -6205,9 +6283,10 @@ async function updateQuoteItem(leadId, poId, idx, field, value) {
   if (el2('qt-subtotal')) el2('qt-subtotal').textContent = fmt2(subtotal);
   if (el2('qt-grand'))    el2('qt-grand').textContent    = fmt2(grandTotal);
   if (el2('qt-deposit'))  el2('qt-deposit').textContent  = fmt2(deposit);
+  if (el2('qt-split'))    el2('qt-split').innerHTML      = quoteSplitHtml(po.quote_items);
   document.querySelectorAll('.quote-table tbody tr').forEach((tr, i) => {
     const it = po.quote_items[i];
-    if (it) { const td = tr.querySelectorAll('td')[3]; if (td) td.textContent = '$'+((parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0)).toLocaleString('en-US',{minimumFractionDigits:0}); }
+    if (it) { const td = tr.querySelectorAll('td')[orderProduct(po) === 'both' ? 4 : 3]; if (td) td.textContent = '$'+((parseFloat(it.qty)||0)*(parseFloat(it.unit_cost)||0)).toLocaleString('en-US',{minimumFractionDigits:0}); }
   });
   const cvtSpan = document.querySelector('.lp-convert-bar .cvt-deposit-label');
   if (cvtSpan) cvtSpan.textContent = `Record $${deposit.toLocaleString('en-US',{minimumFractionDigits:0})} deposit (75%)`;
@@ -6233,6 +6312,7 @@ function _oqRecalc(order) {
   const el = id => document.getElementById(id);
   if (el('oq-grand-'+oid)) el('oq-grand-'+oid).textContent = 'Total: ' + fmt(grandTotal);
   if (el('oq-grand-total-'+oid)) el('oq-grand-total-'+oid).textContent = fmt(grandTotal);
+  if (el('oq-split-'+oid)) el('oq-split-'+oid).innerHTML = quoteSplitHtml(items);
   if (el('oq-balance-'+oid)) {
     el('oq-balance-'+oid).textContent = fmt(balance);
     el('oq-balance-'+oid).style.color = balance > 0 ? '#DC2626' : '#059669';
