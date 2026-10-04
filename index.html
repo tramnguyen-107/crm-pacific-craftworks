@@ -3129,8 +3129,18 @@ function parseFactorySheet(rows, defaultCategory = '') {
 // Cabinet / accessory lines → one item (own QR) each. Door lines (No = D1, D01…) → grouped into one set per code;
 // loose hardware lines in a door job go into the set when the job has a single door, else become their own item.
 // Factory "QR ID Used" / "Parent Package QR ID" columns are ignored — PCW makes its own QR.
+// Job lists start sections with "1\ Job:" in the first column (a "Job: …" field in a quote header doesn't count)
 function isJobSheet(rows) {
-  return rows.some(r => (r || []).some(c => /\bJob\s*:/i.test(String(c ?? ''))));
+  return rows.some(r => /^\s*\d+\s*\\?\s*Job\s*:/i.test(String((r || [])[0] ?? '')));
+}
+// Try the matching reader first, then the other one
+function parseAnySheet(rows, sheetName) {
+  const readers = isJobSheet(rows) ? [parseJobSheet, parseFactorySheet] : [parseFactorySheet, parseJobSheet];
+  let lastErr;
+  for (const read of readers) {
+    try { const g = read(rows, sheetName); if (g.length) return g; } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('Không đọc được dòng hàng nào.');
 }
 function parseJobSheet(rows) {
   const norm = v => String(v ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
@@ -3223,7 +3233,7 @@ function openPackingImport(orderId) {
       wb.SheetNames.forEach(name => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
         try {
-          groups.push(...(isJobSheet(rows) ? parseJobSheet(rows) : parseFactorySheet(rows, wb.SheetNames.length > 1 ? name : '')));
+          groups.push(...parseAnySheet(rows, wb.SheetNames.length > 1 ? name : ''));
         } catch (e) { skipped.push(name); }
       });
       if (!groups.length) throw new Error('Không đọc được dòng hàng nào trong file.');
@@ -3327,31 +3337,106 @@ async function runPackingImport() {
   showToast(`✅ Imported ${rows.length} line(s)`);
 }
 
+// Door lines: door sets, plus loose door hardware imported from a door job
+function isDoorLine(item) {
+  return item.item_type === 'set' || /\bdoor\b/i.test(item.category || '');
+}
+const PK_PARTS_OPEN = {};
+
+async function addDoorSet(orderId) {
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const itemNo = (packingItems[orderId] || []).length + 1;
+  const row = { order_id: orderId, item_no: itemNo, qr_id: generateQRId(order, itemNo), item_type: 'set',
+    description: 'Door D' + ((packingItems[orderId] || []).filter(i => i.item_type === 'set').length + 1),
+    drawing_code: '', unit: 'Set', qty: 1, cbm: 0, category: 'Door', components: [{}], notes: '' };
+  const res = (await sb.from('packing_list_items').insert(row).select().single()).data;
+  if (!res) return showToast('❌ Error adding door set');
+  (packingItems[orderId] = packingItems[orderId] || []).push(res);
+  PK_PARTS_OPEN[res.id] = true;
+  CI_TAB['pk' + orderId] = 'door';
+  refreshOrderDetail(c.id, orderId);
+}
+
+// Editable parts table for a door set
+function buildPartsEditor(item, orderId) {
+  const parts = item.components || [];
+  const inp = (i, f, v, w, ph = '') => `<input id="pp-${item.id}-${i}-${f}" class="lp-input" style="width:${w};font-size:11px;padding:4px" value="${String(v ?? '').replace(/"/g,'&quot;')}" placeholder="${ph}">`;
+  const units = ['Leaf','LF','Pc','Set','Bar'];
+  const rows = parts.map((x, i) => `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:3px">${inp(i,'description',x.description,'100%','Part')}</td>
+      <td style="padding:3px">${inp(i,'species',x.species,'90px','Species')}</td>
+      <td style="padding:3px;white-space:nowrap">${inp(i,'w',fmtInches(x.w),'48px','W')} × ${inp(i,'h',fmtInches(x.h),'52px','H')} × ${inp(i,'d',fmtInches(x.d),'44px','D')}</td>
+      <td style="padding:3px"><select id="pp-${item.id}-${i}-unit" class="lp-input" style="font-size:11px;padding:4px">${units.map(u => `<option${(x.unit||'Pc')===u?' selected':''}>${u}</option>`).join('')}</select></td>
+      <td style="padding:3px">${inp(i,'qty',x.qty ?? 1,'52px')}</td>
+      <td style="padding:3px">${inp(i,'cbm',x.cbm != null ? Number(x.cbm).toFixed(4) : '','64px','auto')}</td>
+      <td style="padding:3px"><button type="button" onclick="removeSetPart('${item.id}','${orderId}',${i})" style="border:none;background:none;color:var(--muted);cursor:pointer">✕</button></td>
+    </tr>`).join('');
+  return `<table style="width:100%;border-collapse:collapse;font-size:11px;background:white;border:1px solid var(--border);border-radius:6px">
+      <thead><tr style="background:var(--surface);color:var(--muted);text-align:left">
+        <th style="padding:4px 6px">Part</th><th style="padding:4px 6px">Species</th><th style="padding:4px 6px">W × H × D (in)</th>
+        <th style="padding:4px 6px">Unit</th><th style="padding:4px 6px">Qty</th><th style="padding:4px 6px">CBM</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="7" style="padding:8px;text-align:center;color:var(--muted)">No parts yet.</td></tr>`}</tbody>
+    </table>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button type="button" class="btn btn-outline" style="font-size:11px;padding:4px 10px;flex:1" onclick="addSetPart('${item.id}','${orderId}')">+ Add part</button>
+      <button type="button" class="btn btn-primary" style="font-size:11px;padding:4px 10px;flex:1" onclick="saveSetParts('${item.id}','${orderId}')">💾 Save parts</button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:4px">CBM để trống = tự tính từ kích thước. CBM của bộ = Qty bộ × tổng CBM các chi tiết.</div>`;
+}
+
+// Read the parts editor back into item.components (without saving)
+function readSetParts(item) {
+  return (item.components || []).map((x, i) => {
+    const v = f => document.getElementById(`pp-${item.id}-${i}-${f}`)?.value ?? '';
+    const part = { description: v('description').trim(), species: v('species').trim(),
+      w: parseInches(v('w')), h: parseInches(v('h')), d: parseInches(v('d')),
+      unit: v('unit') || 'Pc', qty: numOrNull(v('qty')) ?? 1 };
+    const typed = numOrNull(v('cbm'));
+    // LF lines already carry the full length in H, so qty is not multiplied in
+    part.cbm = typed ?? ((calcCBM(part.w, part.h, part.d) || 0) * (part.unit === 'LF' ? 1 : part.qty) || null);
+    return part;
+  });
+}
+function setPackItem(itemId, orderId) { return (packingItems[orderId] || []).find(i => i.id === itemId); }
+function addSetPart(itemId, orderId) {
+  const item = setPackItem(itemId, orderId); if (!item) return;
+  item.components = [...readSetParts(item), {}];
+  PK_PARTS_OPEN[itemId] = true;
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  refreshOrderDetail(c.id, orderId);
+}
+function removeSetPart(itemId, orderId, idx) {
+  const item = setPackItem(itemId, orderId); if (!item) return;
+  const parts = readSetParts(item); parts.splice(idx, 1);
+  item.components = parts;
+  PK_PARTS_OPEN[itemId] = true;
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  refreshOrderDetail(c.id, orderId);
+}
+async function saveSetParts(itemId, orderId) {
+  const item = setPackItem(itemId, orderId); if (!item) return;
+  item.components = readSetParts(item).filter(x => x.description || x.w || x.h || x.qty);
+  item.cbm = Math.round((item.qty || 1) * item.components.reduce((a, x) => a + (x.cbm || 0), 0) * 10000) / 10000;
+  await sb.from('packing_list_items').update({ components: item.components, cbm: item.cbm }).eq('id', itemId);
+  PK_PARTS_OPEN[itemId] = true;
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  refreshOrderDetail(c.id, orderId);
+  showToast('✅ Parts saved — set CBM ' + item.cbm.toFixed(4));
+}
+
 function togglePackParts(itemId) {
+  PK_PARTS_OPEN[itemId] = !PK_PARTS_OPEN[itemId];
   const el = document.getElementById('pk-parts-' + itemId);
   if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
 }
-function buildPartsTable(components) {
-  return `<table style="width:100%;border-collapse:collapse;font-size:11px;background:white;border:1px solid var(--border);border-radius:6px">
-    <thead><tr style="background:var(--surface);color:var(--muted)">
-      <th style="padding:4px 6px;text-align:left">Part</th><th style="padding:4px 6px;text-align:left">Species</th>
-      <th style="padding:4px 6px;text-align:left">W × H × D (in)</th><th style="padding:4px 6px">Unit</th>
-      <th style="padding:4px 6px;text-align:right">Qty</th><th style="padding:4px 6px;text-align:right">CBM</th></tr></thead>
-    <tbody>${(components || []).map(x => `<tr style="border-top:1px solid var(--border)">
-      <td style="padding:4px 6px">${x.description || ''}</td><td style="padding:4px 6px;color:var(--muted)">${x.species || ''}</td>
-      <td style="padding:4px 6px;white-space:nowrap">${[x.w, x.h, x.d].some(v => v != null) ? [x.w, x.h, x.d].map(fmtInches).join(' × ') : '—'}</td>
-      <td style="padding:4px 6px;text-align:center">${x.unit || ''}</td>
-      <td style="padding:4px 6px;text-align:right">${x.qty ?? ''}</td>
-      <td style="padding:4px 6px;text-align:right">${x.cbm != null ? Number(x.cbm).toFixed(4) : ''}</td></tr>`).join('')}</tbody>
-  </table>`;
-}
-
 function buildPackingListSection(order, customer) {
   const items = packingItems[order.id] || [];
   const totalCBM = items.reduce((s,i) => s + lineCBM(i), 0);
   const totalQty = items.reduce((s,i) => s + (i.qty||1), 0);
 
-  const rows = items.map(item => {
+  const rowFor = item => {
     if (item.item_type === 'set') {
       const parts = item.components || [];
       return `
@@ -3373,7 +3458,7 @@ function buildPackingListSection(order, customer) {
         <button onclick="deletePackingItem('${item.id}','${order.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" title="Delete">🗑</button>
       </td>
     </tr>
-    <tr id="pk-parts-${item.id}" style="display:none"><td></td><td colspan="9" style="padding:4px 6px 10px">${buildPartsTable(parts)}</td></tr>`;
+    <tr id="pk-parts-${item.id}" style="display:${PK_PARTS_OPEN[item.id] ? '' : 'none'}"><td></td><td colspan="9" style="padding:4px 6px 10px">${buildPartsEditor(item, order.id)}</td></tr>`;
     }
     const cbm = item.cbm != null && item.cbm !== '' ? Number(item.cbm) / (item.qty || 1) : calcCBM(item.width_in, item.height_in, item.depth_in);
     const cbmDisplay = cbm ? cbm.toFixed(4) : '—';
@@ -3402,7 +3487,7 @@ function buildPackingListSection(order, customer) {
         <button onclick="deletePackingItem('${item.id}','${order.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" title="Delete">🗑</button>
       </td>
     </tr>`;
-  }).join('');
+  };
 
   const scanBtns = items.length ? `
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;padding:10px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
@@ -3413,27 +3498,7 @@ function buildPackingListSection(order, customer) {
       <button class="btn" style="font-size:11px;padding:4px 10px;background:#065f46;color:#fff;border:none" onclick="window.open('scan.html?step=delivered&order=${encodeURIComponent(order.id)}','_blank')">🏠 Deliver</button>
     </div>` : '';
 
-  const totalRow = items.length ? `
-    <tr style="background:var(--surface);border-top:2px solid var(--border);font-weight:700">
-      <td colspan="4" style="padding:8px;text-align:right;font-size:12px;color:var(--muted)">TOTAL</td>
-      <td id="pack-total-qty-${order.id}" style="padding:8px;text-align:center;font-size:13px;color:var(--brand)">${totalQty}</td>
-      <td id="pack-total-cbm-${order.id}" style="padding:8px;text-align:center;font-size:13px;color:var(--brand)">${totalCBM.toFixed(4)}</td>
-      <td colspan="4"></td>
-    </tr>` : '';
-
-  return `<div class="activity-section">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="section-title" style="margin:0">📦 Packing List <span style="font-size:11px;color:var(--muted);font-weight:400">${items.length} line${items.length!==1?'s':''} · ${totalQty} pcs · ${totalCBM.toFixed(4)} CBM</span></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-        <button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="openPackingImport('${order.id}')">📤 Import Excel</button>
-        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printPackingList('${order.id}','${customer.id}')">🖨️ PDF</button>` : ''}
-        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px;background:#166534;color:#fff;border-color:#166534" onclick="exportPackingExcel('${order.id}','${customer.id}')">📥 Excel</button>` : ''}
-        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px;background:#1e3a8a;color:#fff;border-color:#1e3a8a" onclick="printQRLabels('${order.id}','${customer.id}')">🏷️ QR Labels</button>` : ''}
-      </div>
-    </div>
-    ${scanBtns}
-    ${items.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
-      <thead><tr style="background:var(--surface);border-bottom:2px solid var(--border)">
+  const thead = `<thead><tr style="background:var(--surface);border-bottom:2px solid var(--border)">
         <th style="padding:6px 8px;text-align:center;font-size:11px;color:var(--muted);font-weight:600">NO.</th>
         <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">DESCRIPTION</th>
         <th style="padding:6px 8px;text-align:center;font-size:11px;color:var(--muted);font-weight:600">CODE</th>
@@ -3444,12 +3509,54 @@ function buildPackingListSection(order, customer) {
         <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">QR</th>
         <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Status</th>
         <th></th>
-      </tr></thead>
-      <tbody>${rows}${totalRow}</tbody>
-    </table></div>` : `<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No items yet.</div>`}
-    <div style="margin-top:10px">
-      <button class="btn btn-outline" style="font-size:12px;padding:5px 14px;width:100%" onclick="addPackingItem('${order.id}')">+ Add Item</button>
+      </tr></thead>`;
+  // One table (+ its own total and add button) for a list of lines
+  const pane = (list, kind, idSuffix) => {
+    const q = list.reduce((s,i) => s + (i.qty||1), 0), c = list.reduce((s,i) => s + lineCBM(i), 0);
+    const addBtn = kind === 'door'
+      ? `<button class="btn btn-outline" style="font-size:12px;padding:5px 14px;width:100%" onclick="addDoorSet('${order.id}')">+ Add Door Set</button>`
+      : `<button class="btn btn-outline" style="font-size:12px;padding:5px 14px;width:100%" onclick="addPackingItem('${order.id}')">+ Add Item</button>`;
+    return `${list.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">${thead}
+      <tbody>${list.map(rowFor).join('')}
+        <tr style="background:var(--surface);border-top:2px solid var(--border);font-weight:700">
+          <td colspan="4" style="padding:8px;text-align:right;font-size:12px;color:var(--muted)">TOTAL</td>
+          <td id="pack-total-qty-${order.id}${idSuffix}" style="padding:8px;text-align:center;font-size:13px;color:var(--brand)">${q}</td>
+          <td id="pack-total-cbm-${order.id}${idSuffix}" style="padding:8px;text-align:center;font-size:13px;color:var(--brand)">${c.toFixed(4)}</td>
+          <td colspan="4"></td>
+        </tr></tbody>
+    </table></div>` : `<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">${kind === 'door' ? 'No door sets yet.' : 'No items yet.'}</div>`}
+    <div style="margin-top:10px">${addBtn}</div>`;
+  };
+
+  const product = orderProduct(order);
+  const doorLines = items.filter(isDoorLine), cabLines = items.filter(i => !isDoorLine(i));
+  const tabs = product === 'both' || (doorLines.length && cabLines.length);
+  let body;
+  if (tabs) {
+    const key = 'pk' + order.id, tab = CI_TAB[key] || 'cab';
+    const sum = l => `${l.length} · ${l.reduce((s,i) => s + lineCBM(i), 0).toFixed(3)} CBM`;
+    const tBtn = (val, label, l) => `<button type="button" data-citab="${key}" data-val="${val}" onclick="ciShowTab('${key}','${val}')"
+        style="flex:1;padding:7px;border-radius:8px 8px 0 0;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid var(--border);border-bottom:none;background:${tab===val?'white':'var(--surface)'};color:${tab===val?'var(--brand)':'var(--muted)'}">${label} <span style="font-weight:600">${sum(l)}</span></button>`;
+    body = `<div style="display:flex;gap:6px">${tBtn('cab','🗄 Cabinet',cabLines)}${tBtn('door','🚪 Door',doorLines)}</div>
+      <div style="border:1.5px solid var(--border);border-radius:0 0 10px 10px;padding:10px;background:white">
+        <div id="citab-${key}-cab" style="display:${tab==='cab'?'block':'none'}">${pane(cabLines, 'cab', '')}</div>
+        <div id="citab-${key}-door" style="display:${tab==='door'?'block':'none'}">${pane(doorLines, 'door', '-door')}</div>
+      </div>`;
+  } else {
+    body = pane(items, product === 'door' ? 'door' : 'cab', '');
+  }
+
+  return `<div class="activity-section">
+    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:10px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="openPackingImport('${order.id}')">📤 Import Excel</button>
+        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printPackingList('${order.id}','${customer.id}')">🖨️ PDF</button>` : ''}
+        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="exportPackingExcel('${order.id}','${customer.id}')">📥 Excel</button>` : ''}
+        ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printQRLabels('${order.id}','${customer.id}')">🏷️ QR Labels</button>` : ''}
+      </div>
     </div>
+    ${scanBtns}
+    ${body}
   </div>`;
 }
 
@@ -3505,7 +3612,9 @@ function liveCBM(itemId, orderId) {
     cell.textContent = cbm ? cbm.toFixed(4) : '—';
   }
   if (!orderId) return;
-  const allItems = packingItems[orderId] || [];
+  // With Cabinet | Door tabs, the cabinet table total covers cabinet lines only
+  const split = document.getElementById('pack-total-cbm-' + orderId + '-door');
+  const allItems = (packingItems[orderId] || []).filter(it => !split || !isDoorLine(it));
   let totalCBM = 0, totalQty = 0;
   allItems.forEach(it => {
     const iw = it.id === itemId ? w : it.width_in;
