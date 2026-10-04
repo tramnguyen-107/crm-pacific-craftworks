@@ -3014,7 +3014,7 @@ function toggleSecCard(id) {
 
 function buildFullOrderDetail(order, customer) {
   const items = packingItems[order.id] || [];
-  const totalCBM = items.reduce((s,i) => s + (calcCBM(i.width_in,i.height_in,i.depth_in)||0) * (i.qty||1), 0);
+  const totalCBM = items.reduce((s,i) => s + lineCBM(i), 0);
   const totalQty0 = items.reduce((s,i) => s + (i.qty||1), 0);
   const packingMeta = items.length ? `${items.length} line${items.length!==1?'s':''} · ${totalQty0} pcs · ${totalCBM.toFixed(4)} CBM` : 'No items';
 
@@ -3043,13 +3043,239 @@ function calcCBM(w, h, d) {
   return v / 61023.744; // cubic inches → cubic meters
 }
 
+// ─── PACKING: door sets (1 QR per set) + Excel import ───
+// Line CBM: factory figure when we have it (sets / imported rows), else W×H×D × qty
+function lineCBM(item) {
+  if (item.cbm !== null && item.cbm !== undefined && item.cbm !== '') return Number(item.cbm) || 0;
+  return (calcCBM(item.width_in, item.height_in, item.depth_in) || 0) * (item.qty || 1);
+}
+// "80  1/16" → 80.0625 · "13 7/8" → 13.875 · 36 → 36
+function parseInches(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return v;
+  const s = String(v).trim().replace(',', '.');
+  const m = s.match(/^(\d+(?:\.\d+)?)?\s*(?:(\d+)\s*\/\s*(\d+))?$/);
+  if (!m || (!m[1] && !m[2])) return parseFloat(s) || null;
+  return (m[1] ? parseFloat(m[1]) : 0) + (m[2] ? parseInt(m[2]) / parseInt(m[3]) : 0);
+}
+// 80.0625 → "80 1/16"
+function fmtInches(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const n = Number(v); if (isNaN(n)) return String(v);
+  const whole = Math.floor(n), frac = Math.round((n - whole) * 16);
+  if (!frac) return String(whole);
+  if (frac === 16) return String(whole + 1);
+  let a = frac, b = 16; while (a % 2 === 0) { a /= 2; b /= 2; }
+  return (whole ? whole + ' ' : '') + a + '/' + b;
+}
+const numOrNull = v => { if (v === null || v === undefined || v === '') return null; const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
+
+// Reads the factory quote / packing sheet (No · Description · Species · W H D · Unit · Q'ty · … · CBM).
+// Numbered rows start a group; un-numbered rows below are its parts; text-only rows are section headers.
+function parseFactorySheet(rows) {
+  const norm = v => String(v ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
+  const hr = rows.findIndex(r => (r || []).some(c => norm(c) === 'DESCRIPTION'));
+  if (hr < 0) throw new Error('Không tìm thấy cột "DESCRIPTION" trong file.');
+  const H = rows[hr] || [], H2 = rows[hr + 1] || [];
+  const find = re => H.findIndex(c => re.test(norm(c)));
+  const col = {
+    no: find(/^NO\.?$/), desc: find(/^DESCRIPTION$/), species: find(/SPECIES/), code: find(/CODE/),
+    unit: find(/^UNIT$/), qty: find(/Q'?\s*TY|^QTY|QUANTITY/), cbm: find(/^CBM$/),
+    w: H2.findIndex(c => norm(c) === 'W'), h: H2.findIndex(c => norm(c) === 'H'), d: H2.findIndex(c => norm(c) === 'D'),
+  };
+  const dimsInSub = col.w >= 0;
+  if (!dimsInSub) { col.w = find(/^W$|WIDTH/); col.h = find(/^H$|HEIGHT/); col.d = find(/^D$|DEPTH/); }
+  if (col.no < 0) col.no = 0;
+  const get = (r, k) => col[k] >= 0 ? r[col[k]] : null;
+
+  const groups = []; let cur = null, category = '';
+  for (let i = hr + (dimsInSub ? 2 : 1); i < rows.length; i++) {
+    const r = rows[i] || [];
+    const cells = r.map(norm).filter(Boolean);
+    if (!cells.length) continue;
+    if (cells.some(c => c === 'TOTAL')) break;
+    const no = numOrNull(get(r, 'no'));
+    const desc = String(get(r, 'desc') ?? '').trim();
+    const qty = numOrNull(get(r, 'qty'));
+    const base = {
+      description: desc, species: String(get(r, 'species') ?? '').trim(),
+      w: parseInches(get(r, 'w')), h: parseInches(get(r, 'h')), d: parseInches(get(r, 'd')),
+      unit: String(get(r, 'unit') ?? '').trim(), qty, cbm: numOrNull(get(r, 'cbm')),
+    };
+    if (no !== null && desc) {
+      const m = desc.match(/^#\s*(.+?)\s+-\s+/) || desc.match(/^#\s*(\S+)/);
+      const code = String(get(r, 'code') ?? '').trim() || (m ? m[1].replace(/#/g, '').replace(/\s+/g, '') : '');
+      cur = { ...base, no, code, category, components: [] };
+      groups.push(cur);
+    } else if (desc && cur && (qty !== null || base.unit)) {
+      cur.components.push(base);
+    } else if (cells.length === 1 && qty === null) {
+      category = String(r.find(c => norm(c)) ?? '').trim(); cur = null;   // section header e.g. "Door"
+    } else if (desc && cur) {
+      cur.components.push(base);
+    }
+  }
+  if (!groups.length) throw new Error('Không đọc được dòng hàng nào (cần cột No có số thứ tự).');
+  return groups;
+}
+
+let pkImport = null;   // { orderId, fileName, groups }
+function openPackingImport(orderId) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
+  inp.onchange = async () => {
+    const file = inp.files[0]; if (!file) return;
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null });
+      pkImport = { orderId, fileName: file.name, groups: parseFactorySheet(rows) };
+      showPackingImportPreview();
+    } catch (e) { alert('❌ Import lỗi: ' + e.message); }
+  };
+  inp.click();
+}
+
+function showPackingImportPreview() {
+  const { orderId, fileName, groups } = pkImport;
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  const existing = (packingItems[orderId] || []).length;
+  const defMode = orderProduct(order) === 'cabinet' ? 'item' : 'set';
+  const totalCbm = groups.reduce((s, g) => s + (g.cbm ?? g.components.reduce((a, x) => a + (x.cbm || 0), 0)), 0);
+  const rows = groups.map(g => `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:5px 6px;font-weight:700;color:var(--brand)">${g.code || g.no}</td>
+      <td style="padding:5px 6px">${g.description}${g.category ? ` <span style="color:var(--muted);font-size:10px">· ${g.category}</span>` : ''}</td>
+      <td style="padding:5px 6px;color:var(--muted)">${g.species}</td>
+      <td style="padding:5px 6px;text-align:center">${g.qty ?? ''} ${g.unit}</td>
+      <td style="padding:5px 6px;text-align:center">${g.components.length || '—'}</td>
+      <td style="padding:5px 6px;text-align:right">${g.cbm != null ? Number(g.cbm).toFixed(4) : '—'}</td>
+    </tr>`).join('');
+  const ov = document.createElement('div');
+  ov.id = 'pk-import-ov';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:var(--bg, #FAF7F2);border-radius:14px;max-width:760px;width:100%;max-height:90vh;overflow:auto;padding:18px">
+    <div style="font-size:15px;font-weight:800;margin-bottom:2px">📥 Import Packing List</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${fileName} · ${groups.length} group(s) · ${totalCbm.toFixed(4)} CBM</div>
+    <div class="sub-title">Theo dõi QR</div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:6px;cursor:pointer">
+      <input type="radio" name="pk-mode" value="set" ${defMode==='set'?'checked':''}>
+      <span><strong>Theo bộ</strong> — mỗi dòng có số thứ tự (#D1, #D2…) là 1 bộ, 1 QR; các chi tiết bên dưới nằm trong bộ. <em>(Door)</em></span></label>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:12px;cursor:pointer">
+      <input type="radio" name="pk-mode" value="item" ${defMode==='item'?'checked':''}>
+      <span><strong>Từng món</strong> — mỗi chi tiết 1 QR riêng. <em>(Cabinet)</em></span></label>
+    ${existing ? `<label style="display:flex;gap:8px;align-items:center;font-size:12px;margin-bottom:12px;cursor:pointer;color:#DC2626">
+      <input type="checkbox" id="pk-replace"> Xoá ${existing} dòng packing list hiện có rồi thay bằng file này</label>` : ''}
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:white;margin-bottom:14px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface);text-align:left">
+          <th style="padding:6px">Code</th><th style="padding:6px">Description</th><th style="padding:6px">Species</th>
+          <th style="padding:6px;text-align:center">Qty</th><th style="padding:6px;text-align:center">Parts</th><th style="padding:6px;text-align:right">CBM</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="document.getElementById('pk-import-ov').remove()">Cancel</button>
+      <button class="btn btn-primary" id="pk-import-go" onclick="runPackingImport()">Import</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+async function runPackingImport() {
+  if (!pkImport) return;
+  const { orderId, groups } = pkImport;
+  const mode = document.querySelector('input[name="pk-mode"]:checked')?.value || 'set';
+  const replace = document.getElementById('pk-replace')?.checked;
+  const c = customers.find(x => x.orders.some(o => o.id === orderId));
+  const order = c?.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const btn = document.getElementById('pk-import-go'); if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; }
+
+  if (replace) {
+    await sb.from('packing_list_items').delete().eq('order_id', orderId);
+    packingItems[orderId] = [];
+  }
+  let no = (packingItems[orderId] || []).length;
+  const intQty = q => Math.max(1, Math.round(Number(q) || 1));
+  const rows = [];
+  groups.forEach(g => {
+    if (mode === 'set' && g.components.length) {
+      no++;
+      rows.push({ order_id: orderId, item_no: no, qr_id: generateQRId(order, no), item_type: 'set',
+        description: g.description, drawing_code: g.code, species: g.species, unit: g.unit || 'Set',
+        qty: intQty(g.qty), cbm: g.cbm ?? g.components.reduce((a, x) => a + (x.cbm || 0), 0),
+        category: g.category || null, components: g.components, notes: '' });
+    } else {
+      const lines = g.components.length ? g.components : [g];
+      lines.forEach(x => {
+        no++;
+        const fractional = x.qty != null && Math.round(x.qty) !== Number(x.qty);
+        rows.push({ order_id: orderId, item_no: no, qr_id: generateQRId(order, no), item_type: 'item',
+          description: x.description, drawing_code: g.code, species: x.species, unit: x.unit,
+          width_in: x.w, height_in: x.h, depth_in: x.d, qty: intQty(x.qty), cbm: x.cbm,
+          category: g.category || null, components: [], notes: fractional ? `${x.qty} ${x.unit}` : '' });
+      });
+    }
+  });
+  const { data, error } = await sb.from('packing_list_items').insert(rows).select();
+  if (error) { alert('❌ Import lỗi: ' + error.message); if (btn) { btn.disabled = false; btn.textContent = 'Import'; } return; }
+  packingItems[orderId] = [...(packingItems[orderId] || []), ...(data || [])].sort((a, b) => a.item_no - b.item_no);
+  document.getElementById('pk-import-ov')?.remove();
+  pkImport = null;
+  SEC_OPEN['pack-' + orderId] = true;
+  refreshOrderDetail(c.id, orderId);
+  showToast(`✅ Imported ${rows.length} line(s)`);
+}
+
+function togglePackParts(itemId) {
+  const el = document.getElementById('pk-parts-' + itemId);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+function buildPartsTable(components) {
+  return `<table style="width:100%;border-collapse:collapse;font-size:11px;background:white;border:1px solid var(--border);border-radius:6px">
+    <thead><tr style="background:var(--surface);color:var(--muted)">
+      <th style="padding:4px 6px;text-align:left">Part</th><th style="padding:4px 6px;text-align:left">Species</th>
+      <th style="padding:4px 6px;text-align:left">W × H × D (in)</th><th style="padding:4px 6px">Unit</th>
+      <th style="padding:4px 6px;text-align:right">Qty</th><th style="padding:4px 6px;text-align:right">CBM</th></tr></thead>
+    <tbody>${(components || []).map(x => `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:4px 6px">${x.description || ''}</td><td style="padding:4px 6px;color:var(--muted)">${x.species || ''}</td>
+      <td style="padding:4px 6px;white-space:nowrap">${[x.w, x.h, x.d].some(v => v != null) ? [x.w, x.h, x.d].map(fmtInches).join(' × ') : '—'}</td>
+      <td style="padding:4px 6px;text-align:center">${x.unit || ''}</td>
+      <td style="padding:4px 6px;text-align:right">${x.qty ?? ''}</td>
+      <td style="padding:4px 6px;text-align:right">${x.cbm != null ? Number(x.cbm).toFixed(4) : ''}</td></tr>`).join('')}</tbody>
+  </table>`;
+}
+
 function buildPackingListSection(order, customer) {
   const items = packingItems[order.id] || [];
-  const totalCBM = items.reduce((s,i) => s + (calcCBM(i.width_in,i.height_in,i.depth_in)||0) * (i.qty||1), 0);
+  const totalCBM = items.reduce((s,i) => s + lineCBM(i), 0);
   const totalQty = items.reduce((s,i) => s + (i.qty||1), 0);
 
   const rows = items.map(item => {
-    const cbm = calcCBM(item.width_in, item.height_in, item.depth_in);
+    if (item.item_type === 'set') {
+      const parts = item.components || [];
+      return `
+    <tr style="border-bottom:1px solid var(--border);background:#FFFCF7">
+      <td style="padding:6px 8px;font-weight:700;color:var(--brand);white-space:nowrap;text-align:center">${item.item_no}</td>
+      <td style="padding:4px 6px">
+        <input id="pi-desc-${item.id}" class="lp-input" style="width:100%;min-width:140px;font-size:11px;font-weight:700" value="${(item.description||'').replace(/"/g,'&quot;')}">
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">📦 SET${item.species ? ' · ' + item.species : ''}${item.category ? ' · ' + item.category : ''}</div>
+      </td>
+      <td style="padding:4px 6px"><input id="pi-code-${item.id}" class="lp-input" style="width:70px;font-size:11px;text-align:center;font-weight:700" value="${(item.drawing_code||'').replace(/"/g,'&quot;')}"></td>
+      <td style="padding:4px 6px"><button type="button" onclick="togglePackParts('${item.id}')" class="btn btn-outline" style="font-size:11px;padding:3px 8px;white-space:nowrap">▸ ${parts.length} parts</button></td>
+      <td style="padding:4px 6px;text-align:center"><input id="pi-qty-${item.id}" class="lp-input" style="width:46px;font-size:11px;text-align:center" type="number" min="1" value="${item.qty||1}"><div style="font-size:9px;color:var(--muted)">${item.unit||'Set'}</div></td>
+      <td style="padding:4px 6px;text-align:center"><input id="pi-cbmv-${item.id}" class="lp-input" style="width:66px;font-size:11px;text-align:center;font-weight:700" type="number" min="0" step="0.0001" value="${item.cbm ?? ''}"></td>
+      <td style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--brand);white-space:nowrap">${item.qr_id}</td>
+      <td style="padding:4px 8px"><div id="qr-${item.id}" data-qr-text="${item.qr_id}" style="width:52px;height:52px"></div></td>
+      <td style="padding:4px 8px">${buildQRStatusChips(item.qr_id)}</td>
+      <td style="padding:4px 6px;white-space:nowrap">
+        <button onclick="savePackingRow('${item.id}','${order.id}')" style="background:var(--brand);border:none;cursor:pointer;color:#fff;font-size:11px;padding:3px 8px;border-radius:6px;margin-right:3px" title="Save">💾 Save</button>
+        <button onclick="deletePackingItem('${item.id}','${order.id}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px" title="Delete">🗑</button>
+      </td>
+    </tr>
+    <tr id="pk-parts-${item.id}" style="display:none"><td></td><td colspan="9" style="padding:4px 6px 10px">${buildPartsTable(parts)}</td></tr>`;
+    }
+    const cbm = item.cbm != null && item.cbm !== '' ? Number(item.cbm) / (item.qty || 1) : calcCBM(item.width_in, item.height_in, item.depth_in);
     const cbmDisplay = cbm ? cbm.toFixed(4) : '—';
     return `
     <tr style="border-bottom:1px solid var(--border)">
@@ -3099,6 +3325,7 @@ function buildPackingListSection(order, customer) {
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="section-title" style="margin:0">📦 Packing List <span style="font-size:11px;color:var(--muted);font-weight:400">${items.length} line${items.length!==1?'s':''} · ${totalQty} pcs · ${totalCBM.toFixed(4)} CBM</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="openPackingImport('${order.id}')">📤 Import Excel</button>
         ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="printPackingList('${order.id}','${customer.id}')">🖨️ PDF</button>` : ''}
         ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px;background:#166534;color:#fff;border-color:#166534" onclick="exportPackingExcel('${order.id}','${customer.id}')">📥 Excel</button>` : ''}
         ${items.length ? `<button class="btn btn-outline" style="font-size:11px;padding:4px 10px;background:#1e3a8a;color:#fff;border-color:#1e3a8a" onclick="printQRLabels('${order.id}','${customer.id}')">🏷️ QR Labels</button>` : ''}
@@ -3185,7 +3412,7 @@ function liveCBM(itemId, orderId) {
     const ih = it.id === itemId ? h : it.height_in;
     const id2 = it.id === itemId ? d : it.depth_in;
     const iq = it.id === itemId ? qty : (it.qty||1);
-    totalCBM += (calcCBM(iw,ih,id2)||0) * iq;
+    totalCBM += it.id === itemId && it.item_type !== 'set' && (it.cbm == null || it.cbm === '') ? (calcCBM(iw,ih,id2)||0) * iq : lineCBM(it);
     totalQty += iq;
   });
   const tcbmEl = document.getElementById('pack-total-cbm-'+orderId);
@@ -3195,6 +3422,18 @@ function liveCBM(itemId, orderId) {
 }
 
 async function savePackingRow(itemId, orderId) {
+  const setItem = (packingItems[orderId] || []).find(i => i.id === itemId && i.item_type === 'set');
+  if (setItem) {
+    setItem.description = document.getElementById('pi-desc-'+itemId)?.value || '';
+    setItem.drawing_code = document.getElementById('pi-code-'+itemId)?.value || '';
+    setItem.qty = parseInt(document.getElementById('pi-qty-'+itemId)?.value) || 1;
+    const cbmV = document.getElementById('pi-cbmv-'+itemId)?.value;
+    setItem.cbm = cbmV === '' || cbmV == null ? null : Number(cbmV);
+    await sb.from('packing_list_items').update({ description: setItem.description, drawing_code: setItem.drawing_code, qty: setItem.qty, cbm: setItem.cbm }).eq('id', itemId);
+    const c = customers.find(x => x.orders.some(o => o.id === orderId));
+    refreshOrderDetail(c.id, orderId);
+    return showToast('✅ Saved');
+  }
   const desc = document.getElementById('pi-desc-'+itemId)?.value || '';
   const code = document.getElementById('pi-code-'+itemId)?.value || '';
   const w = parseFloat(document.getElementById('pi-w-'+itemId)?.value) || null;
@@ -3207,7 +3446,7 @@ async function savePackingRow(itemId, orderId) {
   await sb.from('packing_list_items').update({ description:desc, drawing_code:code, width_in:w, height_in:h, depth_in:d, qty }).eq('id', itemId);
   liveCBM(itemId, orderId);
   let totalCBM = 0, totalQty = 0;
-  allItems.forEach(it => { totalCBM += (calcCBM(it.width_in,it.height_in,it.depth_in)||0)*(it.qty||1); totalQty += (it.qty||1); });
+  allItems.forEach(it => { totalCBM += lineCBM(it); totalQty += (it.qty||1); });
   const metaEl = document.getElementById('secmeta-pack-'+orderId);
   if (metaEl) metaEl.textContent = `${allItems.length} line${allItems.length!==1?'s':''} · ${totalQty} pcs · ${totalCBM.toFixed(4)} CBM`;
   showToast('✅ Saved');
@@ -3249,16 +3488,21 @@ function printPackingList(orderId, customerId) {
   if (!items.length) return showToast('No items to print');
 
   const rows = items.map(item => {
-    const dim = [item.width_in, item.height_in, item.depth_in].filter(Boolean).join(' × ') || '—';
-    return `<tr>
+    const dim = [item.width_in, item.height_in, item.depth_in].filter(Boolean).map(fmtInches).join(' × ') || '—';
+    const isSet = item.item_type === 'set';
+    const parts = isSet ? (item.components || []).map(x => `<tr class="part">
+      <td></td><td>└ ${x.description||''}${x.species ? ' · ' + x.species : ''}</td>
+      <td>${[x.w,x.h,x.d].some(v => v != null) ? [x.w,x.h,x.d].map(fmtInches).join(' × ') : '—'}</td>
+      <td>${x.qty ?? ''} ${x.unit||''}</td><td>${x.cbm != null ? Number(x.cbm).toFixed(4) : ''}</td><td></td><td></td></tr>`).join('') : '';
+    return `<tr${isSet ? ' class="set"' : ''}>
       <td>${item.item_no}</td>
-      <td>${item.description||'—'}</td>
-      <td>${dim}</td>
-      <td>${item.qty||1}</td>
-      <td>${item.notes||''}</td>
+      <td>${isSet ? '<strong>' + (item.drawing_code ? item.drawing_code + ' — ' : '') + (item.description||'—') + '</strong>' + (item.species ? '<br><small>' + item.species + '</small>' : '') : (item.description||'—')}</td>
+      <td>${isSet ? 'SET · ' + (item.components||[]).length + ' parts' : dim}</td>
+      <td>${item.qty||1}${isSet ? ' ' + (item.unit||'Set') : ''}</td>
+      <td>${lineCBM(item).toFixed(4)}</td>
       <td><strong>${item.qr_id}</strong></td>
       <td><div id="print-qr-${item.id}" style="width:64px;height:64px"></div></td>
-    </tr>`;
+    </tr>${parts}`;
   }).join('');
 
   const win = window.open('', '_blank');
@@ -3271,6 +3515,7 @@ function printPackingList(orderId, customerId) {
     th { background: #f0f0f0; padding: 7px 10px; text-align: left; font-size: 11px; border: 1px solid #ccc; }
     td { padding: 6px 10px; border: 1px solid #ddd; vertical-align: middle; }
     .total { margin-top: 12px; text-align: right; font-weight: bold; font-size: 13px; }
+    tr.set td { background: #f7f3ee; } tr.part td { font-size: 11px; color: #444; padding: 3px 10px; }
     @media print { body { margin: 10px } }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
@@ -3283,10 +3528,10 @@ function printPackingList(orderId, customerId) {
     </div>
   </div>
   <table>
-    <thead><tr><th>#</th><th>Description</th><th>Dimensions (W×H×D in)</th><th>Qty</th><th>Notes</th><th>QR ID</th><th>QR Code</th></tr></thead>
+    <thead><tr><th>#</th><th>Description</th><th>Dimensions (W×H×D in)</th><th>Qty</th><th>CBM</th><th>QR ID</th><th>QR Code</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
-  <div class="total">Total Items: ${items.reduce((s,i)=>s+(i.qty||1),0)} &nbsp;|&nbsp; Total Lines: ${items.length}</div>
+  <div class="total">Total Items: ${items.reduce((s,i)=>s+(i.qty||1),0)} &nbsp;|&nbsp; Total Lines: ${items.length} &nbsp;|&nbsp; Total CBM: ${items.reduce((s,i)=>s+lineCBM(i),0).toFixed(4)}</div>
   <script>
     window.onload = function() {
       document.querySelectorAll('[id^="print-qr-"]').forEach(el => {
@@ -3308,31 +3553,39 @@ function exportPackingExcel(orderId, customerId) {
   const items = packingItems[orderId] || [];
   if (!items.length) return showToast('No items to export');
 
-  const rows = items.map(item => {
-    const cbm = calcCBM(item.width_in, item.height_in, item.depth_in);
-    return {
+  const rows = [];
+  items.forEach(item => {
+    const isSet = item.item_type === 'set';
+    rows.push({
       'NO.':          item.item_no,
       'DESCRIPTION':  item.description || '',
       'DRAWING CODE': item.drawing_code || '',
-      'Width (in)':   item.width_in || '',
-      'Height (in)':  item.height_in || '',
-      'Depth (in)':   item.depth_in || '',
+      'SPECIES':      item.species || '',
+      'Width (in)':   isSet ? '' : (item.width_in || ''),
+      'Height (in)':  isSet ? '' : (item.height_in || ''),
+      'Depth (in)':   isSet ? '' : (item.depth_in || ''),
+      'UNIT':         item.unit || (isSet ? 'Set' : ''),
       'QTY (PCS)':    item.qty || 1,
-      'CBM':          cbm ? Number(cbm.toFixed(4)) : '',
+      'CBM':          Number(lineCBM(item).toFixed(4)),
       'QR ID':        item.qr_id || '',
       'Notes':        item.notes || '',
       'Order ID':     orderId,
       'Project':      order?.project_name || '',
       'Customer':     c?.name || '',
-    };
+    });
+    if (isSet) (item.components || []).forEach(x => rows.push({
+      'NO.': '', 'DESCRIPTION': '   └ ' + (x.description || ''), 'DRAWING CODE': '', 'SPECIES': x.species || '',
+      'Width (in)': x.w ?? '', 'Height (in)': x.h ?? '', 'Depth (in)': x.d ?? '', 'UNIT': x.unit || '',
+      'QTY (PCS)': x.qty ?? '', 'CBM': x.cbm != null ? Number(Number(x.cbm).toFixed(4)) : '', 'QR ID': '', 'Notes': '',
+      'Order ID': '', 'Project': '', 'Customer': '' }));
   });
   // Total row
-  const totalCBM = items.reduce((s,i) => s + (calcCBM(i.width_in,i.height_in,i.depth_in)||0) * (i.qty||1), 0);
-  rows.push({ 'NO.': '', 'DESCRIPTION': 'TOTAL', 'DRAWING CODE': '', 'Width (in)': '', 'Height (in)': '', 'Depth (in)': '', 'QTY (PCS)': items.reduce((s,i)=>s+(i.qty||1),0), 'CBM': Number(totalCBM.toFixed(4)), 'QR ID': '', 'Notes': '', 'Order ID': '', 'Project': '', 'Customer': '' });
+  const totalCBM = items.reduce((s,i) => s + lineCBM(i), 0);
+  rows.push({ 'NO.': '', 'DESCRIPTION': 'TOTAL', 'DRAWING CODE': '', 'SPECIES': '', 'Width (in)': '', 'Height (in)': '', 'Depth (in)': '', 'UNIT': '', 'QTY (PCS)': items.reduce((s,i)=>s+(i.qty||1),0), 'CBM': Number(totalCBM.toFixed(4)), 'QR ID': '', 'Notes': '', 'Order ID': '', 'Project': '', 'Customer': '' });
 
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [
-    {wch:6},{wch:32},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:18},{wch:24},{wch:14},{wch:22},{wch:22}
+    {wch:6},{wch:36},{wch:14},{wch:18},{wch:10},{wch:10},{wch:10},{wch:7},{wch:10},{wch:10},{wch:18},{wch:24},{wch:14},{wch:22},{wch:22}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Packing List');
@@ -3357,6 +3610,17 @@ function printQRLabels(orderId, customerId) {
   });
 
   const labelDivs = labels.map(item => {
+    if (item.item_type === 'set') return `
+    <div class="label">
+      <div class="label-order">${orderId} · ${order?.project_name || ''}</div>
+      <div id="lbl-qr-${item.id}-${item.unitLabel.replace(/[^0-9]/g,'')}" class="qr-wrap"></div>
+      <div class="qr-id">${item.qr_id}</div>
+      ${item.drawing_code ? `<div class="draw-code">SET: ${item.drawing_code}</div>` : ''}
+      <div class="item-desc">${item.description || '—'}${item.unitLabel}</div>
+      <div class="item-dims">${item.species || ''}</div>
+      <div class="item-dims">${(item.components||[]).length} parts · all boxes of this set carry this QR</div>
+      <div class="customer-name">${c?.name || ''}</div>
+    </div>`;
     const cbm = calcCBM(item.width_in, item.height_in, item.depth_in);
     return `
     <div class="label">

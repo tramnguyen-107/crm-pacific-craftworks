@@ -472,8 +472,15 @@ async function openItemPopup(qrId) {
   backdrop.querySelector('.popup').innerHTML = `
     <div class="popup-handle"></div>
     <div class="popup-qrid">${qrId}</div>
-    <div class="popup-name">${item.description || '—'}</div>
-    <div class="popup-meta">${dim ? dim + ' in · ' : ''}Qty: ${item.qty||1} · ${order?.customers?.name||item.order_id}</div>
+    <div class="popup-name">${item.item_type === 'set' && item.drawing_code ? '📦 ' + item.drawing_code + ' — ' : ''}${item.description || '—'}</div>
+    <div class="popup-meta">${item.item_type === 'set' ? 'SET' + (item.species ? ' · ' + item.species : '') + ' · ' : (dim ? dim + ' in · ' : '')}Qty: ${item.qty||1} · ${order?.customers?.name||item.order_id}</div>
+    ${item.item_type === 'set' && (item.components||[]).length ? `<div style="margin:0 0 14px">
+      <div class="qc-label">Chi tiết trong bộ (${item.components.length}) — kiểm đủ trước khi xác nhận</div>
+      ${item.components.map(x => `<label style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:13px">
+        <input type="checkbox" style="width:18px;height:18px">
+        <span style="flex:1">${x.description || ''}</span>
+        <span style="opacity:.7;white-space:nowrap">${x.qty ?? ''} ${x.unit || ''}</span></label>`).join('')}
+    </div>` : ''}
     ${histHTML}
     ${actionHTML}`;
 }
