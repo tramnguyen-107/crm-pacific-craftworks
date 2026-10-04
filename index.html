@@ -2985,7 +2985,8 @@ function buildOrderDetailStage(order, customer) {
 
 const SEC_OPEN = {};
 function buildSecCard(id, type, icon, title, meta, bodyHtml, defaultOpen = true) {
-  const open = id in SEC_OPEN ? SEC_OPEN[id] : defaultOpen;
+  // All sections start closed; once the user opens/closes one, that choice is kept
+  const open = id in SEC_OPEN ? SEC_OPEN[id] : false;
   return `<div class="sec-card sec-${type}" id="seccard-${id}">
     <div class="sec-card-hdr ${open?'open':'closed'}" onclick="toggleSecCard('${id}')">
       <div class="sec-card-left">
