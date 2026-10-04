@@ -3119,6 +3119,93 @@ function parseFactorySheet(rows) {
   return groups;
 }
 
+// Reads the job-style packing list (e.g. "Real packing list - C3A"): Job headers, SPECIES/STAIN rows,
+// No · Description · Code · Size W/H/D · Quantity, "Accessories", TOTAL rows. No CBM column → computed.
+// Cabinet / accessory lines → one item (own QR) each. Door lines (No = D1, D01…) → grouped into one set per code;
+// loose hardware lines in a door job go into the set when the job has a single door, else become their own item.
+// Factory "QR ID Used" / "Parent Package QR ID" columns are ignored — PCW makes its own QR.
+function isJobSheet(rows) {
+  return rows.some(r => (r || []).some(c => /\bJob\s*:/i.test(String(c ?? ''))));
+}
+function parseJobSheet(rows) {
+  const norm = v => String(v ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
+  const hr = rows.findIndex(r => (r || []).some(c => norm(c) === 'DESCRIPTION'));
+  if (hr < 0) throw new Error('Không tìm thấy cột "Description" trong file.');
+  const H = rows[hr] || [], H2 = rows[hr + 1] || [];
+  const find = re => H.findIndex(c => re.test(norm(c)));
+  const col = {
+    no: Math.max(0, find(/^NO\.?$/)), desc: find(/^DESCRIPTION$/), code: find(/^CODE$/),
+    qty: find(/^QUANTITY$/),
+    w: H2.findIndex(c => norm(c) === 'W'), h: H2.findIndex(c => norm(c) === 'H'), d: H2.findIndex(c => norm(c) === 'D'),
+  };
+  const get = (r, k) => col[k] >= 0 ? r[col[k]] : null;
+  const shortJob = t => { const m = String(t).match(/-\s*([^()\-]+?)\s*\)\s*/); return (m ? m[1] : String(t)).trim(); };
+
+  const groups = [];
+  let job = null;           // { name, species, isDoor, sets: Map, loose: [] }
+  let section = '';
+  const flushLoose = () => {
+    if (!job || !job.loose.length) return;
+    const sets = [...job.sets.values()];
+    job.loose.forEach(x => {
+      if (sets.length === 1) sets[0].components.push(x);
+      else groups.push({ no: groups.length + 1, description: x.description, code: '', species: job.species,
+        unit: x.unit, qty: x.qty, cbm: null, w: null, h: null, d: null, category: job.name + ' · Hardware', components: [] });
+    });
+    job.loose = [];
+  };
+
+  for (let i = hr + 2; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const first = String(r[0] ?? '').trim();
+    if (!r.some(c => norm(c))) continue;
+    if (/^LOADING DETAIL/i.test(first)) break;
+    if (/Job\s*:/i.test(first)) {
+      flushLoose();
+      const name = shortJob(r.find((c, j) => j > 1 && norm(c)) ?? first);
+      job = { name, species: '', stain: '', sets: new Map(), loose: [] };
+      section = ''; continue;
+    }
+    if (!job) continue;                                   // e.g. "CABINET:" summary row
+    if (/^SPECIES\s*:/i.test(first)) { job.species = first.replace(/^SPECIES\s*:\s*/i, '').trim(); continue; }
+    if (/^STAIN\s*:/i.test(first))   { job.stain = first.replace(/^STAIN\s*:\s*/i, '').trim(); continue; }
+    if (/^ACCESSORIES/i.test(first)) { section = 'Accessories'; continue; }
+    if (/^TOTAL/i.test(first)) continue;
+
+    const desc = String(get(r, 'desc') ?? '').trim();
+    if (!desc) continue;
+    const species = [job.species, job.stain].filter(Boolean).join(' / ');
+    const rawQty = get(r, 'qty');
+    const qty = numOrNull(rawQty);
+    const unitTxt = typeof rawQty === 'string' ? rawQty.replace(/^[\d.,\s]+/, '').trim() : '';
+    const line = {
+      description: desc, species,
+      w: parseInches(get(r, 'w')), h: parseInches(get(r, 'h')), d: parseInches(get(r, 'd')),
+      unit: unitTxt || 'Pc', qty: qty ?? 1, cbm: null, note: String(get(r, 'code') ?? '').trim(),
+    };
+    line.cbm = (calcCBM(line.w, line.h, line.d) || 0) * (line.qty || 1) || null;
+
+    if (/^D\d+$/i.test(first)) {                          // door part → set per door code
+      const code = first.toUpperCase();
+      if (!job.sets.has(code)) {
+        const set = { no: groups.length + 1, description: `Door ${code}${line.note ? ' · ' + line.note : ''}`, code,
+          species, unit: 'Set', qty: 1, cbm: null, w: null, h: null, d: null, category: job.name, components: [] };
+        job.sets.set(code, set); groups.push(set);
+      }
+      job.sets.get(code).components.push(line);
+    } else if (numOrNull(first) !== null) {               // cabinet / accessory line → own QR
+      groups.push({ no: groups.length + 1, description: desc, code: line.note, species, unit: line.unit, qty: line.qty,
+        cbm: line.cbm, w: line.w, h: line.h, d: line.d, category: job.name + (section ? ' · ' + section : ''), components: [] });
+    } else {                                              // un-numbered hardware line (hinges, sill…)
+      job.loose.push(line);
+    }
+  }
+  flushLoose();
+  groups.forEach(g => { if (g.components.length) g.cbm = g.components.reduce((a, x) => a + (x.cbm || 0), 0); });
+  if (!groups.length) throw new Error('Không đọc được dòng hàng nào trong file.');
+  return groups;
+}
+
 let pkImport = null;   // { orderId, fileName, groups }
 function openPackingImport(orderId) {
   const inp = document.createElement('input');
@@ -3128,7 +3215,7 @@ function openPackingImport(orderId) {
     try {
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null });
-      pkImport = { orderId, fileName: file.name, groups: parseFactorySheet(rows) };
+      pkImport = { orderId, fileName: file.name, groups: isJobSheet(rows) ? parseJobSheet(rows) : parseFactorySheet(rows) };
       showPackingImportPreview();
     } catch (e) { alert('❌ Import lỗi: ' + e.message); }
   };
@@ -3140,7 +3227,7 @@ function showPackingImportPreview() {
   const c = customers.find(x => x.orders.some(o => o.id === orderId));
   const order = c?.orders.find(o => o.id === orderId);
   const existing = (packingItems[orderId] || []).length;
-  const defMode = orderProduct(order) === 'cabinet' ? 'item' : 'set';
+  const defMode = groups.some(g => g.components.length) ? 'set' : 'item';
   const totalCbm = groups.reduce((s, g) => s + (g.cbm ?? g.components.reduce((a, x) => a + (x.cbm || 0), 0)), 0);
   const rows = groups.map(g => `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:5px 6px;font-weight:700;color:var(--brand)">${g.code || g.no}</td>
@@ -3203,7 +3290,7 @@ async function runPackingImport() {
       no++;
       rows.push({ order_id: orderId, item_no: no, qr_id: generateQRId(order, no), item_type: 'set',
         description: g.description, drawing_code: g.code, species: g.species, unit: g.unit || 'Set',
-        qty: intQty(g.qty), cbm: g.cbm ?? g.components.reduce((a, x) => a + (x.cbm || 0), 0),
+        qty: intQty(g.qty), cbm: g.cbm ?? g.components.reduce((a, x) => a + (x.cbm ?? (calcCBM(x.w, x.h, x.d) || 0) * (x.qty || 1)), 0),
         category: g.category || null, components: g.components, notes: '' });
     } else {
       const lines = g.components.length ? g.components : [g];
