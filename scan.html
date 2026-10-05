@@ -132,6 +132,19 @@
   </style>
 </head>
 <body>
+<!-- Sign-in required -->
+<div id="auth-gate" style="position:fixed;inset:0;z-index:99999;background:#111;display:none;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#1c1c1c;border:1px solid #2f2f2f;border-radius:14px;padding:22px;width:100%;max-width:340px;color:#f5f5f5;font-family:inherit">
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px">🔒 Pacific Craftworks</div>
+    <div style="font-size:12px;color:#9b9b9b;margin-bottom:16px">Sign in with your CRM account to use the QR scanner.</div>
+    <input id="ag-email" type="email" placeholder="Email" autocomplete="username"
+      style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid #3a3a3a;background:#111;color:#f5f5f5;font-size:15px;margin-bottom:10px;box-sizing:border-box">
+    <input id="ag-pass" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')agLogin()"
+      style="width:100%;padding:11px 12px;border-radius:8px;border:1px solid #3a3a3a;background:#111;color:#f5f5f5;font-size:15px;margin-bottom:12px;box-sizing:border-box">
+    <button id="ag-btn" onclick="agLogin()" style="width:100%;padding:12px;border:none;border-radius:8px;background:#f5f5f5;color:#111;font-size:15px;font-weight:700;cursor:pointer">Sign In</button>
+    <div id="ag-err" style="color:#fca5a5;font-size:12px;margin-top:10px;min-height:16px"></div>
+  </div>
+</div>
 
 <!-- Header -->
 <div class="hdr">
@@ -237,9 +250,28 @@ let qcPassState = null; // null | 'pass' | 'fail'
 
 // ─── URL PARAMS ───
 const params = new URLSearchParams(location.search);
-if (params.get('step')) {
-  startStep(params.get('step'), params.get('order'));
+function runInit() {
+  if (params.get('step')) startStep(params.get('step'), params.get('order'));
 }
+// Sign-in required — same account as the CRM (session is shared on this site)
+async function agLogin() {
+  const email = document.getElementById('ag-email').value.trim();
+  const password = document.getElementById('ag-pass').value;
+  const btn = document.getElementById('ag-btn'), err = document.getElementById('ag-err');
+  err.textContent = '';
+  if (!email || !password) { err.textContent = 'Enter email and password'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Sign In';
+  if (error) { err.textContent = error.message; return; }
+  document.getElementById('auth-gate').style.display = 'none';
+  runInit();
+}
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) runInit();
+  else document.getElementById('auth-gate').style.display = 'flex';
+})();
 
 // ─── NAVIGATION ───
 function showScreen(id) {

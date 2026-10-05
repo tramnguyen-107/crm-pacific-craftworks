@@ -797,11 +797,6 @@
       <div class="login-logo-mark">🪵</div>
       <div class="login-logo-text">Pacific Craftworks <span>CRM</span></div>
     </div>
-    <!-- Login mode tabs -->
-    <div style="display:flex;gap:0;margin-bottom:20px;background:var(--bg,#EDE5D8);border-radius:8px;padding:3px">
-      <button id="tab-login" onclick="switchLoginTab('login')" style="flex:1;padding:7px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:var(--white);color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,0.08)">Sign In</button>
-      <button id="tab-test" onclick="switchLoginTab('test')" style="flex:1;padding:7px;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;background:transparent;color:var(--muted)">🧪 Test Mode</button>
-    </div>
 
     <!-- Sign in panel -->
     <div id="panel-login">
@@ -816,28 +811,7 @@
       <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
     </div>
 
-    <!-- Test mode panel -->
-    <div id="panel-test" style="display:none">
-      <div style="background:var(--tint-amber);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--tint-amber-fg)">
-        🧪 Test mode allows full access with separate data — does not affect real data.
-      </div>
-      <div class="login-field">
-        <label class="login-label">Test Passcode</label>
-        <input class="login-input" id="test-code" type="password" placeholder="Enter passcode" onkeydown="if(event.key==='Enter') doTestLogin()">
-      </div>
-      <button class="login-btn" style="background:#D97706" onclick="doTestLogin()">Enter Test Mode</button>
-    </div>
-
     <div class="login-error" id="login-error"></div>
-    <div style="display:flex;align-items:center;gap:10px;margin-top:16px">
-      <div style="flex:1;height:1px;background:var(--border,#D2C2AE)"></div>
-      <span style="font-size:11px;color:var(--muted)">or</span>
-      <div style="flex:1;height:1px;background:var(--border,#D2C2AE)"></div>
-    </div>
-    <button onclick="startDemo()" style="width:100%;margin-top:12px;padding:11px;background:transparent;color:var(--tint-blue-fg);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.15s" onmouseover="this.style.background='#EEF2FF'" onmouseout="this.style.background='transparent'">
-      👀 Try Demo — no login required
-    </button>
-    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">Demo uses sample data — nothing is saved</div>
   </div>
 </div>
 
@@ -1423,6 +1397,7 @@ function switchLoginTab(tab) {
 }
 
 async function doTestLogin() {
+  return; // disabled — sign-in required
   const code = document.getElementById('test-code').value.trim();
   if (!code) { showLoginError('Enter passcode'); return; }
   const correct = 'test123';
@@ -1441,6 +1416,7 @@ function startTestMode() {
 }
 
 function startDemo() {
+  if (!window.__allowDemo) return; // disabled — sign-in required
   isDemoMode = true;
   // Load sample data
   leads = [
