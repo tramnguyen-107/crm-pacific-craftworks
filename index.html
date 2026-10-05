@@ -808,6 +808,26 @@
   .team-add { display:flex; gap:6px; flex-wrap:wrap; }
   .team-add .td-in { width:auto; flex:1; min-width:120px; }
   @media (max-width: 700px) { .tk-board { grid-template-columns:1fr; } .tasks-page { padding:16px; } .td-props { grid-template-columns:90px 1fr; } }
+
+  /* ===== Notifications ===== */
+  .nf-badge { background: #EF4444 !important; color: #fff !important; }
+  .nf-row { display:flex; align-items:flex-start; gap:10px; padding:12px 10px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:6px; }
+  .nf-row:hover { background:var(--hover); }
+  .nf-row.read { opacity:0.55; }
+  .nf-dot { width:8px; height:8px; border-radius:50%; background:#2383E2; margin-top:11px; flex-shrink:0; }
+  .nf-row.read .nf-dot { visibility:hidden; }
+  .nf-sys { background:var(--hover) !important; color:var(--text) !important; font-size:15px !important; }
+  .nf-main { flex:1; min-width:0; }
+  .nf-title { font-size:14px; color:var(--text); font-weight:600; }
+  .nf-row.read .nf-title { font-weight:500; }
+  .nf-body { font-size:13px; color:var(--text-2); margin-top:3px; white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .nf-ctx { font-size:12px; color:var(--muted); margin-top:3px; }
+  .nf-time { font-size:12px; color:var(--muted); white-space:nowrap; margin-top:2px; }
+  .pref-row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:10px 0; border-bottom:1px solid var(--border); cursor:pointer; font-size:14px; color:var(--text); }
+  .pref-toggle { appearance:none; -webkit-appearance:none; width:34px; height:20px; border-radius:99px; background:var(--border-strong); position:relative; cursor:pointer; flex-shrink:0; transition:.15s; }
+  .pref-toggle::after { content:''; position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; transition:.15s; }
+  .pref-toggle:checked { background:#2383E2; }
+  .pref-toggle:checked::after { left:17px; }
   /* ===== Notion-like shell ===== */
   body { background: var(--bg); color: var(--text); font-size: 14px; }
   #app { padding-left: 240px; }
@@ -918,6 +938,7 @@
   <div class="sb-label">Workspace</div>
   <div class="tab sb-item active" data-view="dashboard" onclick="switchView('dashboard', this)"><span class="sb-ic">📊</span>Overview</div>
   <div class="tab sb-item" data-view="tasks" onclick="switchView('tasks', this)"><span class="sb-ic">✅</span>My Tasks <span id="task-badge" class="sb-badge" style="display:none">0</span></div>
+  <div class="tab sb-item" data-view="notifications" onclick="switchView('notifications', this)"><span class="sb-ic">🔔</span>Notifications <span id="notif-badge" class="sb-badge nf-badge" style="display:none">0</span></div>
   <div class="tab sb-item" data-view="leads" onclick="switchView('leads', this)"><span class="sb-ic">🔴</span>Leads <span id="lead-badge" class="sb-badge">0</span></div>
   <div class="tab sb-item" data-view="pipeline" onclick="switchView('pipeline', this)"><span class="sb-ic">🗂</span>Pipeline</div>
   <div class="tab sb-item" data-view="customers" onclick="switchView('customers', this)"><span class="sb-ic">👥</span>Customers</div>
@@ -1107,6 +1128,10 @@
   <div class="tasks-page" id="tasks-root"></div>
 </div>
 
+<div class="view" id="view-notifications">
+  <div class="tasks-page" id="notif-root" style="max-width:760px"></div>
+</div>
+
 <div class="view" id="view-settings">
   <div class="settings-page">
     <h1 class="page-title">Settings</h1>
@@ -1125,6 +1150,11 @@
           <div class="theme-hint">Black background, white text</div>
         </label>
       </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-h">Notifications</div>
+      <div class="settings-desc">Choose which emails you receive.</div>
+      <div id="notif-settings"></div>
     </div>
     <div class="settings-section">
       <div class="settings-h">Team</div>
@@ -1549,6 +1579,8 @@ async function startApp() {
   await loadAllData()
   await loadTeam()
   await loadAllTasks()
+  await loadNotifications()
+  subscribeNotifications()
   document.getElementById('loading-overlay').classList.add('hidden')
   document.getElementById('app').style.display = 'block'
   if (window.__authHashType === 'invite' || window.__authHashType === 'recovery') {
@@ -1556,6 +1588,7 @@ async function startApp() {
     window.__authHashType = null;
     history.replaceState(null, '', location.pathname);
   }
+  handleDeepLink()
   document.getElementById('lead-badge').textContent = leads.length
   renderDashboard()
   renderBoard()
@@ -5263,7 +5296,8 @@ function switchView(view, el) {
   if (view === 'production') renderProductionView();
   if (view === 'container') renderContainerView();
   if (view === 'report') renderReport();
-  if (view === 'settings') { renderSettings(); renderTeamSettings(); }
+  if (view === 'settings') { renderSettings(); renderTeamSettings(); renderNotifSettings(); }
+  if (view === 'notifications') renderNotificationsView();
   if (view === 'tasks') renderTasksView();
   window.scrollTo(0, 0);
 }
@@ -7892,6 +7926,137 @@ async function forgotPassword() {
   showLoginError('✉️ Check your email for a reset link.');
 }
 sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') showSetPassword('recovery'); });
+
+// ============================================================
+// NOTIFICATIONS (bell) + email preferences
+// ============================================================
+let notifications = [];
+let notifFilter = 'unread';     // unread | all
+let notifChannel = null;
+const NOTIF_ICON = { assigned: '📌', mentioned: '💬', comment: '💬', due_soon: '⏰', overdue: '⚠️', completed: '✅' };
+
+async function loadNotifications() {
+  if (!me) { notifications = []; updateNotifBadge(); return; }
+  const { data } = await sb.from('notifications').select('*').eq('member_id', me.id).order('created_at', { ascending: false }).limit(150);
+  notifications = data || [];
+  updateNotifBadge();
+}
+function updateNotifBadge() {
+  const el = document.getElementById('notif-badge'); if (!el) return;
+  const n = notifications.filter(x => !x.read_at).length;
+  el.textContent = n > 99 ? '99+' : n; el.style.display = n ? '' : 'none';
+  document.title = (n ? `(${n}) ` : '') + 'Pacific Craftworks — CRM';
+}
+function timeAgo(iso) {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  if (s < 7 * 86400) return Math.floor(s / 86400) + 'd ago';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function subscribeNotifications() {
+  if (!me || notifChannel) return;
+  notifChannel = sb.channel('notif-' + me.id)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `member_id=eq.${me.id}` }, async ({ new: n }) => {
+      if (notifications.some(x => x.id === n.id)) return;
+      notifications.unshift(n);
+      updateNotifBadge();
+      if (currentView === 'notifications') renderNotificationsView();
+      showToast(`${NOTIF_ICON[n.type] || '🔔'} ${n.title}`);
+      if (n.task_id && !allTasks.some(t => t.id === n.task_id)) await loadAllTasks();
+    })
+    .subscribe();
+  // fallback refresh every 2 minutes (e.g. after the laptop wakes up)
+  setInterval(() => loadNotifications().then(() => { if (currentView === 'notifications') renderNotificationsView(); }), 120000);
+}
+function renderNotificationsView() {
+  const root = document.getElementById('notif-root'); if (!root) return;
+  const list = notifFilter === 'unread' ? notifications.filter(n => !n.read_at) : notifications;
+  const unread = notifications.filter(n => !n.read_at).length;
+  const tab = (k, label) => `<button class="tk-tab${notifFilter === k ? ' active' : ''}" onclick="notifFilter='${k}';renderNotificationsView()">${label}</button>`;
+  root.innerHTML = `
+    <div class="tk-head">
+      <h1 class="page-title" style="margin:0">Notifications</h1>
+      <button class="td-btn" ${unread ? '' : 'disabled'} onclick="markAllNotificationsRead()">✓ Mark all as read</button>
+    </div>
+    <div class="tk-bar"><div class="tk-tabs">${tab('unread', `Unread${unread ? ' · ' + unread : ''}`)}${tab('all', 'All')}</div></div>
+    ${!me ? `<div class="tk-warn">Your login email isn't linked to a team member yet. Ask an admin to add it in Settings → Team.</div>` : ''}
+    ${list.length ? list.map(n => {
+      const task = allTasks.find(t => t.id === n.task_id);
+      const ctx = [task && task.title !== n.title.replace(/^.*?: /, '') ? task.title : '', n.order_id ? orderLabel(n.order_id) : ''].filter(Boolean).join(' · ');
+      return `<div class="nf-row${n.read_at ? ' read' : ''}" onclick="openNotification('${n.id}')">
+        <span class="nf-dot"></span>
+        ${n.actor_id ? avatarHtml(n.actor_id, 30) : `<span class="av nf-sys" style="width:30px;height:30px">${NOTIF_ICON[n.type] || '🔔'}</span>`}
+        <div class="nf-main">
+          <div class="nf-title">${NOTIF_ICON[n.type] || ''} ${escHtml(n.title)}</div>
+          ${n.body ? `<div class="nf-body">${mentionBody(n.body)}</div>` : ''}
+          ${ctx ? `<div class="nf-ctx">${escHtml(ctx)}</div>` : ''}
+        </div>
+        <span class="nf-time">${timeAgo(n.created_at)}</span>
+      </div>`;
+    }).join('') : `<div class="tk-empty">${notifFilter === 'unread' ? "You're all caught up. 🎉" : 'No notifications yet.'}</div>`}`;
+}
+async function markNotificationRead(n) {
+  if (n.read_at) return;
+  n.read_at = new Date().toISOString();
+  updateNotifBadge();
+  await sb.from('notifications').update({ read_at: n.read_at }).eq('id', n.id);
+}
+async function openNotification(id) {
+  const n = notifications.find(x => x.id === id); if (!n) return;
+  await markNotificationRead(n);
+  if (currentView === 'notifications') renderNotificationsView();
+  if (n.task_id) {
+    if (!allTasks.some(t => t.id === n.task_id)) await loadAllTasks();
+    if (allTasks.some(t => t.id === n.task_id)) return openTaskDrawer(n.task_id);
+  }
+  if (n.order_id) { const cid = customerIdOfOrder(n.order_id); if (cid) openPanel(cid); }
+}
+async function markAllNotificationsRead() {
+  const ids = notifications.filter(n => !n.read_at).map(n => n.id);
+  if (!ids.length) return;
+  const now = new Date().toISOString();
+  notifications.forEach(n => { if (!n.read_at) n.read_at = now; });
+  updateNotifBadge(); renderNotificationsView();
+  await sb.from('notifications').update({ read_at: now }).in('id', ids);
+}
+
+// Settings → Notifications (email preferences)
+let notifPrefs = null;
+async function renderNotifSettings() {
+  const el = document.getElementById('notif-settings'); if (!el) return;
+  if (!me) { el.innerHTML = `<div class="settings-desc">Link your login email to a team member first.</div>`; return; }
+  if (!notifPrefs) {
+    const { data } = await sb.from('notification_prefs').select('*').eq('member_id', me.id).maybeSingle();
+    notifPrefs = data || { member_id: me.id, email_assigned: true, email_mentioned: true, email_due: true, email_completed: false };
+  }
+  const row = (k, label, hint) => `<label class="pref-row">
+      <span><b>${label}</b><br><span class="settings-desc">${hint}</span></span>
+      <input type="checkbox" class="pref-toggle" ${notifPrefs[k] ? 'checked' : ''} onchange="saveNotifPref('${k}', this.checked)">
+    </label>`;
+  el.innerHTML = `
+    <div class="settings-desc" style="margin-bottom:8px">Emails go to: <b>${escHtml((me.emails || []).join(', '))}</b>. In-app notifications are always on.</div>
+    ${row('email_assigned', 'A task is assigned to me', 'When someone assigns you a task.')}
+    ${row('email_mentioned', 'Mentions & comments', 'When someone @mentions you or comments on your task.')}
+    ${row('email_due', 'Due date reminders', 'Every morning at 8 AM (Hawaii) for tasks due today, tomorrow or overdue.')}
+    ${row('email_completed', 'Tasks I created are completed', 'When someone finishes a task you created.')}`;
+}
+async function saveNotifPref(key, value) {
+  notifPrefs[key] = value;
+  const { error } = await sb.from('notification_prefs').upsert(notifPrefs);
+  showToast(error ? '❌ ' + error.message : '✅ Saved');
+}
+
+// Deep links from emails: ?task=<id> or ?view=notifications
+function handleDeepLink() {
+  const p = new URLSearchParams(location.search);
+  const task = p.get('task'), view = p.get('view');
+  if (!task && !view) return;
+  history.replaceState(null, '', location.pathname);
+  if (view) switchView(view);
+  if (task) { switchView('tasks'); if (allTasks.some(t => t.id === task)) openTaskDrawer(task); else showToast('⚠️ Task not found'); }
+}
 
 // Check if already logged in
 (async () => {
