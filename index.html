@@ -12,6 +12,8 @@
 <script>
   // Theme (light / dark) — set before first paint to avoid a flash
   try { if (localStorage.getItem('pcw-theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+  // Arrived from an invite / password-reset email? (read before Supabase consumes the URL hash)
+  window.__authHashType = new URLSearchParams(location.hash.slice(1)).get('type');
 </script>
 <style>
   /* DOCUMENTS */
@@ -737,6 +739,75 @@
     .pq-sign-label { font-size:11px;color:var(--text-2); }
   }
 
+
+  /* ===== Tasks (Asana-like) ===== */
+  .av { display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:var(--text); color:var(--bg); font-weight:700; flex-shrink:0; }
+  .av-empty { background:var(--hover); color:var(--muted); border:1px dashed var(--border-strong); }
+  .tasks-page { max-width:980px; margin:0 auto; padding:28px 32px 64px; }
+  .tk-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  .tk-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; border-bottom:1px solid var(--border); margin-bottom:12px; flex-wrap:wrap; }
+  .tk-tabs { display:flex; gap:4px; }
+  .tk-tab { background:none; border:none; border-bottom:2px solid transparent; padding:8px 10px; font-size:13px; color:var(--muted); cursor:pointer; font-family:inherit; font-weight:500; }
+  .tk-tab.active { color:var(--text); border-bottom-color:var(--text); font-weight:600; }
+  .tk-segs { display:flex; gap:2px; background:var(--hover); border-radius:6px; padding:2px; margin-bottom:6px; }
+  .tk-seg { background:none; border:none; padding:4px 10px; border-radius:4px; font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit; }
+  .tk-seg.active { background:var(--white); color:var(--text); box-shadow:var(--shadow-sm); }
+  .tk-group { margin-bottom:14px; }
+  .tk-group-h { font-size:12px; font-weight:600; color:var(--muted); padding:6px 4px; }
+  .tk-group-h span { margin-left:4px; font-weight:500; }
+  .tk-group-h.overdue { color:var(--tint-red-fg); }
+  .tk-group-h.clickable { cursor:pointer; }
+  .tk-empty { color:var(--muted); font-size:13px; padding:18px 4px; }
+  .tk-warn { background:var(--tint-amber); color:var(--tint-amber-fg); border-radius:6px; padding:8px 12px; font-size:12px; margin-bottom:12px; }
+  .t-row { display:flex; align-items:center; gap:8px; padding:7px 8px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:4px; }
+  .t-row:hover { background:var(--hover); }
+  .t-row.done .t-title { text-decoration:line-through; color:var(--muted); }
+  .t-check { width:16px; height:16px; accent-color:var(--text); cursor:pointer; flex-shrink:0; }
+  .t-title { font-size:14px; color:var(--text); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .t-chip { font-size:11px; color:var(--text-2); background:var(--hover); border-radius:4px; padding:1px 6px; white-space:nowrap; max-width:220px; overflow:hidden; text-overflow:ellipsis; display:inline-block; }
+  .t-right { display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0; }
+  .t-due { font-size:12px; color:var(--muted); }
+  .t-due.overdue { color:var(--tint-red-fg); font-weight:600; }
+  .t-due.today { color:var(--tint-amber-fg); font-weight:600; }
+  .t-prio { font-size:10px; } .t-prio.high { color:#EF4444; } .t-prio.low { color:var(--muted); }
+  .tk-board { display:grid; grid-template-columns:repeat(3, minmax(220px, 1fr)); gap:12px; align-items:start; }
+  .tk-col { background:var(--surface); border-radius:8px; padding:8px; min-height:120px; }
+  .tk-col.drag { outline:2px dashed var(--border-strong); }
+  .tk-col-h { font-size:12px; font-weight:600; color:var(--text-2); padding:4px 6px 8px; }
+  .tk-col-h span { color:var(--muted); font-weight:500; margin-left:4px; }
+  .tk-card { background:var(--white); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:6px; cursor:pointer; box-shadow:var(--shadow-sm); }
+  .tk-card:hover { background:var(--hover); }
+  .tk-card-t { font-size:13px; color:var(--text); display:flex; gap:6px; align-items:baseline; }
+  .tk-card-f { display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
+  .tk-add { width:100%; background:none; border:none; color:var(--muted); text-align:left; padding:6px; font-size:13px; cursor:pointer; border-radius:4px; font-family:inherit; }
+  .tk-add:hover { background:var(--hover); }
+  #task-drawer, #pw-modal { position:fixed; inset:0; z-index:1000; }
+  .td-backdrop { position:absolute; inset:0; background:rgba(0,0,0,0.25); }
+  .td-panel { position:absolute; top:0; right:0; bottom:0; width:min(560px, 100%); background:var(--bg); border-left:1px solid var(--border); box-shadow:var(--shadow-md); padding:16px 24px 32px; overflow-y:auto; }
+  .td-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .td-crumb { font-size:12px; color:var(--muted); }
+  .td-btn { background:var(--white); border:1px solid var(--border); color:var(--text-2); border-radius:6px; padding:3px 8px; font-size:12px; cursor:pointer; font-family:inherit; }
+  .td-btn:hover { background:var(--hover); }
+  .td-title { width:100%; border:none; background:transparent; font-size:26px; font-weight:700; color:var(--text); outline:none; padding:6px 0 12px; font-family:inherit; }
+  .td-props { display:grid; grid-template-columns:110px 1fr; gap:6px 12px; align-items:center; margin-bottom:12px; }
+  .td-props label { font-size:13px; color:var(--muted); }
+  .td-in { padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; background:var(--white); color:var(--text); width:100%; }
+  .td-static { font-size:13px; color:var(--text-2); }
+  .td-desc { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; background:var(--white); color:var(--text); resize:vertical; }
+  .td-sec { font-size:12px; font-weight:600; color:var(--muted); border-top:1px solid var(--border); margin:20px 0 8px; padding-top:14px; }
+  .td-c { display:flex; gap:10px; padding:8px 0; }
+  .td-c-h { font-size:12px; color:var(--text); display:flex; gap:8px; align-items:baseline; }
+  .td-c-h span { color:var(--muted); font-size:11px; }
+  .td-c-b { font-size:13px; color:var(--text-2); white-space:pre-wrap; margin-top:2px; }
+  .mention { background:var(--tint-blue); color:var(--tint-blue-fg); border-radius:4px; padding:0 3px; font-weight:600; }
+  .pw-card { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:min(360px, 92%); background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:8px; box-shadow:var(--shadow-md); }
+  .team-table { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:12px; }
+  .team-table th { text-align:left; font-size:12px; color:var(--muted); font-weight:500; padding:6px 8px; border-bottom:1px solid var(--border); }
+  .team-table td { padding:8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text); }
+  .team-email { display:flex; align-items:center; gap:6px; margin-bottom:4px; color:var(--text-2); }
+  .team-add { display:flex; gap:6px; flex-wrap:wrap; }
+  .team-add .td-in { width:auto; flex:1; min-width:120px; }
+  @media (max-width: 700px) { .tk-board { grid-template-columns:1fr; } .tasks-page { padding:16px; } .td-props { grid-template-columns:90px 1fr; } }
   /* ===== Notion-like shell ===== */
   body { background: var(--bg); color: var(--text); font-size: 14px; }
   #app { padding-left: 240px; }
@@ -809,6 +880,7 @@
         <input class="login-input" id="login-password" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
       </div>
       <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+      <div style="text-align:center;margin-top:12px"><a href="#" onclick="event.preventDefault();forgotPassword()" style="font-size:12px;color:var(--muted)">Forgot password?</a></div>
     </div>
 
     <div class="login-error" id="login-error"></div>
@@ -845,6 +917,7 @@
   </div>
   <div class="sb-label">Workspace</div>
   <div class="tab sb-item active" data-view="dashboard" onclick="switchView('dashboard', this)"><span class="sb-ic">📊</span>Overview</div>
+  <div class="tab sb-item" data-view="tasks" onclick="switchView('tasks', this)"><span class="sb-ic">✅</span>My Tasks <span id="task-badge" class="sb-badge" style="display:none">0</span></div>
   <div class="tab sb-item" data-view="leads" onclick="switchView('leads', this)"><span class="sb-ic">🔴</span>Leads <span id="lead-badge" class="sb-badge">0</span></div>
   <div class="tab sb-item" data-view="pipeline" onclick="switchView('pipeline', this)"><span class="sb-ic">🗂</span>Pipeline</div>
   <div class="tab sb-item" data-view="customers" onclick="switchView('customers', this)"><span class="sb-ic">👥</span>Customers</div>
@@ -1030,6 +1103,10 @@
 </div>
 
 <!-- REPORTS VIEW -->
+<div class="view" id="view-tasks">
+  <div class="tasks-page" id="tasks-root"></div>
+</div>
+
 <div class="view" id="view-settings">
   <div class="settings-page">
     <h1 class="page-title">Settings</h1>
@@ -1048,6 +1125,11 @@
           <div class="theme-hint">Black background, white text</div>
         </label>
       </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-h">Team</div>
+      <div class="settings-desc">People who can sign in, receive tasks and be @mentioned.</div>
+      <div id="team-settings"></div>
     </div>
   </div>
 </div>
@@ -1465,8 +1547,15 @@ async function startApp() {
   document.getElementById('loading-overlay').classList.remove('hidden')
   document.getElementById('loading-text').textContent = 'Loading data…'
   await loadAllData()
+  await loadTeam()
+  await loadAllTasks()
   document.getElementById('loading-overlay').classList.add('hidden')
   document.getElementById('app').style.display = 'block'
+  if (window.__authHashType === 'invite' || window.__authHashType === 'recovery') {
+    showSetPassword(window.__authHashType);
+    window.__authHashType = null;
+    history.replaceState(null, '', location.pathname);
+  }
   document.getElementById('lead-badge').textContent = leads.length
   renderDashboard()
   renderBoard()
@@ -1547,7 +1636,7 @@ function renderOrderActivity(orderId) {
   const tEl = document.getElementById('tasks-body-'+orderId);
   const cEl = document.getElementById('comments-feed-'+orderId);
   const act = orderActivity[orderId] || { tasks:[], comments:[] };
-  if (tEl) tEl.innerHTML = buildTasksBody(orderId, act.tasks);
+  if (tEl) tEl.innerHTML = buildOrderTaskList(orderId);
   if (cEl) cEl.innerHTML = buildCommentsFeed(orderId, act.comments);
 }
 
@@ -1592,22 +1681,14 @@ function buildCommentsFeed(orderId, comments) {
 }
 
 function buildTasksSection(orderId) {
-  const salesOpts = salesReps.map(s=>`<option value="${s}">${s}</option>`).join('');
   return `<div class="activity-section">
-    <div class="section-title">✅ Tasks</div>
     <div class="task-add-row">
-      <input class="lp-input" id="task-title-${orderId}" placeholder="New task..." style="flex:2;font-size:12px" onkeydown="if(event.key==='Enter')addOrderTask('${orderId}')">
-      <select class="lp-input" id="task-assign-sel-${orderId}" style="flex:1;font-size:12px"
-        onchange="if(this.value==='__other__'){document.getElementById('task-assign-inp-${orderId}').style.display='';this.style.display='none'}">
-        <option value="">Assign to…</option>
-        ${salesOpts}
-        <option value="__other__">+ Email…</option>
-      </select>
-      <input class="lp-input" id="task-assign-inp-${orderId}" placeholder="email@…" style="display:none;flex:1;font-size:12px">
+      <input class="lp-input" id="task-title-${orderId}" placeholder="New task…" style="flex:2;font-size:12px" onkeydown="if(event.key==='Enter')quickAddOrderTask('${orderId}')">
+      <select class="lp-input" id="task-assign-${orderId}" style="flex:1;font-size:12px">${memberOptionsHtml(me?.id || '')}</select>
       <input class="lp-input" id="task-due-${orderId}" type="date" min="2020-01-01" max="2035-12-31" style="flex:1;font-size:12px">
-      <button class="field-save-btn" onclick="addOrderTask('${orderId}')">Add</button>
+      <button class="field-save-btn" onclick="quickAddOrderTask('${orderId}')">Add</button>
     </div>
-    <div id="tasks-body-${orderId}">${buildTasksBody(orderId, (orderActivity[orderId]||{}).tasks||[])}</div>
+    <div id="tasks-body-${orderId}">${buildOrderTaskList(orderId)}</div>
   </div>`;
 }
 
@@ -1667,7 +1748,7 @@ async function deleteOrderTask(taskId, orderId) {
 async function addOrderComment(orderId) {
   const selEl = document.getElementById('comment-author-sel-'+orderId);
   const inpEl = document.getElementById('comment-author-inp-'+orderId);
-  const author = ((inpEl?.style.display!=='none' ? inpEl?.value : selEl?.value) || '').trim();
+  const author = ((inpEl?.style.display!=='none' ? inpEl?.value : selEl?.value) || me?.name || '').trim();
   const body = document.getElementById('comment-body-'+orderId)?.value?.trim();
   if (!author || !body) { showToast('⚠️ Need author + comment'); return; }
   const newC = { order_id: orderId, author, body };
@@ -5182,7 +5263,8 @@ function switchView(view, el) {
   if (view === 'production') renderProductionView();
   if (view === 'container') renderContainerView();
   if (view === 'report') renderReport();
-  if (view === 'settings') renderSettings();
+  if (view === 'settings') { renderSettings(); renderTeamSettings(); }
+  if (view === 'tasks') renderTasksView();
   window.scrollTo(0, 0);
 }
 
@@ -7412,6 +7494,404 @@ function renderReport() {
 // =====================
 document.getElementById('toolbar-bar').style.display = 'none';
 document.getElementById('app').style.display = 'none';
+
+// ============================================================
+// TEAM + TASKS (Asana-like)
+// ============================================================
+let team = [];            // team_members rows
+let me = null;            // the signed-in member
+let allTasks = [];        // order_tasks rows (general + order tasks)
+let taskTab = 'mine';     // mine | created | all
+let taskLayout = (() => { try { return localStorage.getItem('pcw-task-layout') || 'list'; } catch (e) { return 'list'; } })();
+let taskShowDone = false;
+
+const escHtml = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const todayStr = () => hawaiiDateStr();
+function memberById(id) { return team.find(m => m.id === id) || null; }
+function memberName(id) { return memberById(id)?.name || ''; }
+function avatarHtml(id, size = 22) {
+  const m = memberById(id);
+  if (!m) return `<span class="av av-empty" style="width:${size}px;height:${size}px" title="Unassigned">·</span>`;
+  const words = m.name.trim().split(/\s+/);
+  const ini = (words.length > 1 ? words.map(w => w[0]).join('') : m.name.trim()).slice(0, 2).toUpperCase();
+  return `<span class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.45)}px" title="${escHtml(m.name)}">${ini}</span>`;
+}
+function orderLabel(orderId) {
+  for (const c of customers) {
+    const o = (c.orders || []).find(x => x.id === orderId);
+    if (o) return `${o.project_name || o.id} · ${c.name}`;
+  }
+  return orderId || '';
+}
+function customerIdOfOrder(orderId) { return customers.find(c => (c.orders || []).some(o => o.id === orderId))?.id; }
+
+async function loadTeam() {
+  const { data } = await sb.from('team_members').select('*').order('created_at');
+  team = data || [];
+  const { data: { session } } = await sb.auth.getSession();
+  const email = (session?.user?.email || '').toLowerCase();
+  me = team.find(m => (m.emails || []).some(e => e.toLowerCase() === email)) || null;
+}
+async function loadAllTasks() {
+  const { data } = await sb.from('order_tasks').select('*').order('created_at', { ascending: false });
+  allTasks = (data || []).map(t => ({ ...t, status: t.status || (t.completed ? 'done' : 'todo') }));
+  updateTaskBadge();
+}
+function updateTaskBadge() {
+  const el = document.getElementById('task-badge');
+  if (!el) return;
+  const n = me ? allTasks.filter(t => t.assignee_id === me.id && t.status !== 'done').length : 0;
+  el.textContent = n; el.style.display = n ? '' : 'none';
+}
+
+// Notification row for someone else (bell + email come in phase 3)
+async function notify(memberId, type, task, title, body = '') {
+  if (!memberId || (me && memberId === me.id)) return;
+  await sb.from('notifications').insert({ member_id: memberId, type, task_id: task?.id || null, order_id: task?.order_id || null,
+    actor_id: me?.id || null, title, body });
+}
+
+async function createTask(fields) {
+  const row = {
+    title: fields.title, description: fields.description || '', status: fields.status || 'todo',
+    priority: fields.priority || 'normal', assignee_id: fields.assignee_id || null, due_date: fields.due_date || null,
+    order_id: fields.order_id || null, created_by: me?.id || null,
+    assigned_to: memberName(fields.assignee_id) || '', completed: (fields.status === 'done'),
+  };
+  const { data, error } = await sb.from('order_tasks').insert(row).select().single();
+  if (error || !data) { showToast('❌ ' + (error?.message || 'Could not create task')); return null; }
+  allTasks.unshift(data);
+  if (data.assignee_id) await notify(data.assignee_id, 'assigned', data, `${me?.name || 'Someone'} assigned you: ${data.title}`);
+  afterTaskChange(data);
+  return data;
+}
+
+async function updateTask(id, patch) {
+  const t = allTasks.find(x => x.id === id); if (!t) return;
+  const before = { ...t };
+  if ('status' in patch) { patch.completed = patch.status === 'done'; patch.completed_at = patch.status === 'done' ? new Date().toISOString() : null; }
+  if ('assignee_id' in patch) patch.assigned_to = memberName(patch.assignee_id) || '';
+  patch.updated_at = new Date().toISOString();
+  Object.assign(t, patch);
+  const { error } = await sb.from('order_tasks').update(patch).eq('id', id);
+  if (error) { Object.assign(t, before); showToast('❌ ' + error.message); afterTaskChange(t); return; }
+  if ('assignee_id' in patch && patch.assignee_id && patch.assignee_id !== before.assignee_id)
+    await notify(patch.assignee_id, 'assigned', t, `${me?.name || 'Someone'} assigned you: ${t.title}`);
+  if (patch.status === 'done' && before.status !== 'done' && t.created_by)
+    await notify(t.created_by, 'completed', t, `${me?.name || 'Someone'} completed: ${t.title}`);
+  afterTaskChange(t);
+}
+
+async function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  const t = allTasks.find(x => x.id === id);
+  allTasks = allTasks.filter(x => x.id !== id);
+  await sb.from('order_tasks').delete().eq('id', id);
+  closeTaskDrawer();
+  afterTaskChange(t);
+}
+
+function afterTaskChange(t) {
+  updateTaskBadge();
+  if (currentView === 'tasks') renderTasksView();
+  if (t?.order_id) {
+    const el = document.getElementById('tasks-body-' + t.order_id);
+    if (el) el.innerHTML = buildOrderTaskList(t.order_id);
+  }
+  if (taskDrawerId === t?.id) renderTaskDrawer();
+}
+
+// ─── Task row / card ───
+function dueHtml(t) {
+  if (!t.due_date) return '';
+  const today = todayStr();
+  const overdue = t.status !== 'done' && t.due_date < today;
+  const isToday = t.due_date === today;
+  const label = isToday ? 'Today' : new Date(t.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `<span class="t-due${overdue ? ' overdue' : isToday ? ' today' : ''}">${overdue ? '⚠ ' : ''}${label}</span>`;
+}
+function prioHtml(t) { return t.priority === 'high' ? '<span class="t-prio high" title="High priority">●</span>' : t.priority === 'low' ? '<span class="t-prio low" title="Low priority">●</span>' : ''; }
+function taskRowHtml(t, { showOrder = true } = {}) {
+  return `<div class="t-row${t.status === 'done' ? ' done' : ''}" onclick="openTaskDrawer('${t.id}')">
+    <input type="checkbox" class="t-check" ${t.status === 'done' ? 'checked' : ''} onclick="event.stopPropagation()" onchange="updateTask('${t.id}',{status:this.checked?'done':'todo'})">
+    ${prioHtml(t)}
+    <span class="t-title">${escHtml(t.title)}</span>
+    ${t.status === 'in_progress' ? '<span class="t-chip">In progress</span>' : ''}
+    ${showOrder && t.order_id ? `<span class="t-chip">${escHtml(orderLabel(t.order_id))}</span>` : ''}
+    <span class="t-right">${dueHtml(t)}${avatarHtml(t.assignee_id)}</span>
+  </div>`;
+}
+
+// ─── My Tasks view ───
+function tasksForTab() {
+  if (taskTab === 'mine') return allTasks.filter(t => me && t.assignee_id === me.id);
+  if (taskTab === 'created') return allTasks.filter(t => me && t.created_by === me.id);
+  return allTasks;
+}
+function renderTasksView() {
+  const root = document.getElementById('tasks-root'); if (!root) return;
+  const list = tasksForTab();
+  const tab = (k, label) => `<button class="tk-tab${taskTab === k ? ' active' : ''}" onclick="taskTab='${k}';renderTasksView()">${label}</button>`;
+  const lay = (k, label) => `<button class="tk-seg${taskLayout === k ? ' active' : ''}" onclick="setTaskLayout('${k}')">${label}</button>`;
+  let body = '';
+  if (taskLayout === 'board') {
+    const col = (status, label) => {
+      const items = list.filter(t => t.status === status);
+      return `<div class="tk-col" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')"
+          ondrop="this.classList.remove('drag');updateTask(event.dataTransfer.getData('text'),{status:'${status}'})">
+        <div class="tk-col-h">${label} <span>${items.length}</span></div>
+        ${items.map(t => `<div class="tk-card" draggable="true" ondragstart="event.dataTransfer.setData('text','${t.id}')" onclick="openTaskDrawer('${t.id}')">
+          <div class="tk-card-t">${prioHtml(t)}${escHtml(t.title)}</div>
+          ${t.order_id ? `<div class="t-chip" style="margin-top:6px">${escHtml(orderLabel(t.order_id))}</div>` : ''}
+          <div class="tk-card-f">${dueHtml(t)}${avatarHtml(t.assignee_id)}</div>
+        </div>`).join('')}
+        <button class="tk-add" onclick="openNewTask({status:'${status}'})">＋ New</button>
+      </div>`;
+    };
+    body = `<div class="tk-board">${col('todo','To do')}${col('in_progress','In progress')}${col('done','Done')}</div>`;
+  } else {
+    const today = todayStr();
+    const week = addDays(today, 7);
+    const open = list.filter(t => t.status !== 'done');
+    const groups = [
+      ['Overdue', open.filter(t => t.due_date && t.due_date < today)],
+      ['Today', open.filter(t => t.due_date === today)],
+      ['Next 7 days', open.filter(t => t.due_date && t.due_date > today && t.due_date <= week)],
+      ['Later', open.filter(t => t.due_date && t.due_date > week)],
+      ['No due date', open.filter(t => !t.due_date)],
+    ].filter(([, l]) => l.length);
+    const done = list.filter(t => t.status === 'done');
+    body = (groups.length ? groups.map(([label, l]) => `<div class="tk-group"><div class="tk-group-h${label === 'Overdue' ? ' overdue' : ''}">${label} <span>${l.length}</span></div>
+        ${l.sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999')).map(t => taskRowHtml(t)).join('')}</div>`).join('')
+      : `<div class="tk-empty">${taskTab === 'mine' ? 'Nothing assigned to you. 🎉' : 'No open tasks.'}</div>`)
+      + (done.length ? `<div class="tk-group"><div class="tk-group-h clickable" onclick="taskShowDone=!taskShowDone;renderTasksView()">${taskShowDone ? '▾' : '▸'} Completed <span>${done.length}</span></div>
+        ${taskShowDone ? done.map(t => taskRowHtml(t)).join('') : ''}</div>` : '');
+  }
+  root.innerHTML = `
+    <div class="tk-head">
+      <h1 class="page-title" style="margin:0">My Tasks</h1>
+      <button class="sb-new" style="margin:0" onclick="openNewTask()">＋ New task</button>
+    </div>
+    <div class="tk-bar">
+      <div class="tk-tabs">${tab('mine', 'Assigned to me')}${tab('created', 'Created by me')}${tab('all', 'All tasks')}</div>
+      <div class="tk-segs">${lay('list', '☰ List')}${lay('board', '▦ Board')}</div>
+    </div>
+    ${!me ? `<div class="tk-warn">Your login email isn't linked to a team member yet. Ask an admin to add it in Settings → Team.</div>` : ''}
+    ${body}`;
+}
+function setTaskLayout(k) { taskLayout = k; try { localStorage.setItem('pcw-task-layout', k); } catch (e) {} renderTasksView(); }
+
+// ─── New task + task drawer ───
+let taskDrawerId = null;
+function openNewTask(preset = {}) {
+  taskDrawerId = '__new__';
+  window.__newTaskPreset = { assignee_id: preset.assignee_id ?? (me?.id || null), status: preset.status || 'todo', order_id: preset.order_id || null };
+  renderTaskDrawer();
+}
+async function openTaskDrawer(id) { taskDrawerId = id; renderTaskDrawer(); await loadTaskComments(id); renderTaskDrawer(); }
+function closeTaskDrawer() { taskDrawerId = null; document.getElementById('task-drawer')?.remove(); }
+const taskComments = {};
+async function loadTaskComments(taskId) {
+  const { data } = await sb.from('task_comments').select('*').eq('task_id', taskId).order('created_at');
+  taskComments[taskId] = data || [];
+}
+function orderOptionsHtml(selected) {
+  const opts = [];
+  customers.forEach(c => (c.orders || []).forEach(o => opts.push(`<option value="${o.id}"${o.id === selected ? ' selected' : ''}>${escHtml((o.project_name || o.id) + ' · ' + c.name)}</option>`)));
+  return `<option value="">— No order —</option>${opts.join('')}`;
+}
+function memberOptionsHtml(selected) {
+  return `<option value="">Unassigned</option>` + team.map(m => `<option value="${m.id}"${m.id === selected ? ' selected' : ''}>${escHtml(m.name)}</option>`).join('');
+}
+function mentionBody(text) {
+  let html = escHtml(text);
+  team.forEach(m => { html = html.replace(new RegExp('@' + m.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), `<span class="mention">@${escHtml(m.name)}</span>`); });
+  return html;
+}
+function renderTaskDrawer() {
+  if (!taskDrawerId) return;
+  const isNew = taskDrawerId === '__new__';
+  const t = isNew ? { title: '', description: '', status: 'todo', priority: 'normal', due_date: '', ...window.__newTaskPreset } : allTasks.find(x => x.id === taskDrawerId);
+  if (!t) return closeTaskDrawer();
+  let el = document.getElementById('task-drawer');
+  if (!el) { el = document.createElement('div'); el.id = 'task-drawer'; document.body.appendChild(el); }
+  const sel = (f, opts) => `<select id="td-${f}" class="td-in">${opts}</select>`;
+  const comments = taskComments[t.id] || [];
+  el.innerHTML = `<div class="td-backdrop" onclick="closeTaskDrawer()"></div>
+  <div class="td-panel">
+    <div class="td-top">
+      <span class="td-crumb">${isNew ? 'New task' : (t.order_id ? escHtml(orderLabel(t.order_id)) : 'Task')}</span>
+      <span style="display:flex;gap:6px">
+        ${!isNew && t.order_id ? `<button class="td-btn" onclick="closeTaskDrawer();openPanel(${customerIdOfOrder(t.order_id)})">Open order ↗</button>` : ''}
+        ${!isNew ? `<button class="td-btn" onclick="deleteTask('${t.id}')">🗑</button>` : ''}
+        <button class="td-btn" onclick="closeTaskDrawer()">✕</button>
+      </span>
+    </div>
+    <input id="td-title" class="td-title" placeholder="Task name" value="${escHtml(t.title)}">
+    <div class="td-props">
+      <label>Status</label>${sel('status', [['todo','To do'],['in_progress','In progress'],['done','Done']].map(([v,l]) => `<option value="${v}"${t.status===v?' selected':''}>${l}</option>`).join(''))}
+      <label>Assignee</label>${sel('assignee', memberOptionsHtml(t.assignee_id))}
+      <label>Due date</label><input id="td-due" type="date" class="td-in" min="2020-01-01" max="2035-12-31" value="${t.due_date || ''}">
+      <label>Priority</label>${sel('priority', [['low','Low'],['normal','Normal'],['high','High']].map(([v,l]) => `<option value="${v}"${t.priority===v?' selected':''}>${l}</option>`).join(''))}
+      <label>Order</label>${sel('order', orderOptionsHtml(t.order_id))}
+      ${!isNew ? `<label>Created by</label><div class="td-static">${escHtml(memberName(t.created_by) || '—')}</div>` : ''}
+    </div>
+    <textarea id="td-desc" class="td-desc" rows="4" placeholder="Add a description…">${escHtml(t.description || '')}</textarea>
+    <button class="sb-new" style="margin:4px 0 0;width:100%;text-align:center" onclick="saveTaskDrawer()">${isNew ? 'Create task' : 'Save changes'}</button>
+    ${isNew ? '' : `
+    <div class="td-sec">Comments</div>
+    <div class="td-comments">${comments.length ? comments.map(c => `<div class="td-c">
+        ${avatarHtml(c.author_id, 24)}
+        <div style="flex:1;min-width:0"><div class="td-c-h"><b>${escHtml(memberName(c.author_id) || 'Unknown')}</b>
+          <span>${new Date(c.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+          <div class="td-c-b">${mentionBody(c.body)}</div></div></div>`).join('') : '<div class="tk-empty" style="padding:8px 0">No comments yet.</div>'}</div>
+    <textarea id="td-comment" class="td-desc" rows="2" placeholder="Write a comment… type @Name to tag someone"></textarea>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+      ${team.filter(m => !me || m.id !== me.id).map(m => `<button class="td-btn" onclick="insertMention('${escHtml(m.name)}')">@${escHtml(m.name)}</button>`).join('')}
+      <button class="sb-new" style="margin:0 0 0 auto" onclick="addTaskComment('${t.id}')">Comment</button>
+    </div>`}
+  </div>`;
+  if (isNew) setTimeout(() => document.getElementById('td-title')?.focus(), 30);
+}
+function insertMention(name) {
+  const ta = document.getElementById('td-comment'); if (!ta) return;
+  ta.value = (ta.value && !ta.value.endsWith(' ') ? ta.value + ' ' : ta.value) + '@' + name + ' ';
+  ta.focus();
+}
+async function saveTaskDrawer() {
+  const v = id => document.getElementById(id)?.value ?? '';
+  const fields = { title: v('td-title').trim(), description: v('td-desc'), status: v('td-status'), priority: v('td-priority'),
+    assignee_id: v('td-assignee') || null, due_date: v('td-due') || null, order_id: v('td-order') || null };
+  if (!fields.title) { showToast('⚠️ Task name is required'); return; }
+  if (taskDrawerId === '__new__') {
+    const t = await createTask(fields);
+    if (t) { showToast('✅ Task created'); closeTaskDrawer(); }
+  } else {
+    await updateTask(taskDrawerId, fields);
+    showToast('✅ Saved');
+  }
+}
+async function addTaskComment(taskId) {
+  const ta = document.getElementById('td-comment');
+  const body = ta?.value.trim(); if (!body) return;
+  const mentions = team.filter(m => new RegExp('@' + m.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(body)).map(m => m.id);
+  const { data, error } = await sb.from('task_comments').insert({ task_id: taskId, author_id: me?.id || null, body, mentions }).select().single();
+  if (error) { showToast('❌ ' + error.message); return; }
+  (taskComments[taskId] = taskComments[taskId] || []).push(data);
+  const t = allTasks.find(x => x.id === taskId);
+  for (const id of mentions) await notify(id, 'mentioned', t, `${me?.name || 'Someone'} mentioned you on: ${t?.title || 'a task'}`, body.slice(0, 200));
+  const others = [t?.assignee_id, t?.created_by].filter(id => id && !mentions.includes(id));
+  for (const id of [...new Set(others)]) await notify(id, 'comment', t, `${me?.name || 'Someone'} commented on: ${t?.title || 'a task'}`, body.slice(0, 200));
+  renderTaskDrawer();
+}
+
+// ─── Tasks inside an order ───
+function buildOrderTaskList(orderId) {
+  const list = allTasks.filter(t => t.order_id === orderId);
+  if (!list.length) return `<div class="tk-empty" style="padding:6px 0">No tasks yet</div>`;
+  return list.sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.due_date || '9999').localeCompare(b.due_date || '9999'))
+    .map(t => taskRowHtml(t, { showOrder: false })).join('');
+}
+async function quickAddOrderTask(orderId) {
+  const title = document.getElementById('task-title-' + orderId)?.value.trim();
+  if (!title) return;
+  const t = await createTask({ title, order_id: orderId,
+    assignee_id: document.getElementById('task-assign-' + orderId)?.value || null,
+    due_date: document.getElementById('task-due-' + orderId)?.value || null });
+  if (t) { document.getElementById('task-title-' + orderId).value = ''; showToast('✅ Task added'); }
+}
+
+// ─── Settings → Team ───
+function renderTeamSettings() {
+  const el = document.getElementById('team-settings'); if (!el) return;
+  const admin = me?.role === 'admin';
+  el.innerHTML = `
+    <table class="team-table">
+      <thead><tr><th>Name</th><th>Login emails</th><th>Role</th>${admin ? '<th></th>' : ''}</tr></thead>
+      <tbody>${team.map(m => `<tr>
+        <td><span style="display:inline-flex;align-items:center;gap:8px">${avatarHtml(m.id, 24)}<b>${escHtml(m.name)}</b>${me?.id === m.id ? ' <span class="t-chip">You</span>' : ''}</span></td>
+        <td>${(m.emails || []).map(e => `<div class="team-email">${escHtml(e)}${admin ? ` <button class="td-btn" onclick="inviteMember('${escHtml(e)}', this)">Invite</button>` : ''}</div>`).join('')}</td>
+        <td>${admin && me?.id !== m.id ? `<select class="td-in" onchange="updateMember('${m.id}',{role:this.value})"><option value="member"${m.role==='member'?' selected':''}>Member</option><option value="admin"${m.role==='admin'?' selected':''}>Admin</option></select>` : (m.role === 'admin' ? 'Admin' : 'Member')}</td>
+        ${admin ? `<td style="white-space:nowrap"><button class="td-btn" onclick="editMemberEmails('${m.id}')">Edit emails</button>
+          ${me?.id !== m.id ? `<button class="td-btn" onclick="removeMember('${m.id}')">Remove</button>` : ''}</td>` : ''}
+      </tr>`).join('')}</tbody>
+    </table>
+    ${admin ? `<div class="team-add">
+      <input id="tm-name" class="td-in" placeholder="Name">
+      <input id="tm-email" class="td-in" placeholder="Email">
+      <select id="tm-role" class="td-in"><option value="member">Member</option><option value="admin">Admin</option></select>
+      <button class="sb-new" style="margin:0" onclick="addMember()">Add member</button>
+    </div>
+    <div class="settings-desc" style="margin-top:8px">Add a member, then press <b>Invite</b> next to their email. They'll receive an email to set their own password.</div>`
+    : `<div class="settings-desc">Only admins can change the team.</div>`}`;
+}
+async function addMember() {
+  const name = document.getElementById('tm-name').value.trim();
+  const email = document.getElementById('tm-email').value.trim().toLowerCase();
+  const role = document.getElementById('tm-role').value;
+  if (!name || !email) { showToast('⚠️ Name and email are required'); return; }
+  const { data, error } = await sb.from('team_members').insert({ name, emails: [email], role }).select().single();
+  if (error) { showToast('❌ ' + error.message); return; }
+  team.push(data); renderTeamSettings(); showToast('✅ Member added');
+}
+async function updateMember(id, patch) {
+  const { error } = await sb.from('team_members').update(patch).eq('id', id);
+  if (error) { showToast('❌ ' + error.message); return; }
+  Object.assign(memberById(id), patch); renderTeamSettings(); showToast('✅ Saved');
+}
+function editMemberEmails(id) {
+  const m = memberById(id); if (!m) return;
+  const v = prompt('Login emails for ' + m.name + ' (comma separated):', (m.emails || []).join(', '));
+  if (v === null) return;
+  updateMember(id, { emails: v.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) });
+}
+async function removeMember(id) {
+  const m = memberById(id);
+  if (!m || !confirm(`Remove ${m.name} from the team? Their tasks become unassigned.`)) return;
+  const { error } = await sb.from('team_members').delete().eq('id', id);
+  if (error) { showToast('❌ ' + error.message); return; }
+  team = team.filter(x => x.id !== id); renderTeamSettings();
+}
+async function inviteMember(email, btn) {
+  if (!confirm(`Send an invitation email to ${email}?`)) return;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const { data, error } = await sb.functions.invoke('invite-member', { body: { email, redirectTo: location.origin + location.pathname } });
+  btn.disabled = false; btn.textContent = 'Invite';
+  let msg = error ? (await error.context?.json?.().catch(() => null))?.error || error.message : null;
+  if (msg) showToast('⚠️ ' + msg); else showToast('✉️ Invitation sent to ' + email);
+}
+
+// ─── Password: set after invite / reset ───
+function showSetPassword(reason) {
+  if (document.getElementById('pw-modal')) return;
+  const el = document.createElement('div'); el.id = 'pw-modal';
+  el.innerHTML = `<div class="td-backdrop"></div><div class="pw-card">
+    <div class="settings-h">${reason === 'invite' ? 'Welcome! Set your password' : 'Set a new password'}</div>
+    <div class="settings-desc">At least 8 characters.</div>
+    <input id="pw-1" type="password" class="td-in" placeholder="New password" autocomplete="new-password">
+    <input id="pw-2" type="password" class="td-in" placeholder="Confirm password" autocomplete="new-password" onkeydown="if(event.key==='Enter')savePassword()">
+    <div id="pw-err" style="color:var(--tint-red-fg);font-size:12px;min-height:16px"></div>
+    <button class="sb-new" style="margin:0;width:100%;text-align:center" onclick="savePassword()">Save password</button>
+  </div>`;
+  document.body.appendChild(el);
+}
+async function savePassword() {
+  const a = document.getElementById('pw-1').value, b = document.getElementById('pw-2').value, err = document.getElementById('pw-err');
+  if (a.length < 8) { err.textContent = 'Password must be at least 8 characters.'; return; }
+  if (a !== b) { err.textContent = 'Passwords do not match.'; return; }
+  const { error } = await sb.auth.updateUser({ password: a });
+  if (error) { err.textContent = error.message; return; }
+  document.getElementById('pw-modal')?.remove();
+  showToast('✅ Password saved');
+}
+async function forgotPassword() {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email) { showLoginError('Enter your email above first'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  if (error) { showLoginError(error.message); return; }
+  showLoginError('✉️ Check your email for a reset link.');
+}
+sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') showSetPassword('recovery'); });
 
 // Check if already logged in
 (async () => {
