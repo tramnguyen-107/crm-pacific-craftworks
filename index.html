@@ -1118,7 +1118,13 @@
 <div class="view" id="view-container">
   <div class="toolbar" style="padding-top:0;justify-content:space-between">
     <span style="font-size:13px;color:var(--muted);font-weight:600" id="ctn-summary">—</span>
-    <button class="nav-btn" style="background:var(--brand);color:var(--on-brand);border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="addContainerPlan()">+ New Container</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="filter-btn active" id="ctn-filter-active" onclick="setCtnFilter('active',this)">Active</button>
+      <button class="filter-btn" id="ctn-filter-transit" onclick="setCtnFilter('transit',this)">On the Way</button>
+      <button class="filter-btn" id="ctn-filter-done" onclick="setCtnFilter('done',this)">Delivered</button>
+      <button class="filter-btn" id="ctn-filter-all" onclick="setCtnFilter('all',this)">All</button>
+      <button class="nav-btn" style="background:var(--brand);color:var(--on-brand);border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="addContainerPlan()">+ New Container</button>
+    </div>
   </div>
   <div style="padding:0 20px 20px;display:flex;gap:14px;align-items:flex-start;overflow-x:auto" id="ctn-board"></div>
 </div>
@@ -5824,9 +5830,28 @@ async function saveFPONote(fpoId, val) {
 // =====================
 // CONTAINER PLANNING
 // =====================
+let ctnFilter = 'active';
+function setCtnFilter(f, el) {
+  ctnFilter = f;
+  document.querySelectorAll('#view-container .filter-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderContainerView();
+}
+
 function renderContainerView() {
   const board = document.getElementById('ctn-board');
   const typeClass = { 'Kitchen Remodel': 'kitchen', 'Bathroom': 'bathroom', 'Vanity': 'vanity', 'Full Remodel': 'remodel' };
+
+  // Filter containers by status
+  // active = not yet trucking_confirmed (planning + assigned)
+  // transit = trucking_assigned but not confirmed (on the way)
+  // done = trucking_confirmed (picked up / delivered)
+  const filteredPlans = containerPlans.filter(ctn => {
+    if (ctnFilter === 'active') return !ctn.trucking_confirmed;
+    if (ctnFilter === 'transit') return ctn.trucking_assigned && !ctn.trucking_confirmed;
+    if (ctnFilter === 'done') return !!ctn.trucking_confirmed;
+    return true; // all
+  });
 
   // All production orders not yet assigned to any container
   const assignedOrderIds = new Set(containerPlans.flatMap(c => c.orderRefs.map(r => r.orderId)));
@@ -5844,7 +5869,12 @@ function renderContainerView() {
   document.getElementById('ctn-summary').textContent =
     `${containerPlans.length} containers planned · ${totalAssigned} orders assigned · ${poolOrders.length} unassigned`;
 
-  board.innerHTML = containerPlans.map(ctn => {
+  if (filteredPlans.length === 0) {
+    board.innerHTML = `<div style="padding:40px;color:var(--muted);font-size:13px;text-align:center">No containers for this filter.</div>`;
+    return;
+  }
+
+  board.innerHTML = filteredPlans.map(ctn => {
     const usedM3 = ctn.orderRefs.reduce((s, r) => s + (r.sizeM3 || 0), 0);
     const pctM3 = Math.min(100, Math.round((usedM3 / ctn.capacityM3) * 100));
     const pctOrders = Math.min(100, Math.round((ctn.orderRefs.length / ctn.targetOrders) * 100));
@@ -5916,8 +5946,8 @@ function renderContainerView() {
               <span style="font-size:10px;font-weight:700;background:var(--tint-blue);color:var(--tint-blue-fg);padding:2px 8px;border-radius:20px">📍 ${ctn.destination || '—'}</span>
             </div>
             ${hasBooking ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">🚢 ${ctn.shipping_line||''} ${ctn.vessel ? '· '+ctn.vessel : ''} ${ctn.booking_no ? '· #'+ctn.booking_no : ''}</div>` : ''}
-            <div class="ctn-col-date">📅 ETD: <strong>${ctn.etd || ctn.plannedLoadDate || '—'}</strong></div>
-            <div class="ctn-col-date">🛬 ETA: <strong>${ctn.eta || '—'}</strong></div>
+            <div class="ctn-col-date" style="display:flex;align-items:center;gap:6px">📅 ETD: <input type="date" min="2020-01-01" max="2035-12-31" value="${ctn.etd||ctn.plannedLoadDate||''}" style="border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-size:11px;font-family:inherit;background:var(--surface);color:var(--text)" onchange="saveCtnField('${ctn.id}','etd',this.value);renderContainerView()"></div>
+            <div class="ctn-col-date" style="display:flex;align-items:center;gap:6px">🛬 ETA: <input type="date" min="2020-01-01" max="2035-12-31" value="${ctn.eta||''}" style="border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-size:11px;font-family:inherit;background:var(--surface);color:var(--text)" onchange="saveCtnField('${ctn.id}','eta',this.value);renderContainerView()"></div>
             ${ctn.agency ? `<div style="font-size:11px;color:var(--muted)">Agency: ${ctn.agency}</div>` : ''}
             ${ctnTotalValue > 0 ? `<div style="margin-top:4px;font-size:12px;font-weight:700;color:#059669">💵 $${ctnTotalValue.toLocaleString()}</div>` : ''}
             <button onclick="openBookingModal('${ctn.id}')" style="margin-top:8px;padding:5px 12px;background:${hasBooking?'#EFF6FF':'var(--surface)'};border:1.5px solid ${hasBooking?'#3B82F6':'var(--border)'};border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;color:${hasBooking?'#1D4ED8':'var(--muted)'};font-family:inherit">
