@@ -5635,7 +5635,7 @@ function renderProductionView() {
       <div class="prod-card-header">
         <div style="display:flex;flex-direction:column;gap:6px">
           <div style="display:flex;align-items:center;gap:10px">
-            <span class="fac-po-badge">🏭 ${fpo.id}</span>
+            <span class="fac-po-badge">🏭 ${fpo.label || fpo.id}</span>
             <span class="stage-badge ${sl.badge}">${sl.label}</span>
           </div>
           <div class="prod-card-sub">Factory: ${fpo.factory_name || fpo.factory}</div>
@@ -5648,6 +5648,7 @@ function renderProductionView() {
           <div class="card-menu-wrap" onclick="event.stopPropagation()">
             <button class="kebab-btn" onclick="toggleKebab('fpo-${fpo.id}')">···</button>
             <div class="kebab-dropdown" id="kebab-fpo-${fpo.id}">
+              <div class="kebab-item" onclick="renameFPO('${fpo.id}')"><span class="ki-icon">✏️</span> Rename</div>
               <div class="kebab-item" onclick="duplicateFPO('${fpo.id}')"><span class="ki-icon">⧉</span> Duplicate</div>
               <div class="kebab-item danger" onclick="deleteFPO('${fpo.id}')"><span class="ki-icon">🗑</span> Delete</div>
             </div>
@@ -7459,6 +7460,18 @@ async function duplicateContainer(id) {
 }
 
 // --- Factory PO ---
+async function renameFPO(id) {
+  const fpo = factoryPOs.find(f => f.id === id);
+  if (!fpo) return;
+  const current = fpo.label || fpo.id;
+  const newLabel = prompt('Rename Factory PO:', current);
+  if (!newLabel || newLabel.trim() === current) return;
+  fpo.label = newLabel.trim();
+  await dbUpdate('factory_pos', {id}, {label: fpo.label});
+  renderProductionView();
+  showToast('✅ Renamed to ' + fpo.label);
+}
+
 async function deleteFPO(id) {
   factoryPOs = factoryPOs.filter(f => f.id !== id);
   renderProductionView();
