@@ -6989,6 +6989,20 @@ function _oqRecalc(order) {
   return { grandTotal, balance };
 }
 
+const _oqSaveTimers = {};
+function _oqAutoSave(order) {
+  clearTimeout(_oqSaveTimers[order.id]);
+  _oqSaveTimers[order.id] = setTimeout(() => {
+    const { grandTotal, balance } = _oqRecalc(order);
+    order.balance = balance;
+    dbUpdate('orders', {id: order.id}, {
+      quote_items: order.quote_items || [],
+      shipping_cost: order.shipping_cost || 0,
+      balance: balance,
+    });
+  }, 600);
+}
+
 function addOrderQuoteItem(orderId) {
   const c = customers.find(x => x.orders?.some(o => o.id === orderId));
   const order = c?.orders.find(o => o.id === orderId);
@@ -6996,6 +7010,7 @@ function addOrderQuoteItem(orderId) {
   order.quote_items = order.quote_items || [];
   order.quote_items.push({product:'', qty:1, unit_cost:0});
   renderPanelTab(activePanelTab);
+  _oqAutoSave(order);
 }
 
 function removeOrderQuoteItem(orderId, idx) {
@@ -7004,6 +7019,7 @@ function removeOrderQuoteItem(orderId, idx) {
   if (!order) return;
   order.quote_items.splice(idx, 1);
   renderPanelTab(activePanelTab);
+  _oqAutoSave(order);
 }
 
 function updateOrderQuoteItem(orderId, idx, field, value) {
@@ -7012,6 +7028,7 @@ function updateOrderQuoteItem(orderId, idx, field, value) {
   if (!order || !order.quote_items[idx]) return;
   order.quote_items[idx][field] = (field === 'qty' || field === 'unit_cost') ? (parseFloat(value)||0) : value;
   _oqRecalc(order);
+  _oqAutoSave(order);
 }
 
 function updateOrderShipping(orderId, value) {
@@ -7020,6 +7037,7 @@ function updateOrderShipping(orderId, value) {
   if (!order) return;
   order.shipping_cost = parseFloat(value) || 0;
   _oqRecalc(order);
+  _oqAutoSave(order);
 }
 
 async function saveOrderQuote(orderId) {
