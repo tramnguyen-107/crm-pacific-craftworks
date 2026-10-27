@@ -4844,6 +4844,17 @@ async function saveCtnField(ctnId, field, value) {
   await dbUpdate('container_plans', {id: ctnId}, {[field]: value});
 }
 
+async function renameContainer(ctnId) {
+  const ctn = containerPlans.find(c => c.id === ctnId);
+  if (!ctn) return;
+  const newLabel = prompt('Rename container:', ctn.label);
+  if (!newLabel || newLabel.trim() === ctn.label) return;
+  ctn.label = newLabel.trim();
+  await dbUpdate('container_plans', {id: ctnId}, {label: ctn.label});
+  renderContainerView();
+  showToast('✅ Container renamed');
+}
+
 async function markTruckingAssigned(ctnId) {
   const ctn = containerPlans.find(c => c.id === ctnId);
   if (!ctn) return;
@@ -5916,6 +5927,7 @@ function renderContainerView() {
           <div class="card-menu-wrap" onclick="event.stopPropagation()">
             <button class="kebab-btn" onclick="toggleKebab('ctn-${ctn.id}')">···</button>
             <div class="kebab-dropdown" id="kebab-ctn-${ctn.id}">
+              <div class="kebab-item" onclick="renameContainer('${ctn.id}')"><span class="ki-icon">✏️</span> Rename</div>
               <div class="kebab-item" onclick="duplicateContainer('${ctn.id}')"><span class="ki-icon">⧉</span> Duplicate</div>
               <div class="kebab-item danger" onclick="deleteContainer('${ctn.id}')"><span class="ki-icon">🗑</span> Delete</div>
             </div>
