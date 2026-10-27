@@ -1291,8 +1291,26 @@
     </div>
     <div class="form-group">
       <label class="form-label">Source</label>
-      <select class="form-select" id="new-source">
-        ${LEAD_SOURCES.map(s=>`<option>${s}</option>`).join('')}
+      <select class="form-select" id="new-source" onchange="toggleNewSalesRep(this.value)">
+        <option value="">— Select —</option>
+        <option>Walk-in</option>
+        <option>Referral</option>
+        <option>Return Customer</option>
+        <option>Contractor</option>
+        <option>Sale Rep</option>
+        <option>Google</option>
+        <option>Social Media</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="form-group" id="new-salesrep-group" style="display:none">
+      <label class="form-label">Sales Rep</label>
+      <select class="form-select" id="new-salesrep">
+        <option value="">— Select Rep —</option>
+        <option>Dustin</option>
+        <option>Andy</option>
+        <option>Cezar</option>
+        <option>JJ</option>
       </select>
     </div>
     <div class="form-group">
@@ -5057,6 +5075,11 @@ function openAddCustomer(stage) {
 function closeAddCustomer() {
   document.getElementById('add-modal').classList.remove('open');
 }
+function toggleNewSalesRep(val) {
+  const g = document.getElementById('new-salesrep-group');
+  if (g) g.style.display = val === 'Sale Rep' ? '' : 'none';
+}
+
 async function addCustomer() {
   const name = document.getElementById('new-name').value.trim();
   if (!name) { alert('Name is required'); return; }
@@ -5065,7 +5088,9 @@ async function addCustomer() {
   const company  = document.getElementById('new-company').value;
   const email    = document.getElementById('new-email').value;
   const phone    = document.getElementById('new-phone').value;
-  const source   = document.getElementById('new-source').value;
+  const rawSource = document.getElementById('new-source').value;
+  const repName   = document.getElementById('new-salesrep')?.value || '';
+  const source    = rawSource === 'Sale Rep' && repName ? 'Sale Rep — ' + repName : rawSource;
   const interest = document.getElementById('new-project').value;
 
   if (isLead) {
@@ -5087,6 +5112,9 @@ async function addCustomer() {
     renderBoard();
   }
   ['new-name','new-company','new-email','new-phone'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('new-source').value = '';
+  const rg = document.getElementById('new-salesrep-group');
+  if (rg) { rg.style.display = 'none'; document.getElementById('new-salesrep').value = ''; }
   delete modal.dataset.isLead;
 }
 
