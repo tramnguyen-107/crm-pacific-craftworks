@@ -989,7 +989,7 @@
       <input class="search-input" type="text" id="lead-search" placeholder="Search lead..." oninput="renderLeads()" style="width:200px">
       <select id="lead-filter-source" class="form-select" style="width:120px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
         <option value="">All sources</option>
-        <option>Web Form</option><option>Referral</option><option>Email</option><option>Phone</option><option>Walk-in</option><option>Sales Rep</option>
+        <option>Web Form</option><option>Google Ads</option><option>Google LSA</option><option>Google Business Profile</option><option>Meta (FB/IG)</option><option>Houzz</option><option>Referral</option><option>Trade Partner</option><option>Stone Concepts</option><option>Returning Client</option><option>Event</option><option>Email</option><option>Phone</option><option>Walk-in</option><option>Sales Rep</option>
       </select>
       <select id="lead-filter-type" class="form-select" style="width:130px;padding:8px 10px;font-size:12px" onchange="renderLeads()">
         <option value="">All types</option>
@@ -1286,12 +1286,7 @@
     <div class="form-group">
       <label class="form-label">Source</label>
       <select class="form-select" id="new-source">
-        <option>Web Form</option>
-        <option>Referral</option>
-        <option>Email</option>
-        <option>Phone</option>
-        <option>Walk-in</option>
-        <option>Sales Rep</option>
+        ${LEAD_SOURCES.map(s=>`<option>${s}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
@@ -2080,7 +2075,10 @@ let leads          = [];
 let customers      = [];
 let factoryPOs     = [];
 let containerPlans = [];
-const LEAD_STATUSES = ['New', 'Contacted', 'Quoting', 'Quoted', 'Follow-up'];
+const LEAD_SOURCES = ['Web Form','Google Ads','Google LSA','Google Business Profile','Meta (FB/IG)','Houzz','Referral','Trade Partner','Stone Concepts','Returning Client','Event','Email','Phone','Walk-in','Sales Rep'];
+const COMMISSION_RATES = { 'Referral':0.15,'Trade Partner':0.15,'Sales Rep':0.08,'Stone Concepts':0.06 };
+const LEAD_STATUSES = ['New','Qualified','Appointment Set','Measured','Quoted','Signed','Lost'];
+const LEAD_LOSS_REASONS = ['Price too high','Timeline too long','Chose competitor','Budget cut','No response','Project cancelled','Other'];
 let salesReps = ['JJ','Cezar','Dustin','Darrel','Andy'];
 let orderActivity = {}; // { orderId: { tasks:[], comments:[] } }
 let packingItems = {}; // { orderId: [items] }
@@ -2355,6 +2353,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const item = e.target.closest('.check-item[data-cid]');
     if (!item) return;
     toggleCheck(item.dataset.cid, item.dataset.oid, item.dataset.chk, item);
+  });
+  // Capture UTM params from URL into sessionStorage for new leads
+  const usp = new URLSearchParams(window.location.search);
+  ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(k => {
+    if (usp.get(k)) sessionStorage.setItem(k, usp.get(k));
   });
 });
 
@@ -5050,7 +5053,9 @@ async function addCustomer() {
 
   if (isLead) {
     const newLid = 'L'+String(Date.now()).slice(-6);
-    const newL = await dbInsert('leads', {id:newLid, name, company, email, phone, source, status:'New', interest, budget:'', notes:''});
+    const utmData = {};
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(k => { const v=sessionStorage.getItem(k); if(v) utmData[k]=v; });
+    const newL = await dbInsert('leads', {id:newLid, name, company, email, phone, source, status:'New', interest, budget:'', notes:'', ...utmData});
     if (newL) leads.push(newL);
     closeAddCustomer();
     const leadsTab = document.querySelector('.tab[data-view="leads"]');
@@ -5227,7 +5232,7 @@ async function addOrderFromLead(virtualLeadId, poId) {
     document.getElementById('lead-overlay').classList.remove('open');
     renderBoard();
     showToast('✅ ' + (projectName || newOId) + ' added to pipeline');
-    setTimeout(() => openPanel(vl._forCustomer), 200);
+    setTimeout(() => openOrderFocused(vl._forCustomer, newO.id), 200);
     return;
   }
 
@@ -5272,7 +5277,7 @@ async function addOrderFromLead(virtualLeadId, poId) {
     renderBoard();
     if (currentView === 'leads') renderLeadsView();
     showToast('✅ ' + l.name + ' → Customer + ' + (projectName || newOId) + ' created');
-    setTimeout(() => openPanel(targetCust.id), 200);
+    setTimeout(() => openOrderFocused(targetCust.id, newO.id), 200);
   }
 }
 
@@ -6739,9 +6744,14 @@ function buildLeadContactTab(lead) {
         ${['Customer','Contractor','Internal Sales'].map(t=>`<option${(lead.lead_type||'Customer')===t?' selected':''}>${t}</option>`).join('')}
       </select></div>
     <div class="lp-field"><label class="lp-label">Source</label>
-      <select class="lp-input" onchange="saveLeadField('${lead.id}','source',this.value)">
-        ${['Web Form','Referral','Email','Phone','Walk-in','Sales Rep'].map(s=>`<option${lead.source===s?' selected':''}>${s}</option>`).join('')}
+      <select class="lp-input" id="lead_source_${lead.id}" onchange="onLeadSourceChange('${lead.id}',this.value)">
+        ${LEAD_SOURCES.map(s=>`<option${lead.source===s?' selected':''}>${s}</option>`).join('')}
       </select></div>
+    <div class="lp-field" id="tp-name-field-${lead.id}" style="display:${lead.source==='Trade Partner'?'':'none'}">
+      <label class="lp-label">Trade Partner Name</label>
+      <input class="lp-input" id="lead_tp_${lead.id}" value="${lead.trade_partner_name||''}" placeholder="Partner company name" onchange="saveLeadField('${lead.id}','trade_partner_name',this.value)">
+    </div>
+    ${COMMISSION_RATES[lead.source] ? `<div style="padding:6px 10px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;font-size:11px;font-weight:700;color:#92400E;margin-bottom:8px">💰 Commission: ${(COMMISSION_RATES[lead.source]*100).toFixed(0)}% of contract value</div>` : ''}
     <div class="lp-field"><label class="lp-label">Interest</label>
       <select class="lp-input" onchange="saveLeadField('${lead.id}','interest',this.value)">
         ${['Kitchen Remodel','Bathroom','Vanity','Full Remodel','Other'].map(s=>`<option${lead.interest===s?' selected':''}>${s}</option>`).join('')}
@@ -6751,11 +6761,60 @@ function buildLeadContactTab(lead) {
     <div class="lp-field"><label class="lp-label">Follow-up Date</label>
       <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${lead.follow_up||''}" onchange="saveLeadField('${lead.id}','follow_up',this.value)"></div>
     <div class="lp-field"><label class="lp-label">Status</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">
         ${LEAD_STATUSES.map(s=>`<span class="lead-status-chip${lead.status===s?' sel':''}" onclick="setLeadStatus('${lead.id}','${s}');renderLeadTab(1)">${s}</span>`).join('')}
       </div></div>
+    <div class="lp-field" id="loss-reason-field-${lead.id}" style="display:${lead.status==='Lost'?'':'none'}">
+      <label class="lp-label" style="color:#DC2626">❌ Loss Reason</label>
+      <select class="lp-input" onchange="saveLeadField('${lead.id}','loss_reason',this.value)">
+        <option value="">— Select reason —</option>
+        ${LEAD_LOSS_REASONS.map(r=>`<option${lead.loss_reason===r?' selected':''}>${r}</option>`).join('')}
+      </select>
+    </div>
     <div class="lp-field">${buildSalesRepField('lead', lead.id, lead.sales_rep||'')}</div>
   </div>
+
+  <div style="border-top:1.5px solid var(--border);margin:10px 0 8px"></div>
+  <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">📅 Milestones</div>
+  <div class="lp-contact-grid">
+    <div class="lp-field"><label class="lp-label">Lead Received</label>
+      <div style="font-size:12px;font-weight:600;padding:4px 0">${lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}</div>
+    </div>
+    <div class="lp-field"><label class="lp-label">⚡ First Response</label>
+      <input class="lp-input" type="datetime-local" value="${lead.first_response_at ? lead.first_response_at.slice(0,16) : ''}"
+        onchange="saveLeadField('${lead.id}','first_response_at',this.value)"
+        style="font-size:11px">
+      ${lead.first_response_at && lead.created_at ? `<div style="font-size:10px;color:${((new Date(lead.first_response_at)-new Date(lead.created_at))/60000)<15?'#059669':'#DC2626'};font-weight:700;margin-top:2px">${Math.round((new Date(lead.first_response_at)-new Date(lead.created_at))/60000)} min ${((new Date(lead.first_response_at)-new Date(lead.created_at))/60000)<15?'✅ Under 15 min':'⚠️ Over 15 min'}</div>` : ''}
+    </div>
+    <div class="lp-field"><label class="lp-label">📐 Measurement Date</label>
+      <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${lead.measurement_date||''}"
+        onchange="saveLeadField('${lead.id}','measurement_date',this.value)">
+    </div>
+    <div class="lp-field"><label class="lp-label">📄 Quote Sent</label>
+      <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${lead.quote_sent_date||''}"
+        onchange="saveLeadField('${lead.id}','quote_sent_date',this.value)">
+      ${lead.quote_sent_date && lead.created_at ? `<div style="font-size:10px;color:${((new Date(lead.quote_sent_date)-new Date(lead.created_at))/86400000)<3?'#059669':'#DC2626'};font-weight:700;margin-top:2px">${Math.round((new Date(lead.quote_sent_date)-new Date(lead.created_at))/86400000)} days ${((new Date(lead.quote_sent_date)-new Date(lead.created_at))/86400000)<3?'✅ Under 72h':'⚠️ Over 72h'}</div>` : ''}
+    </div>
+    <div class="lp-field"><label class="lp-label">✅ Signed / Deposit Date</label>
+      <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${lead.signed_date||''}"
+        onchange="saveLeadField('${lead.id}','signed_date',this.value)">
+    </div>
+    <div class="lp-field"><label class="lp-label">💰 Contract Value</label>
+      <input class="lp-input" type="number" min="0" value="${lead.contract_value||''}" placeholder="USD"
+        onchange="saveLeadField('${lead.id}','contract_value',parseFloat(this.value)||null)">
+    </div>
+  </div>
+
+  ${lead.utm_source||lead.utm_medium||lead.utm_campaign ? `
+  <div style="border-top:1.5px solid var(--border);margin:10px 0 8px"></div>
+  <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px">🔗 UTM Tracking</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px">
+    ${lead.utm_source ? `<span style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 8px"><b>source:</b> ${lead.utm_source}</span>` : ''}
+    ${lead.utm_medium ? `<span style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 8px"><b>medium:</b> ${lead.utm_medium}</span>` : ''}
+    ${lead.utm_campaign ? `<span style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 8px"><b>campaign:</b> ${lead.utm_campaign}</span>` : ''}
+    ${lead.utm_content ? `<span style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 8px"><b>content:</b> ${lead.utm_content}</span>` : ''}
+  </div>` : ''}
+
   <button class="section-save-btn" onclick="saveLeadContactFields('${lead.id}')">💾 Save contact info</button>`;
 }
 
@@ -6766,6 +6825,12 @@ function buildLeadNotesTab(lead) {
       placeholder="Call notes, client requirements, communication history...">${lead.notes||''}</textarea>
     <button class="section-save-btn" onclick="saveLeadNotesField('${lead.id}')">💾 Save notes</button>
   </div>`;
+}
+
+function onLeadSourceChange(leadId, src) {
+  saveLeadField(leadId, 'source', src);
+  const tp = document.getElementById('tp-name-field-'+leadId);
+  if (tp) tp.style.display = src === 'Trade Partner' ? '' : 'none';
 }
 
 async function saveLeadField(leadId, field, value) {
@@ -7105,9 +7170,12 @@ function renderLeads() {
   });
 
   const cols = [
-    { key:'new',     label:'New',     emoji:'🎯', cls:'col-lead-new',     match: l => !['Quoting','Quoted'].includes(l.status||'New') },
-    { key:'quoting', label:'Quoting', emoji:'✏️', cls:'col-lead-quoting', match: l => l.status === 'Quoting' },
-    { key:'quoted',  label:'Quoted',  emoji:'💰', cls:'col-lead-quoted',  match: l => l.status === 'Quoted' },
+    { key:'new',   label:'New',             emoji:'🎯', cls:'col-lead-new',     match: l => ['New','Qualified'].includes(l.status||'New') },
+    { key:'appt',  label:'Appointment Set', emoji:'📐', cls:'col-lead-quoting', match: l => l.status === 'Appointment Set' },
+    { key:'meas',  label:'Measured',        emoji:'📏', cls:'col-lead-quoting', match: l => l.status === 'Measured' },
+    { key:'quot',  label:'Quoted',          emoji:'💰', cls:'col-lead-quoted',  match: l => l.status === 'Quoted' },
+    { key:'sign',  label:'Signed',          emoji:'✅', cls:'col-lead-quoted',  match: l => l.status === 'Signed' },
+    { key:'lost',  label:'Lost',            emoji:'❌', cls:'col-lead-new',     match: l => l.status === 'Lost' },
   ];
 
   board.innerHTML = `<div class="leads-kanban">` + cols.map(col => {
@@ -7142,9 +7210,17 @@ async function dropLead(e, colKey) {
 
 async function setLeadStatus(leadId, status) {
   const l = leads.find(x => x.id === leadId);
-  if (l) l.status = status;
+  if (!l) return;
+  l.status = status;
+  const updates = { status };
+  const today = new Date().toISOString().split('T')[0];
+  if (status === 'Signed' && !l.signed_date) { l.signed_date = today; updates.signed_date = today; }
+  if (status === 'Measured' && !l.measurement_date) { l.measurement_date = today; updates.measurement_date = today; }
+  if (status === 'Quoted' && !l.quote_sent_date) { l.quote_sent_date = today; updates.quote_sent_date = today; }
+  const lossEl = document.getElementById('loss-reason-field-'+leadId);
+  if (lossEl) lossEl.style.display = status === 'Lost' ? '' : 'none';
   renderLeads();
-  await dbUpdate('leads', {id: leadId}, {status});
+  await dbUpdate('leads', {id: leadId}, updates);
 }
 
 async function convertLeadToCustomer(leadId, poId) {
