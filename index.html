@@ -4974,8 +4974,9 @@ async function dropCard(e, newStage) {
   const stageOrder = ['deposit','collect','production','shipped','unloaded','delivery','done'];
   const fromIdx = stageOrder.indexOf(order.stage);
   const toIdx   = stageOrder.indexOf(newStage);
-  // Moving backward from shipped (Loaded/Shipped) = dropping from container
-  const isDropFromLoaded = order.stage === 'shipped' && toIdx < fromIdx;
+  // Moving backward from shipped or any later stage into pre-shipped = dropping from container
+  const shippedIdx = stageOrder.indexOf('shipped');
+  const isDropFromLoaded = fromIdx >= shippedIdx && toIdx < shippedIdx;
   if (isDropFromLoaded) {
     const fpo = factoryPOs.find(f => (f.customerOrders||[]).some(r => String(r.orderId||r.order_id||'') === String(orderId)));
     const poLabel = fpo ? ` (${fpo.id} — ${fpo.factory_name||fpo.factory})` : '';
