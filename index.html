@@ -7688,7 +7688,7 @@ function renderReport() {
   const cashCollected = depositCollected + balanceFinalCollected;
 
   // ── Pending ──
-  const pendingDelivery = allOrders.filter(o => o.stage === 'delivery' && !o.balance_collected);
+  const pendingDelivery = allOrders.filter(o => !o.balance_collected && o.deposit_received && !['lead','deposit','done'].includes(o.stage));
   const pendingBalance = pendingDelivery.reduce((s, o) => s + Number(o.balance || 0), 0);
 
   // ── Containers active this month ──
@@ -7706,7 +7706,7 @@ function renderReport() {
     { icon: '📋', label: 'Revenue Booked', value: fmtUSD(revenueBooked), sub: bookedOrders.length > 0 ? `${bookedOrders.length} order${bookedOrders.length > 1 ? 's' : ''} signed & deposited` : 'No new bookings', color: '#059669' },
     { icon: '💰', label: 'Cash Collected', value: fmtUSD(cashCollected), sub: `💵 Deposit: ${fmtUSD(depositCollected)}  ·  🏁 Balance: ${fmtUSD(balanceFinalCollected)}`, color: '#0284C7' },
     { icon: '📊', label: 'Avg Order Value', value: avgOrderValue > 0 ? fmtUSD(avgOrderValue) : '—', sub: bookedOrders.length > 0 ? `Across ${bookedOrders.length} booked` : 'No orders booked', color: '#7C3AED' },
-    { icon: '⏳', label: 'Pending Balance', value: pendingBalance > 0 ? fmtUSD(pendingBalance) : '$0', sub: pendingDelivery.length > 0 ? `${pendingDelivery.length} order${pendingDelivery.length > 1 ? 's' : ''} in delivery` : 'All collected', color: pendingBalance > 0 ? '#D97706' : 'var(--muted)' },
+    { icon: '⏳', label: 'Pending Balance', value: pendingBalance > 0 ? fmtUSD(pendingBalance) : '$0', sub: pendingDelivery.length > 0 ? `${pendingDelivery.length} order${pendingDelivery.length > 1 ? 's' : ''} awaiting payment` : 'All collected', color: pendingBalance > 0 ? '#D97706' : 'var(--muted)' },
     { icon: '🚢', label: 'Containers Loaded', value: containersFulfilled + ' / ' + containersThisMonth.length, sub: containersThisMonth.length > 0 ? `${containersThisMonth.length} planned this month` : 'No containers this month', color: 'var(--shipped)' },
   ];
   document.getElementById('report-kpi').innerHTML = kpis.map(k => `
