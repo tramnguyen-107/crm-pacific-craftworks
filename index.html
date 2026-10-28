@@ -2340,9 +2340,11 @@ function buildOrderCard(order, customer) {
     ? order.project_name
     : `<span style="color:var(--muted);font-style:italic;font-weight:600">Untitled project</span>`;
   const archiveBadge = order.stage === 'done' ? `<div class="card-archive-badge">📁 Archived — Completed</div>` : '';
+  const droppedBadge = order.dropped_from_po ? `<div style="font-size:10px;font-weight:800;background:#EA580C;color:white;padding:3px 10px;border-radius:20px;margin-bottom:6px;display:inline-block;letter-spacing:0.3px">⚠️ DROPPED — Missed Container${order.dropped_factory?' · '+order.dropped_factory:''}</div>` : '';
 
   div.innerHTML = `
     ${archiveBadge}
+    ${droppedBadge}
     ${isUrgent ? `<div style="font-size:10px;font-weight:800;background:#DC2626;color:white;padding:3px 8px;border-radius:20px;margin-bottom:6px;display:inline-block;letter-spacing:0.3px">🔴 URGENT</div>` : ''}
     <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:2px">${projectName}</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${customer.name}${customer.company ? ' · ' + customer.company : ''}</div>
@@ -5577,7 +5579,20 @@ async function confirmCreateFactoryPO() {
     status: 'spec_sent', checkin_note: ''
   });
   if (!newFPO) { alert('Error creating Factory PO'); return; }
-  factoryPOs.push({...newFPO, factory_name: factory, customerOrders: []});
+  const fpoEntry = {...newFPO, factory_name: factory, customerOrders: []};
+  factoryPOs.push(fpoEntry);
+  // Auto-add any dropped orders from the same factory
+  const dropped = customers.flatMap(c =>
+    (c.orders||[]).filter(o => o.dropped_from_po && (o.dropped_factory === factory || !o.dropped_factory))
+      .map(o => ({customer: c, order: o}))
+  );
+  for (const {customer: c, order: o} of dropped) {
+    const ref = await dbInsert('factory_po_orders', {factory_po_id: poId, customer_id: c.id, order_id: o.id});
+    fpoEntry.customerOrders.push({customerId: c.id, orderId: o.id, ...(ref||{})});
+    o.dropped_from_po = false;
+    await dbUpdate('orders', {id: o.id}, {dropped_from_po: false});
+    showToast('📦 Auto-added dropped order: ' + (o.project_name || o.id));
+  }
   renderProductionView();
   showToast('✅ Factory PO ' + poId + ' — ' + factory);
 }
@@ -5813,6 +5828,11 @@ async function advanceFPO(fpoId) {
   const fpo = factoryPOs.find(f => f.id === fpoId);
   if (!fpo || fpo.status === 'delivered') return;
   const idx = statusOrder.indexOf(fpo.status);
+  const nextStatus = statusOrder[idx + 1];
+  if (nextStatus === 'loaded' && fpo.customerOrders.length > 0) {
+    const n = fpo.customerOrders.length;
+    if (!confirm(`Advance ${fpoId} to LOADED?\n\nThis will automatically move ${n} customer order${n>1?'s':''} to "Loaded / Shipped" stage on the Pipeline.\n\nConfirm?`)) return;
+  }
   if (idx < statusOrder.length - 1) fpo.status = statusOrder[idx + 1];
   const updates = {status: fpo.status};
   if (fpo.status === 'loaded' && !fpo.container) {
@@ -5895,12 +5915,29 @@ async function removeOrphanFPORef(fpoId, orderId) {
 }
 
 async function removeOrderFromFPO(fpoId, orderId) {
-  if (!confirm(`Remove ${orderId} from this Factory PO?`)) return;
   const fpo = factoryPOs.find(f => f.id === fpoId);
   if (!fpo) return;
-  fpo.customerOrders = fpo.customerOrders.filter(r => (r.orderId||r.order_id) !== orderId);
+  const isLoaded = ['loaded', 'delivered'].includes(fpo.status);
+  let orderName = orderId;
+  let orderObj = null;
+  for (const c of customers) {
+    const o = (c.orders||[]).find(o => String(o.id) === String(orderId));
+    if (o) { orderObj = o; orderName = o.project_name || orderId; break; }
+  }
+  const msg = isLoaded
+    ? `⚠️ WARNING: ${fpoId} has already been LOADED.\n\nRemoving "${orderName}" will mark it as DROPPED from this container.\n\nThe order will:\n• Move back to Production stage (QC Check)\n• Be flagged as "Dropped — Missed Container"\n• Auto-added to the next ${fpo.factory_name || fpo.factory} Factory PO\n\nAre you sure?`
+    : `Remove "${orderName}" from Factory PO ${fpoId}?`;
+  if (!confirm(msg)) return;
+  fpo.customerOrders = fpo.customerOrders.filter(r => String(r.orderId||r.order_id||'') !== String(orderId));
   await sb.from('factory_po_orders').delete().match({factory_po_id: fpoId, order_id: orderId});
-  renderProductionView();
+  if (isLoaded && orderObj) {
+    orderObj.stage = 'production';
+    orderObj.dropped_from_po = true;
+    orderObj.dropped_factory = fpo.factory_name || fpo.factory || '';
+    await dbUpdate('orders', {id: orderId}, {stage: 'production', dropped_from_po: true, dropped_factory: fpo.factory_name || fpo.factory || ''});
+    showToast('⚠️ ' + orderName + ' dropped — moved back to Production');
+  }
+  renderProductionView(); renderBoard();
 }
 
 async function saveFPOField(fpoId, dbField, value, localKey) {
