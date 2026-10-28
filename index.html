@@ -2290,7 +2290,7 @@ function buildCard(customer) {
         ${fpo ? `<span>🏭 ${fpo.id}</span>` : ''}
         ${ctnPlan ? `<span style="color:#8B5CF6">📦 ${ctnPlan.id}</span>` : ''}
         ${o.stage==='delivery' ? `<span style="color:${o.trucking_assigned?'#059669':'#DC2626'}">🚛 ${o.trucking_assigned?'Trucking ✓':'No trucking!'}</span>` : ''}
-        ${o.stage==='delivery' ? `<span style="color:${o.install_date?'#059669':'#7C3AED'}">🔧 ${o.install_date?'Install: '+o.install_date:'No install date'}</span>` : ''}
+        ${o.stage==='delivery' ? `<span style="color:${o.delivery_date?'#059669':'#7C3AED'}">📦 ${o.delivery_date?'Delivery: '+o.delivery_date:'No delivery date'}${o.install_date?' · 🔧 '+o.install_date:''}</span>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -2362,7 +2362,7 @@ function buildOrderCard(order, customer) {
       ${fpo ? `<span>🏭 ${fpo.id}</span>` : ''}
       ${ctnPlan ? `<span style="color:#8B5CF6">📦 ${ctnPlan.id}</span>` : ''}
       ${order.stage==='delivery' ? `<span style="color:${order.trucking_assigned?'#059669':'#DC2626'}">🚛 ${order.trucking_assigned?'Trucking ✓':'No trucking!'}</span>` : ''}
-      ${order.stage==='delivery' ? `<span style="color:${order.install_date?'#059669':'#7C3AED'}">🔧 ${order.install_date?'Install: '+order.install_date:'No install date'}</span>` : ''}
+      ${order.stage==='delivery' ? `<span style="color:${order.delivery_date?'#059669':'#7C3AED'}">📦 ${order.delivery_date?'Delivery: '+order.delivery_date:'No delivery date'}${order.install_date?' · 🔧 '+order.install_date:''}</span>` : ''}
     </div>
   `;
   return div;
@@ -3070,25 +3070,33 @@ function buildStageSection(order, customer) {
       <div class="sub-title">📅 Schedule Delivery</div>
       ${subBox(`
         <div class="lp-contact-grid">
-          <div class="lp-field"><label class="lp-label">Installer / Crew *</label>
+          <div class="lp-field"><label class="lp-label" style="color:#059669;font-weight:700">📦 Delivery Date <span style="color:#dc2626">*</span> (required to move forward)</label>
+            <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.delivery_date||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','delivery_date',this.value)"
+              style="${!order.delivery_date?'border-color:#dc2626;':''}" id="deldate_${order.id}"></div>
+          <div class="lp-field"><label class="lp-label">Customer Phone</label>
+            <input class="lp-input" type="text" value="${customer.phone||''}" readonly style="background:var(--surface);color:var(--muted)"></div>
+        </div>`, 'margin-bottom:0')}
+      <div class="sub-title" style="margin-top:12px">🔧 Installation (optional)</div>
+      ${subBox(`
+        <div class="lp-contact-grid">
+          <div class="lp-field"><label class="lp-label">Installer / Crew</label>
             <div class="field-row">
               <input class="lp-input" id="installer_name_${order.id}" type="text" placeholder="Installer or company name" value="${order.installer_name||''}">
               <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','installer_name','installer_name_${order.id}')">Save</button>
             </div></div>
-          <div class="lp-field"><label class="lp-label">Installation Date *</label>
+          <div class="lp-field"><label class="lp-label">Installation Date</label>
             <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.install_date||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_date',this.value)"></div>
           <div class="lp-field"><label class="lp-label">Installation Time</label>
             <input class="lp-input" type="time" value="${order.install_time||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_time',this.value)"></div>
-          <div class="lp-field"><label class="lp-label">Customer Phone</label>
-            <input class="lp-input" type="text" value="${customer.phone||''}" readonly style="background:var(--surface);color:var(--muted)"></div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
           <input type="checkbox" ${order.install_confirmed?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','install_confirmed',this.checked)">
-          Customer confirmed delivery date ✓
+          Customer confirmed installation date ✓
         </label>`, 'margin-bottom:0')}`;
-    return buildSecCard(id, 'stage', '🏭', 'Unloaded & Scheduling', order.install_date ? 'Install ' + order.install_date : '', body, true);
+    return buildSecCard(id, 'stage', '🏭', 'Unloaded & Scheduling', order.delivery_date ? '📦 Delivery ' + order.delivery_date : '', body, true);
   }
 
   if (order.stage === 'delivery') {
@@ -3157,7 +3165,8 @@ function buildStageSection(order, customer) {
         <button onclick="collectBalance(${customer.id},'${order.id}')" style="width:100%;padding:12px;background:var(--brand);color:var(--on-brand);border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit">
           💰 Collect ${fmtUSD(order.balance)} → Complete Order
         </button>`, 'margin-bottom:0')}`;
-    return buildSecCard(id, 'stage', '🚛', 'Delivery & Installation', order.install_date ? 'Install ' + order.install_date : '', body, true);
+    const delivMeta = [order.delivery_date ? '📦 ' + order.delivery_date : '', order.install_date ? '🔧 Install ' + order.install_date : ''].filter(Boolean).join(' · ');
+    return buildSecCard(id, 'stage', '🚛', 'Delivery & Installation', delivMeta, body, true);
   }
   return '';
 }
@@ -3174,7 +3183,7 @@ function buildActionBar(order, customer) {
     case 'production': return btn(`<button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Send to QC →</button>`);
     case 'shipped':  return btn(`<button class="btn btn-primary" onclick="moveToUnloaded(${customer.id},'${order.id}')">🏭 Container Arrived → Unloaded</button>`);
     case 'qc':       return btn(`<button class="btn btn-primary" onclick="markLoaded(${customer.id},'${order.id}')">🚢 QC Done → Load Container</button>`);
-    case 'unloaded': return btn(`<button class="btn btn-primary" onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Ready → Move to Delivery</button>`);
+    case 'unloaded': return btn(`<button class="btn btn-primary" ${!order.delivery_date?'disabled title="Enter Delivery Date first (see Schedule Delivery above)"':''} onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Ready → Move to Delivery</button>${!order.delivery_date?'<div style=\\"font-size:11px;color:#dc2626;margin-top:6px;text-align:center\\">⚠️ Enter delivery date above first</div>':''}`);
     case 'delivery': {
       if (order.balance_collected) return '';
       const canDone = order.warehouse_arrived && order.install_date && order.installer_name && order.install_confirmed;
