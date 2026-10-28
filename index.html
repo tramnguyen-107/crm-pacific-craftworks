@@ -879,8 +879,12 @@
   input, select, textarea { background-color: var(--white); color: var(--text); border-color: var(--border); }
   ::placeholder { color: var(--muted); opacity: 1; }
   .report-card { background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm); }
-  .report-card-header { padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center }
-  .report-card-title { font-size:13px;font-weight:700;color:var(--text) }
+  .report-card-header { padding:12px 16px;border-bottom:1px solid var(--border) }
+  .report-card-title { font-size:13px;font-weight:700;color:var(--text);display:block }
+  .report-card-note { font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4 }
+  .report-card-note .note-good { color:#059669;font-weight:600 }
+  .report-card-note .note-warn { color:#D97706;font-weight:600 }
+  .report-card-note .note-bad  { color:#DC2626;font-weight:600 }
   .report-card-body { padding:16px }
   @media print {
     .sidebar, .toolbar, #report-customize-overlay, #report-customize-panel,
@@ -7676,12 +7680,17 @@ function makeChart(id, config) {
 const REPORT_CARDS = [
   { id:'revenue-trend',  label:'📈 Revenue Trend (12 months)',   defaultOn: true },
   { id:'cash-flow',      label:'💰 Cash Flow (12 months)',        defaultOn: true },
+  { id:'backlog',        label:'📚 Backlog Value by Stage',       defaultOn: true },
   { id:'orders-trend',   label:'📦 Orders Signed per Month',      defaultOn: true },
   { id:'avg-order',      label:'📊 Avg Order Value Trend',        defaultOn: true },
+  { id:'cycle-time',     label:'⏱ Order Cycle Time',             defaultOn: true },
+  { id:'aging',          label:'⚠️ Order Aging (Stuck Orders)',   defaultOn: true },
   { id:'product-mix',    label:'🗄 Revenue by Product Type',      defaultOn: true },
-  { id:'sales-rep',      label:'🏆 Sales Rep Leaderboard',        defaultOn: true },
+  { id:'sales-rep',      label:'🏆 Sales Rep Performance',        defaultOn: true },
+  { id:'balance-rate',   label:'💳 Balance Collection Rate',      defaultOn: true },
+  { id:'customer-conc',  label:'👥 Customer Concentration',       defaultOn: true },
   { id:'pipeline-stage', label:'🔀 Pipeline Status',              defaultOn: true },
-  { id:'containers',     label:'📦 Container Readiness',          defaultOn: true },
+  { id:'containers',     label:'🚢 Container Readiness',          defaultOn: true },
   { id:'forecast',       label:'🔮 Next Month Forecast',          defaultOn: false },
   { id:'breakdown',      label:'📋 Monthly Breakdown (detail)',   defaultOn: false },
 ];
@@ -7802,8 +7811,8 @@ function renderReport() {
   const labels12 = last12.map(l => l.label);
 
   // ── Chart card helper ──
-  const card = (id, title, bodyHtml) => vis[id] !== false
-    ? `<div class="report-card"><div class="report-card-header"><span class="report-card-title">${title}</span></div><div class="report-card-body">${bodyHtml}</div></div>`
+  const card = (id, title, bodyHtml, note='') => vis[id] !== false
+    ? `<div class="report-card"><div class="report-card-header"><span class="report-card-title">${title}</span>${note?`<div class="report-card-note">${note}</div>`:''}</div><div class="report-card-body">${bodyHtml}</div></div>`
     : '';
 
   // ── Build chart grid HTML ──
@@ -7863,6 +7872,55 @@ function renderReport() {
       </div>`).join('')}
     </div>`;
 
+  // ── Backlog by stage ──
+  const activeStages=['collect','production','shipped','unloaded','delivery'];
+  const backlogByStage=activeStages.map(s=>{
+    const ords=allOrders.filter(o=>o.stage===s);
+    return{stage:s,name:stageNames[s]||s,count:ords.length,val:ords.reduce((t,o)=>t+orderTotal(o),0),color:stageColors[activeStages.indexOf(s)]};
+  });
+  const backlogTotal=backlogByStage.reduce((t,b)=>t+b.val,0);
+  const avgMonthlyRev=perMonth.slice(-3).reduce((t,m)=>t+m.rev,0)/3||1;
+
+  // ── Order Aging ──
+  const today=new Date(); today.setHours(0,0,0,0);
+  const agingOrders=allOrders.filter(o=>activeStages.includes(o.stage)&&o.deposit_date).map(o=>{
+    const days=Math.round((today-new Date(o.deposit_date))/86400000);
+    return{...o,days};
+  }).sort((a,b)=>b.days-a.days);
+
+  // ── Cycle Time (completed orders) ──
+  const doneOrders=allOrders.filter(o=>o.stage==='done'&&o.deposit_date&&o.balance_collected_date);
+  const ctByMonth=last12.map(({m,y})=>{
+    const mo=doneOrders.filter(o=>inMonth(o.balance_collected_date,m,y));
+    return mo.length>0?Math.round(mo.reduce((s,o)=>s+Math.round((new Date(o.balance_collected_date)-new Date(o.deposit_date))/86400000),0)/mo.length):null;
+  });
+  const ctAvg=doneOrders.length>0?Math.round(doneOrders.reduce((s,o)=>s+Math.round((new Date(o.balance_collected_date)-new Date(o.deposit_date))/86400000),0)/doneOrders.length):null;
+
+  // ── DSO (days deposit→balance for completed) ──
+  const dsoOrders=allOrders.filter(o=>o.balance_collected&&o.deposit_date&&o.balance_collected_date);
+  const dso=dsoOrders.length>0?Math.round(dsoOrders.reduce((s,o)=>s+Math.round((new Date(o.balance_collected_date)-new Date(o.deposit_date))/86400000),0)/dsoOrders.length):null;
+
+  // ── Balance collection rate by rep ──
+  const balRepMap={};
+  signedOrders.forEach(o=>{
+    const r=o.sales_rep||o.customer?.sales_rep||'Unassigned';
+    if(!balRepMap[r])balRepMap[r]={total:0,collected:0,pending:0};
+    balRepMap[r].total++;
+    if(o.balance_collected)balRepMap[r].collected++;
+    else balRepMap[r].pending+=Number(o.balance||0);
+  });
+  const balRepRows=Object.entries(balRepMap).sort((a,b)=>(b[1].collected/Math.max(1,b[1].total))-(a[1].collected/Math.max(1,a[1].total)));
+
+  // ── Customer concentration ──
+  const custRevMap={};
+  signedOrders.forEach(o=>{
+    const name=o.customer?.name||'Unknown';
+    custRevMap[name]=(custRevMap[name]||0)+orderTotal(o);
+  });
+  const custRevRows=Object.entries(custRevMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const custRevTotal=Object.values(custRevMap).reduce((t,v)=>t+v,0)||1;
+  const top1Pct=custRevRows[0]?Math.round(custRevRows[0][1]/custRevTotal*100):0;
+
   // Monthly breakdown detail
   const bRow=(label,value,note='',color='var(--text)')=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)"><div style="font-size:12px;color:var(--text-2)">${label}</div><div style="display:flex;gap:8px;align-items:center">${note?`<span style="font-size:11px;color:var(--muted)">${note}</span>`:''}<span style="font-size:13px;font-weight:700;color:${color}">${value}</span></div></div>`;
   const sHead=(label,color='#059669')=>`<div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:0.4px;margin:12px 0 4px">${label}</div>`;
@@ -7874,27 +7932,124 @@ function renderReport() {
   bd+=sHead('🏁 Final Payments','#059669');
   bd+=allOrders.filter(o=>o.balance_collected&&inMonth(o.balance_collected_date,selMonth,selYear)).map(o=>bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`,fmtUSD(o.balance),`collected ${o.balance_collected_date||''}`,  '#059669')).join('')||'<div style="font-size:12px;color:var(--muted);padding:4px 0">None</div>';
 
+  // ── Backlog card HTML ──
+  const backlogMultiple = (backlogTotal/avgMonthlyRev).toFixed(1);
+  const backlogStatus = backlogTotal>=avgMonthlyRev*2?'<span class="note-good">✓ Tốt</span>':backlogTotal>=avgMonthlyRev?'<span class="note-warn">⚠ Vừa đủ</span>':'<span class="note-bad">↓ Thấp</span>';
+  const backlogHtml = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px">
+      <div><div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Total Backlog</div><div style="font-size:28px;font-weight:800;color:#059669">${fmtUSD(backlogTotal)}</div></div>
+      <div style="text-align:right"><div style="font-size:11px;color:var(--muted)">vs avg monthly rev</div><div style="font-size:18px;font-weight:700">${backlogMultiple}x ${backlogStatus}</div></div>
+    </div>
+    ${backlogByStage.filter(b=>b.count>0).map(b=>{const pct=backlogTotal>0?Math.round(b.val/backlogTotal*100):0;return`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="color:var(--text-2)">${b.name}</span><span style="font-weight:700;color:${b.color}">${fmtUSD(b.val)} <span style="font-weight:400;color:var(--muted)">(${b.count} đơn)</span></span></div><div style="height:5px;background:var(--border);border-radius:99px;overflow:hidden"><div style="height:100%;background:${b.color};width:${pct}%;border-radius:99px"></div></div></div>`;}).join('')}`;
+
+  // ── Aging card HTML ──
+  const agingHtml = agingOrders.length>0 ? agingOrders.slice(0,12).map(o=>{
+    const col=o.days>90?'#DC2626':o.days>60?'#D97706':'#059669';
+    const bg=o.days>90?'#FEF2F2':o.days>60?'#FFFBEB':'#F0FDF4';
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.project_name||o.id}</div><div style="font-size:10px;color:var(--muted)">${o.customer?.name||''} · ${stageNames[o.stage]||o.stage}</div></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-left:8px">
+        <span style="font-size:11px;font-weight:600;color:var(--muted)">${fmtUSD(orderTotal(o))}</span>
+        <span style="font-size:11px;font-weight:800;color:${col};background:${bg};padding:2px 8px;border-radius:99px;white-space:nowrap">${o.days}d</span>
+      </div>
+    </div>`;
+  }).join('') : '<div style="color:var(--muted);font-size:13px;padding:8px 0">No active orders.</div>';
+
+  // ── Balance collection rate HTML ──
+  const balRateHtml = balRepRows.length>0 ? balRepRows.map(([rep,d])=>{
+    const rate=Math.round(d.collected/Math.max(1,d.total)*100);
+    const col=rate>=80?'#059669':rate>=60?'#D97706':'#DC2626';
+    return`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:700">${rep}</span>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--muted)">${d.collected}/${d.total} đơn${d.pending>0?` · nợ <strong style="color:#DC2626">${fmtUSD(d.pending)}</strong>`:''}</span>
+          <span style="font-size:15px;font-weight:800;color:${col}">${rate}%</span>
+        </div>
+      </div>
+      <div style="height:5px;background:var(--border);border-radius:99px;overflow:hidden"><div style="height:100%;background:${col};width:${rate}%;border-radius:99px"></div></div>
+    </div>`;
+  }).join('') : '<div style="color:var(--muted);font-size:13px">No data yet</div>';
+
+  // ── Customer concentration HTML ──
+  const custConcHtml = custRevRows.length>0 ? `
+    <div style="margin-bottom:12px;height:160px;display:flex;justify-content:center"><canvas id="ch-custconc"></canvas></div>
+    ${custRevRows.map(([name,rev],i)=>{const pct=Math.round(rev/custRevTotal*100);const col=pct>30?'#DC2626':pct>20?'#D97706':'#059669';return`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)"><div style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</div><div style="display:flex;gap:8px;align-items:center;margin-left:8px"><span style="font-size:11px;color:var(--muted)">${fmtUSD(rev)}</span><span style="font-size:12px;font-weight:800;color:${col};min-width:36px;text-align:right">${pct}%</span></div></div>`;}).join('')}
+  ` : '<div style="color:var(--muted);font-size:13px">No data yet</div>';
+
+  // ── Cycle time status ──
+  const ctStatus = ctAvg===null?'—':ctAvg<90?`<span class="note-good">✓ Tốt (${ctAvg}d)</span>`:ctAvg<120?`<span class="note-warn">⚠ Vừa (${ctAvg}d)</span>`:`<span class="note-bad">↑ Chậm (${ctAvg}d)</span>`;
+
   // ── Render grid ──
   document.getElementById('report-chart-grid').innerHTML = [
-    card('revenue-trend',  '📈 Revenue Booked — Last 12 Months', `<div style="height:200px"><canvas id="ch-rev"></canvas></div>`),
-    card('cash-flow',      '💰 Cash Flow — Last 12 Months',       `<div style="height:200px"><canvas id="ch-cash"></canvas></div>`),
-    card('orders-trend',   '📦 Orders Signed per Month',           `<div style="height:200px"><canvas id="ch-orders"></canvas></div>`),
-    card('avg-order',      '📊 Avg Order Value Trend',             `<div style="height:200px"><canvas id="ch-avg"></canvas></div>`),
-    card('product-mix',    '🗄 Revenue by Product Type',           `<div style="height:200px;display:flex;align-items:center;justify-content:center"><canvas id="ch-mix"></canvas></div>${mixTotal>0?`<div style="margin-top:10px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">${[{k:'cabinet',l:'🗄 Cabinet',c:'#6366F1'},{k:'door',l:'🚪 Door',c:'#F59E0B'},{k:'both',l:'Both',c:'#10B981'}].filter(d=>mixMap[d.k]>0).map(d=>`<div style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${d.c};margin-right:4px"></span>${d.l} <strong>${Math.round(mixMap[d.k]/mixTotal*100)}%</strong></div>`).join('')}</div>`:''}`),
-    card('sales-rep',      '🏆 Sales Rep Performance',             repRows.length>0?repRows.map(([rep,d],i)=>{const avg=Math.round(d.rev/d.count);const pct=Math.round(d.rev/(repRows[0][1].rev||1)*100);return`<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:13px;font-weight:700">${['🥇','🥈','🥉'][i]||''} ${rep}</span><div><span style="font-size:11px;color:var(--muted)">${d.count} orders · avg ${fmtUSD(avg)}</span> <span style="font-size:14px;font-weight:800;color:#059669;margin-left:8px">${fmtUSD(d.rev)}</span></div></div><div style="height:5px;background:var(--border);border-radius:99px;overflow:hidden"><div style="height:100%;background:${['#6366F1','#F59E0B','#10B981','#0284C7','#D97706'][i]||'#6366F1'};width:${pct}%;border-radius:99px"></div></div></div>`;}).join(''):'<div style="color:var(--muted);font-size:13px">No data yet</div>'),
-    card('pipeline-stage', '🔀 Pipeline Status',                   `<div style="height:180px"><canvas id="ch-pipeline"></canvas></div>`),
-    card('containers',     '🚢 Container Readiness',               ctnCards),
-    card('forecast',       '🔮 Next Month Forecast',               forecastHtml),
-    card('breakdown',      '📋 Monthly Breakdown',                 bd),
+    card('revenue-trend',  '📈 Revenue Booked — Last 12 Months',
+      `<div style="height:200px"><canvas id="ch-rev"></canvas></div>`,
+      'Doanh thu ghi nhận khi khách ký hợp đồng + nộp deposit (full contract value). <span class="note-good">Tốt: tăng đều hoặc >10%/tháng so cùng kỳ.</span>'),
+
+    card('cash-flow',      '💰 Cash Flow — Last 12 Months',
+      `<div style="height:200px"><canvas id="ch-cash"></canvas></div>`,
+      'Tiền thực vào tài khoản (deposit + balance collected). <span class="note-good">Tốt: cash flow ≥ 70% revenue booked.</span> Nếu chênh lệch lớn → nhiều balance chưa thu.'),
+
+    card('backlog',        '📚 Backlog Value by Stage',
+      backlogHtml,
+      `Tổng giá trị hợp đồng đang trong pipeline chưa hoàn thành. <span class="note-good">Tốt: backlog ≥ 2x doanh thu trung bình/tháng.</span> <span class="note-warn">Vừa đủ: 1-2x.</span> <span class="note-bad">Nguy hiểm: <1x</span> → cần đẩy sales ngay.`),
+
+    card('orders-trend',   '📦 Orders Signed per Month',
+      `<div style="height:200px"><canvas id="ch-orders"></canvas></div>`,
+      'Số đơn hàng mới ký mỗi tháng. Theo dõi xu hướng để dự báo workload sản xuất 2-3 tháng tới.'),
+
+    card('avg-order',      '📊 Avg Order Value Trend',
+      `<div style="height:200px"><canvas id="ch-avg"></canvas></div>`,
+      'Giá trị trung bình mỗi đơn theo tháng. <span class="note-good">Tăng dần = đang upsell tốt hơn.</span> Giảm liên tục → xem lại chiến lược giá hoặc product mix.'),
+
+    card('cycle-time',     '⏱ Order Cycle Time (Deposit → Done)',
+      `<div style="height:180px"><canvas id="ch-ct"></canvas></div><div style="margin-top:10px;text-align:center;font-size:13px;font-weight:600">Trung bình: ${ctStatus}</div>`,
+      `Số ngày từ lúc ký hợp đồng đến giao hàng xong. <span class="note-good">Tốt: &lt;90 ngày.</span> <span class="note-warn">Cần theo dõi: 90-120 ngày.</span> <span class="note-bad">Cần xem lại: &gt;120 ngày</span> → production đang chậm.`),
+
+    card('aging',          '⚠️ Order Aging — Stuck Orders',
+      agingHtml,
+      `Đơn hàng đang "kẹt" lâu nhất trong pipeline. <span class="note-good">Bình thường: &lt;60 ngày.</span> <span class="note-warn">Cảnh báo: 60-90 ngày.</span> <span class="note-bad">Nguy hiểm: &gt;90 ngày</span> → liên hệ ngay để kiểm tra tiến độ.`),
+
+    card('product-mix',    '🗄 Revenue by Product Type',
+      `<div style="height:200px;display:flex;align-items:center;justify-content:center"><canvas id="ch-mix"></canvas></div>${mixTotal>0?`<div style="margin-top:10px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">${[{k:'cabinet',l:'🗄 Cabinet',c:'#6366F1'},{k:'door',l:'🚪 Door',c:'#F59E0B'},{k:'both',l:'Both',c:'#10B981'}].filter(d=>mixMap[d.k]>0).map(d=>`<div style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${d.c};margin-right:4px"></span>${d.l} <strong>${Math.round(mixMap[d.k]/mixTotal*100)}%</strong></div>`).join('')}</div>`:''}`,
+      'Phân bổ doanh thu theo loại sản phẩm (all-time). Cabinet thường biên lợi nhuận cao hơn door. Nếu door chiếm quá lớn → xem lại cơ cấu sản phẩm.'),
+
+    card('sales-rep',      '🏆 Sales Rep Performance',
+      repRows.length>0?repRows.map(([rep,d],i)=>{const avg=Math.round(d.rev/d.count);const pct=Math.round(d.rev/(repRows[0][1].rev||1)*100);return`<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:13px;font-weight:700">${['🥇','🥈','🥉'][i]||''} ${rep}</span><div><span style="font-size:11px;color:var(--muted)">${d.count} orders · avg ${fmtUSD(avg)}</span> <span style="font-size:14px;font-weight:800;color:#059669;margin-left:8px">${fmtUSD(d.rev)}</span></div></div><div style="height:5px;background:var(--border);border-radius:99px;overflow:hidden"><div style="height:100%;background:${['#6366F1','#F59E0B','#10B981','#0284C7','#D97706'][i]||'#6366F1'};width:${pct}%;border-radius:99px"></div></div></div>`;}).join(''):'<div style="color:var(--muted);font-size:13px">No data yet</div>',
+      'Avg order value quan trọng không kém tổng doanh thu — cho biết sale đang làm việc với khách hàng nào và upsell hiệu quả ra sao.'),
+
+    card('balance-rate',   '💳 Balance Collection Rate by Rep',
+      balRateHtml,
+      `% đơn hàng đã thu được balance cuối (all-time). <span class="note-good">Tốt: ≥80%.</span> <span class="note-warn">Cần theo dõi: 60-80%.</span> <span class="note-bad">Có vấn đề: &lt;60%</span> → sale đang để nợ nhiều, ảnh hưởng trực tiếp đến cash flow.`),
+
+    card('customer-conc',  '👥 Customer Concentration Risk',
+      custConcHtml,
+      `Tỷ lệ doanh thu từng khách trên tổng (all-time). <span class="note-good">An toàn: khách lớn nhất &lt;20%.</span> <span class="note-warn">Chú ý: 20-30%.</span> <span class="note-bad">Rủi ro cao: &gt;30%</span> → quá phụ thuộc 1 khách, nếu họ ngưng sẽ ảnh hưởng lớn. Khách lớn nhất hiện tại: <strong>${top1Pct}%</strong>.`),
+
+    card('pipeline-stage', '🔀 Pipeline Status',
+      `<div style="height:180px"><canvas id="ch-pipeline"></canvas></div>`,
+      'Số đơn đang ở từng stage. Nhiều đơn kẹt ở collecting info → cần chủ động follow up với khách. Nhiều đơn ở production → kiểm tra capacity nhà máy.'),
+
+    card('containers',     '🚢 Container Readiness',
+      ctnCards,
+      'Mức độ fill của từng container. <span class="note-good">Tốt: ≥75% capacity.</span> Container fill thấp = chi phí shipping/đơn cao. Nên gom đủ đơn trước khi book container.'),
+
+    card('forecast',       '🔮 Next Month Forecast',               forecastHtml,
+      'Dự báo dựa trên ETA và đơn đang trong production. Dùng để chuẩn bị nhân lực giao hàng và lên kế hoạch thu tiền.'),
+
+    card('breakdown',      '📋 Monthly Breakdown',                 bd,
+      'Chi tiết từng đơn theo tháng đang chọn: doanh thu ký mới, deposit thu, balance thu. Dùng để reconcile với kế toán.'),
   ].join('');
 
   // ── Draw charts after DOM is ready ──
   setTimeout(() => {
     if (vis['revenue-trend'] !== false) makeChart('ch-rev', { type:'bar', data:{ labels:labels12, datasets:[{data:perMonth.map(m=>m.rev), backgroundColor:'#6366F120', borderColor:'#6366F1', borderWidth:2, borderRadius:4}]}, options:chartOpts(true) });
-    if (vis['cash-flow'] !== false) makeChart('ch-cash', { type:'bar', data:{ labels:labels12, datasets:[{label:'Deposits',data:perMonth.map(m=>m.cash), backgroundColor:'#0284C120', borderColor:'#0284C1', borderWidth:2, borderRadius:4}]}, options:{...chartOpts(true), plugins:{legend:{display:false}}} });
+    if (vis['cash-flow'] !== false) makeChart('ch-cash', { type:'bar', data:{ labels:labels12, datasets:[{data:perMonth.map(m=>m.cash), backgroundColor:'#0284C120', borderColor:'#0284C1', borderWidth:2, borderRadius:4}]}, options:chartOpts(true) });
     if (vis['orders-trend'] !== false) makeChart('ch-orders', { type:'bar', data:{ labels:labels12, datasets:[{data:perMonth.map(m=>m.orders), backgroundColor:'#10B98120', borderColor:'#10B981', borderWidth:2, borderRadius:4}]}, options:{...chartOpts(false), scales:{x:{grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{grid:{color:gridColor},ticks:{color:textColor,font:{size:10},stepSize:1}}}} });
     if (vis['avg-order'] !== false) makeChart('ch-avg', { type:'line', data:{ labels:labels12, datasets:[{data:perMonth.map(m=>m.avg), borderColor:'#7C3AED', backgroundColor:'#7C3AED15', borderWidth:2, pointRadius:3, tension:0.3, fill:true}]}, options:chartOpts(true) });
     if (vis['product-mix'] !== false && mixTotal > 0) makeChart('ch-mix', { type:'doughnut', data:{ labels:['Cabinet','Door','Both'], datasets:[{data:[mixMap.cabinet,mixMap.door,mixMap.both], backgroundColor:['#6366F1','#F59E0B','#10B981'], borderWidth:2}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtUSD(ctx.raw)+' ('+Math.round(ctx.raw/mixTotal*100)+'%)'}}}} });
+    if (vis['cycle-time'] !== false) makeChart('ch-ct', { type:'line', data:{ labels:labels12, datasets:[{data:ctByMonth, borderColor:'#0284C7', backgroundColor:'#0284C715', borderWidth:2, pointRadius:3, tension:0.3, fill:true, spanGaps:true}]}, options:{...chartOpts(false), plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw!==null?ctx.raw+'d':'—'}}}, scales:{x:{grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v+'d'}, suggestedMin:0}}} });
+    if (vis['customer-conc'] !== false && custRevRows.length>0) makeChart('ch-custconc', { type:'doughnut', data:{ labels:custRevRows.map(([n])=>n), datasets:[{data:custRevRows.map(([,v])=>v), backgroundColor:['#6366F1','#F59E0B','#10B981','#0284C7','#D97706','#7C3AED','#DC2626','#059669'], borderWidth:2}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.label+': '+Math.round(ctx.raw/custRevTotal*100)+'%'}}}} });
     if (vis['pipeline-stage'] !== false) makeChart('ch-pipeline', { type:'bar', data:{ labels:stageLbls.map(s=>stageNames[s]), datasets:[{data:stageCounts, backgroundColor:stageColors.map(c=>c+'30'), borderColor:stageColors, borderWidth:2, borderRadius:4}]}, options:{...chartOpts(false), indexAxis:'y', scales:{x:{grid:{color:gridColor},ticks:{color:textColor,font:{size:10},stepSize:1}},y:{grid:{display:false},ticks:{color:textColor,font:{size:10}}}}} });
   }, 50);
 }
