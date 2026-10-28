@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
   // Theme (light / dark) — set before first paint to avoid a flash
   try { if (localStorage.getItem('pcw-theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
@@ -877,6 +878,20 @@
   .btn-outline:hover { background: var(--hover); }
   input, select, textarea { background-color: var(--white); color: var(--text); border-color: var(--border); }
   ::placeholder { color: var(--muted); opacity: 1; }
+  .report-card { background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm); }
+  .report-card-header { padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center }
+  .report-card-title { font-size:13px;font-weight:700;color:var(--text) }
+  .report-card-body { padding:16px }
+  @media print {
+    .sidebar, .toolbar, #report-customize-overlay, #report-customize-panel,
+    button, select, .btn, [onclick] { display:none!important; }
+    .view { display:block!important; position:static!important; }
+    #view-report { display:block!important; }
+    #report-printable { padding:0!important; }
+    body { background:white!important; }
+    .report-card { break-inside:avoid; box-shadow:none!important; border:1px solid #ddd!important; }
+    #report-chart-grid { grid-template-columns:1fr 1fr!important; }
+  }
 </style>
 </head>
 <body>
@@ -1171,56 +1186,42 @@
 </div>
 
 <div class="view" id="view-report">
-  <div style="padding:20px 24px 24px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <!-- Customize panel overlay -->
+  <div id="report-customize-overlay" onclick="toggleReportCustomize()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:200"></div>
+  <div id="report-customize-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:300px;background:var(--white);border-left:1px solid var(--border);z-index:201;padding:20px;overflow-y:auto;box-shadow:-4px 0 20px rgba(0,0,0,.12)">
+    <div style="font-size:15px;font-weight:800;margin-bottom:4px">⚙️ Customize Dashboard</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Show or hide report cards</div>
+    <div id="report-customize-list"></div>
+    <button onclick="toggleReportCustomize()" style="margin-top:20px;width:100%;padding:10px;background:var(--brand);color:var(--on-brand);border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Done</button>
+  </div>
+
+  <div style="padding:20px 24px 24px" id="report-printable">
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
       <div>
-        <div style="font-size:18px;font-weight:800;color:var(--text)">Reports & Estimates</div>
+        <div style="font-size:18px;font-weight:800;color:var(--text)">📊 Reports</div>
         <div style="font-size:13px;color:var(--muted);margin-top:2px" id="report-period-label">—</div>
       </div>
-      <div style="display:flex;gap:8px">
-        <select id="report-month-sel" class="form-select" style="width:140px;font-size:12px;padding:7px 10px" onchange="renderReport()"></select>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="report-month-sel" class="form-select" style="width:150px;font-size:12px;padding:7px 10px" onchange="renderReport()"></select>
+        <button onclick="toggleReportCustomize()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">⚙️ Customize</button>
+        <button onclick="window.print()" style="padding:7px 14px;background:var(--brand);color:var(--on-brand);border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">⬇️ Export PDF</button>
       </div>
     </div>
 
-    <!-- KPIs last month -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px" id="report-kpi"></div>
+    <!-- KPI tiles -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px" id="report-kpi"></div>
 
-    <!-- 2-col: breakdown + forecast -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px" id="report-mid">
+    <!-- Chart grid -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px" id="report-chart-grid"></div>
 
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
-        <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">📊 Last Month Breakdown</div>
-        <div style="padding:14px 16px" id="report-breakdown"></div>
-      </div>
-
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
-        <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">🔮 Next Month Estimate</div>
-        <div style="padding:14px 16px" id="report-forecast"></div>
-      </div>
-
-    </div>
-
-    <!-- Full pipeline snapshot -->
-    <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">📦 Container Readiness</div>
-      <div style="padding:14px 16px" id="report-containers"></div>
-    </div>
-
-    <!-- Analytics: product mix + averages + sales rep -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
-        <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">🗄 Revenue by Product Type</div>
-        <div style="padding:14px 16px" id="report-product-mix"></div>
-      </div>
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
-        <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">📊 Averages</div>
-        <div style="padding:14px 16px" id="report-averages"></div>
-      </div>
-    </div>
-    <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">🏆 Sales Rep Performance</div>
-      <div style="padding:14px 16px" id="report-sales-rep"></div>
-    </div>
+    <!-- Detail breakdown (hidden by default, shown on expand) -->
+    <div id="report-breakdown" style="display:none"></div>
+    <div id="report-forecast" style="display:none"></div>
+    <div id="report-containers" style="display:none"></div>
+    <div id="report-product-mix" style="display:none"></div>
+    <div id="report-averages" style="display:none"></div>
+    <div id="report-sales-rep" style="display:none"></div>
   </div>
 </div>
 
@@ -7662,9 +7663,60 @@ function initReportMonthDropdown() {
   else sel.selectedIndex = 0;
 }
 
+// ── Chart registry: track instances so we can destroy before recreating ──
+const _reportCharts = {};
+function makeChart(id, config) {
+  if (_reportCharts[id]) { try { _reportCharts[id].destroy(); } catch(e){} }
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  _reportCharts[id] = new Chart(canvas, config);
+}
+
+// ── Default visible cards (persisted in localStorage) ──
+const REPORT_CARDS = [
+  { id:'revenue-trend',  label:'📈 Revenue Trend (12 months)',   defaultOn: true },
+  { id:'cash-flow',      label:'💰 Cash Flow (12 months)',        defaultOn: true },
+  { id:'orders-trend',   label:'📦 Orders Signed per Month',      defaultOn: true },
+  { id:'avg-order',      label:'📊 Avg Order Value Trend',        defaultOn: true },
+  { id:'product-mix',    label:'🗄 Revenue by Product Type',      defaultOn: true },
+  { id:'sales-rep',      label:'🏆 Sales Rep Leaderboard',        defaultOn: true },
+  { id:'pipeline-stage', label:'🔀 Pipeline Status',              defaultOn: true },
+  { id:'containers',     label:'📦 Container Readiness',          defaultOn: true },
+  { id:'forecast',       label:'🔮 Next Month Forecast',          defaultOn: false },
+  { id:'breakdown',      label:'📋 Monthly Breakdown (detail)',   defaultOn: false },
+];
+function getVisibleCards() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('pcw-report-cards') || 'null');
+    if (saved) return saved;
+  } catch(e) {}
+  return Object.fromEntries(REPORT_CARDS.map(c => [c.id, c.defaultOn]));
+}
+function setCardVisible(id, on) {
+  const v = getVisibleCards(); v[id] = on;
+  try { localStorage.setItem('pcw-report-cards', JSON.stringify(v)); } catch(e) {}
+  renderReport();
+}
+function toggleReportCustomize() {
+  const panel = document.getElementById('report-customize-panel');
+  const overlay = document.getElementById('report-customize-overlay');
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  overlay.style.display = open ? 'none' : 'block';
+  if (!open) {
+    const vis = getVisibleCards();
+    document.getElementById('report-customize-list').innerHTML = REPORT_CARDS.map(c => `
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px">
+        <input type="checkbox" ${vis[c.id]?'checked':''} onchange="setCardVisible('${c.id}',this.checked)" style="width:16px;height:16px;cursor:pointer">
+        <span>${c.label}</span>
+      </label>`).join('');
+  }
+}
+
 function renderReport() {
   initReportMonthDropdown();
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const rawVal = document.getElementById('report-month-sel')?.value || '';
   let selMonth, selYear;
   if (rawVal.includes('-')) {
@@ -7675,6 +7727,7 @@ function renderReport() {
   }
   const nextMIdx = (selMonth + 1) % 12;
   const nextYear = nextMIdx === 0 ? selYear + 1 : selYear;
+  const vis = getVisibleCards();
 
   document.getElementById('report-period-label').textContent = `Reporting period: ${monthNames[selMonth]} ${selYear}`;
 
@@ -7723,7 +7776,7 @@ function renderReport() {
     { icon: '💰', label: 'Cash Collected', value: fmtUSD(cashCollected), sub: `💵 Deposit: ${fmtUSD(depositCollected)}  ·  🏁 Balance: ${fmtUSD(balanceFinalCollected)}`, color: '#0284C7' },
     { icon: '📊', label: 'Avg Order Value', value: avgOrderValue > 0 ? fmtUSD(avgOrderValue) : '—', sub: bookedOrders.length > 0 ? `Across ${bookedOrders.length} booked` : 'No orders booked', color: '#7C3AED' },
     { icon: '⏳', label: 'Pending Balance', value: pendingBalance > 0 ? fmtUSD(pendingBalance) : '$0', sub: pendingDelivery.length > 0 ? `${pendingDelivery.length} order${pendingDelivery.length > 1 ? 's' : ''} awaiting payment` : 'All collected', color: pendingBalance > 0 ? '#D97706' : 'var(--muted)' },
-    { icon: '🚢', label: 'Containers Loaded', value: containersFulfilled + ' / ' + containersThisMonth.length, sub: containersThisMonth.length > 0 ? `${containersThisMonth.length} planned this month` : 'No containers this month', color: 'var(--shipped)' },
+    { icon: '🚢', label: 'Containers', value: containersFulfilled + ' / ' + containersThisMonth.length, sub: containersThisMonth.length > 0 ? `${containersThisMonth.length} planned this month` : 'No containers this month', color: 'var(--shipped)' },
   ];
   document.getElementById('report-kpi').innerHTML = kpis.map(k => `
     <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-sm)">
@@ -7733,8 +7786,123 @@ function renderReport() {
       <div style="font-size:11px;color:var(--muted);margin-top:5px">${k.sub}</div>
     </div>`).join('');
 
-  // ── Breakdown ──
-  const bRow = (label, value, note = '', color = 'var(--text)') =>
+  // ── Build last 12 months labels + per-month data ──
+  const now3 = new Date();
+  const last12 = Array.from({length:12}, (_,i) => {
+    const d = new Date(now3.getFullYear(), now3.getMonth() - 11 + i, 1);
+    return { m: d.getMonth(), y: d.getFullYear(), label: monthShort[d.getMonth()] + ' ' + String(d.getFullYear()).slice(2) };
+  });
+  const signedOrders = allOrders.filter(o => o.deposit_received && o.deposit_date);
+  const perMonth = last12.map(({m,y}) => {
+    const booked = signedOrders.filter(o => inMonth(o.deposit_date, m, y));
+    const dep = allOrders.filter(o => o.deposit_received && inMonth(o.deposit_date, m, y)).reduce((s,o)=>s+Number(o.deposit_amount||0),0);
+    const bal = allOrders.filter(o => o.balance_collected && inMonth(o.balance_collected_date, m, y)).reduce((s,o)=>s+Number(o.balance||0),0);
+    return { rev: booked.reduce((s,o)=>s+orderTotal(o),0), cash: dep+bal, orders: booked.length, avg: booked.length>0?Math.round(booked.reduce((s,o)=>s+orderTotal(o),0)/booked.length):0 };
+  });
+  const labels12 = last12.map(l => l.label);
+
+  // ── Chart card helper ──
+  const card = (id, title, bodyHtml) => vis[id] !== false
+    ? `<div class="report-card"><div class="report-card-header"><span class="report-card-title">${title}</span></div><div class="report-card-body">${bodyHtml}</div></div>`
+    : '';
+
+  // ── Build chart grid HTML ──
+  const isDark = document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && window.matchMedia('(prefers-color-scheme:dark)').matches);
+  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const textColor = isDark ? '#9CA3AF' : '#6B7280';
+  const chartOpts = (yFmt) => ({
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => yFmt ? '$'+Number(ctx.raw).toLocaleString('en-US',{maximumFractionDigits:0}) : ctx.raw } } },
+    scales:{ x:{ grid:{color:gridColor}, ticks:{color:textColor,font:{size:10}} }, y:{ grid:{color:gridColor}, ticks:{color:textColor,font:{size:10}, callback: v => yFmt?'$'+Number(v/1000).toFixed(0)+'k':v } } }
+  });
+
+  // Product mix for donut
+  const mixMap={cabinet:0,door:0,both:0}, mixCount={cabinet:0,door:0,both:0};
+  signedOrders.forEach(o=>{const p=orderProduct(o);mixMap[p]=(mixMap[p]||0)+orderTotal(o);mixCount[p]=(mixCount[p]||0)+1;});
+  const mixTotal=mixMap.cabinet+mixMap.door+mixMap.both;
+
+  // Sales rep
+  const repMap={};
+  signedOrders.forEach(o=>{const r=o.sales_rep||o.customer?.sales_rep||'Unassigned';if(!repMap[r])repMap[r]={rev:0,count:0};repMap[r].rev+=orderTotal(o);repMap[r].count++;});
+  const repRows=Object.entries(repMap).sort((a,b)=>b[1].rev-a[1].rev);
+
+  // Pipeline by stage
+  const stageLbls=['collect','production','shipped','unloaded','delivery'];
+  const stageNames={'collect':'Collecting','production':'Production','shipped':'Loaded','unloaded':'Unloaded','delivery':'Delivery'};
+  const stageCounts=stageLbls.map(s=>allOrders.filter(o=>o.stage===s).length);
+  const stageColors=['#B86B10','#78898F','#7C3AED','#1D4ED8','#984216'];
+
+  // Containers
+  const ctnCards = containerPlans.map(c=>{
+    const refs=c.orderRefs||[], target=Math.max(1,c.targetOrders||1);
+    const pct=Math.min(100,Math.round(refs.length/target*100));
+    const barC=pct>=100?'#059669':pct>=60?'#F59E0B':'#6366F1';
+    const ctnRev=refs.reduce((s,r)=>{const o=allOrders.find(x=>x.id===r.orderId);return s+(o?orderTotal(o):0);},0);
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div><div style="font-size:12px;font-weight:700">${c.label||c.id}</div><div style="font-size:10px;color:var(--muted)">ETA ${c.eta||'—'} · Load ${c.plannedLoadDate||'—'}</div></div>
+        <div style="text-align:right"><div style="font-size:12px;font-weight:700;color:${barC}">${refs.length}/${target}</div>${ctnRev>0?`<div style="font-size:10px;color:#059669;font-weight:600">${fmtUSD(ctnRev)}</div>`:''}</div>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden"><div style="height:100%;background:${barC};width:${pct}%;border-radius:99px"></div></div>
+    </div>`;
+  }).join('')||'<div style="color:var(--muted);font-size:13px">No containers planned.</div>';
+
+  // Forecast rows
+  const inProdNow=allOrders.filter(o=>o.stage==='production').length;
+  const collectingNow=allOrders.filter(o=>o.stage==='collect').length;
+  const nextMonthOrders=allOrders.filter(o=>o.eta&&inMonth(o.eta,nextMIdx,nextYear));
+  const nextRevEst=nextMonthOrders.reduce((s,o)=>s+orderTotal(o),0);
+  const forecastHtml=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${[
+        {i:'📋',l:`Orders ETA ${monthShort[nextMIdx]}`,v:nextMonthOrders.length,c:'var(--text)'},
+        {i:'💰',l:'Est. Revenue Next Month',v:fmtUSD(nextRevEst),c:'#059669'},
+        {i:'🏭',l:'In Production',v:inProdNow,c:'#78898F'},
+        {i:'📝',l:'Collecting Info',v:collectingNow,c:'#B86B10'},
+      ].map(f=>`<div style="background:var(--surface);border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase">${f.i} ${f.l}</div>
+        <div style="font-size:20px;font-weight:800;color:${f.c};margin-top:4px">${f.v}</div>
+      </div>`).join('')}
+    </div>`;
+
+  // Monthly breakdown detail
+  const bRow=(label,value,note='',color='var(--text)')=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)"><div style="font-size:12px;color:var(--text-2)">${label}</div><div style="display:flex;gap:8px;align-items:center">${note?`<span style="font-size:11px;color:var(--muted)">${note}</span>`:''}<span style="font-size:13px;font-weight:700;color:${color}">${value}</span></div></div>`;
+  const sHead=(label,color='#059669')=>`<div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:0.4px;margin:12px 0 4px">${label}</div>`;
+  let bd='';
+  bd+=sHead('📋 Revenue Booked','#059669');
+  bd+=bookedOrders.map(o=>bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`,fmtUSD(orderTotal(o)),o.deposit_date||'','#059669')).join('')||'<div style="font-size:12px;color:var(--muted);padding:4px 0">No bookings</div>';
+  bd+=sHead('💵 Deposits Collected','#0284C7');
+  bd+=allOrders.filter(o=>o.deposit_received&&inMonth(o.deposit_date,selMonth,selYear)).map(o=>bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`,fmtUSD(o.deposit_amount),o.deposit_date||'','#0284C7')).join('')||'<div style="font-size:12px;color:var(--muted);padding:4px 0">None</div>';
+  bd+=sHead('🏁 Final Payments','#059669');
+  bd+=allOrders.filter(o=>o.balance_collected&&inMonth(o.balance_collected_date,selMonth,selYear)).map(o=>bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`,fmtUSD(o.balance),`collected ${o.balance_collected_date||''}`,  '#059669')).join('')||'<div style="font-size:12px;color:var(--muted);padding:4px 0">None</div>';
+
+  // ── Render grid ──
+  document.getElementById('report-chart-grid').innerHTML = [
+    card('revenue-trend',  '📈 Revenue Booked — Last 12 Months', `<div style="height:200px"><canvas id="ch-rev"></canvas></div>`),
+    card('cash-flow',      '💰 Cash Flow — Last 12 Months',       `<div style="height:200px"><canvas id="ch-cash"></canvas></div>`),
+    card('orders-trend',   '📦 Orders Signed per Month',           `<div style="height:200px"><canvas id="ch-orders"></canvas></div>`),
+    card('avg-order',      '📊 Avg Order Value Trend',             `<div style="height:200px"><canvas id="ch-avg"></canvas></div>`),
+    card('product-mix',    '🗄 Revenue by Product Type',           `<div style="height:200px;display:flex;align-items:center;justify-content:center"><canvas id="ch-mix"></canvas></div>${mixTotal>0?`<div style="margin-top:10px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">${[{k:'cabinet',l:'🗄 Cabinet',c:'#6366F1'},{k:'door',l:'🚪 Door',c:'#F59E0B'},{k:'both',l:'Both',c:'#10B981'}].filter(d=>mixMap[d.k]>0).map(d=>`<div style="font-size:11px;color:var(--muted)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${d.c};margin-right:4px"></span>${d.l} <strong>${Math.round(mixMap[d.k]/mixTotal*100)}%</strong></div>`).join('')}</div>`:''}`),
+    card('sales-rep',      '🏆 Sales Rep Performance',             repRows.length>0?repRows.map(([rep,d],i)=>{const avg=Math.round(d.rev/d.count);const pct=Math.round(d.rev/(repRows[0][1].rev||1)*100);return`<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:13px;font-weight:700">${['🥇','🥈','🥉'][i]||''} ${rep}</span><div><span style="font-size:11px;color:var(--muted)">${d.count} orders · avg ${fmtUSD(avg)}</span> <span style="font-size:14px;font-weight:800;color:#059669;margin-left:8px">${fmtUSD(d.rev)}</span></div></div><div style="height:5px;background:var(--border);border-radius:99px;overflow:hidden"><div style="height:100%;background:${['#6366F1','#F59E0B','#10B981','#0284C7','#D97706'][i]||'#6366F1'};width:${pct}%;border-radius:99px"></div></div></div>`;}).join(''):'<div style="color:var(--muted);font-size:13px">No data yet</div>'),
+    card('pipeline-stage', '🔀 Pipeline Status',                   `<div style="height:180px"><canvas id="ch-pipeline"></canvas></div>`),
+    card('containers',     '🚢 Container Readiness',               ctnCards),
+    card('forecast',       '🔮 Next Month Forecast',               forecastHtml),
+    card('breakdown',      '📋 Monthly Breakdown',                 bd),
+  ].join('');
+
+  // ── Draw charts after DOM is ready ──
+  setTimeout(() => {
+    if (vis['revenue-trend'] !== false) makeChart('ch-rev', { type:'bar', data:{ labels:labels12, datasets:[{data:perMonth.map(m=>m.rev), backgroundColor:'#6366F120', borderColor:'#6366F1', borderWidth:2, borderRadius:4}]}, options:chartOpts(true) });
+    if (vis['cash-flow'] !== false) makeChart('ch-cash', { type:'bar', data:{ labels:labels12, datasets:[{label:'Deposits',data:perMonth.map(m=>m.cash), backgroundColor:'#0284C120', borderColor:'#0284C1', borderWidth:2, borderRadius:4}]}, options:{...chartOpts(true), plugins:{legend:{display:false}}} });
+    if (vis['orders-trend'] !== false) makeChart('ch-orders', { type:'bar', data:{ labels:labels12, datasets:[{data:perMonth.map(m=>m.orders), backgroundColor:'#10B98120', borderColor:'#10B981', borderWidth:2, borderRadius:4}]}, options:{...chartOpts(false), scales:{x:{grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{grid:{color:gridColor},ticks:{color:textColor,font:{size:10},stepSize:1}}}} });
+    if (vis['avg-order'] !== false) makeChart('ch-avg', { type:'line', data:{ labels:labels12, datasets:[{data:perMonth.map(m=>m.avg), borderColor:'#7C3AED', backgroundColor:'#7C3AED15', borderWidth:2, pointRadius:3, tension:0.3, fill:true}]}, options:chartOpts(true) });
+    if (vis['product-mix'] !== false && mixTotal > 0) makeChart('ch-mix', { type:'doughnut', data:{ labels:['Cabinet','Door','Both'], datasets:[{data:[mixMap.cabinet,mixMap.door,mixMap.both], backgroundColor:['#6366F1','#F59E0B','#10B981'], borderWidth:2}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtUSD(ctx.raw)+' ('+Math.round(ctx.raw/mixTotal*100)+'%)'}}}} });
+    if (vis['pipeline-stage'] !== false) makeChart('ch-pipeline', { type:'bar', data:{ labels:stageLbls.map(s=>stageNames[s]), datasets:[{data:stageCounts, backgroundColor:stageColors.map(c=>c+'30'), borderColor:stageColors, borderWidth:2, borderRadius:4}]}, options:{...chartOpts(false), indexAxis:'y', scales:{x:{grid:{color:gridColor},ticks:{color:textColor,font:{size:10},stepSize:1}},y:{grid:{display:false},ticks:{color:textColor,font:{size:10}}}}} });
+  }, 50);
+}
+
+// ── Legacy analytics stubs (referenced by hidden divs, kept for safety) ──
+function _legacyReportAnalytics() {
     `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="font-size:13px;color:var(--text-2)">${label}</div>
       <div style="display:flex;align-items:center;gap:8px">
