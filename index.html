@@ -5597,6 +5597,14 @@ function renderProductionView() {
   const grid = document.getElementById('prod-grid');
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+  // Save which month groups are currently open before re-rendering
+  const prevOpenKeys = new Set();
+  grid.querySelectorAll('.month-group[data-key]').forEach(mg => {
+    const body = mg.querySelector('.month-group-body');
+    if (body && !body.classList.contains('collapsed')) prevOpenKeys.add(mg.dataset.key);
+  });
+  const hasExistingState = grid.querySelectorAll('.month-group').length > 0;
+
   // Banner: orders at 'production' stage not yet in any Factory PO
   const allOrders = customers.flatMap(c => (c.orders||[]).map(o => ({...o, _cust: c})));
   const inFPO = new Set(factoryPOs.flatMap(f => (f.customerOrders||[]).map(r => String(r.orderId||r.order_id||''))));
@@ -5651,11 +5659,13 @@ function renderProductionView() {
 
   const sortedKeys = Object.keys(grouped).sort();
   const nowKey = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()).padStart(2,'0')}`; })();
+  // On first render: open current month, or nearest upcoming month if no current month
+  const defaultOpenKey = sortedKeys.includes(nowKey) ? nowKey : (sortedKeys.find(k => k >= nowKey) || sortedKeys[0]);
 
   grid.innerHTML = sortedKeys.map((key, gi) => {
     const group = grouped[key];
     const isCurrentMonth = key === nowKey;
-    const startOpen = gi === 0 || isCurrentMonth;
+    const startOpen = hasExistingState ? prevOpenKeys.has(key) : (key === defaultOpenKey);
     const fpoCards = group.fpos.map(fpo => {
     const statusIdx = statusOrder.indexOf(fpo.status);
     const sl = statusLabel[fpo.status] || statusLabel.in_production;
@@ -5775,7 +5785,7 @@ function renderProductionView() {
 
     const isNowBadge = isCurrentMonth ? `<span style="font-size:9px;background:#6366F1;color:white;padding:1px 7px;border-radius:99px;font-weight:700;margin-left:6px">THIS MONTH</span>` : '';
     return `
-    <div class="month-group">
+    <div class="month-group" data-key="${key}">
       <div class="month-group-header ${startOpen ? 'open' : ''}" onclick="toggleMonthGroup(this)">
         <div class="mgh-left">
           <span class="mgh-chevron ${startOpen ? 'open' : ''}">▶</span>
