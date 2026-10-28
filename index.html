@@ -1205,6 +1205,22 @@
       <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">📦 Container Readiness</div>
       <div style="padding:14px 16px" id="report-containers"></div>
     </div>
+
+    <!-- Analytics: product mix + averages + sales rep -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">🗄 Revenue by Product Type</div>
+        <div style="padding:14px 16px" id="report-product-mix"></div>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">📊 Averages</div>
+        <div style="padding:14px 16px" id="report-averages"></div>
+      </div>
+    </div>
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">🏆 Sales Rep Performance</div>
+      <div style="padding:14px 16px" id="report-sales-rep"></div>
+    </div>
   </div>
 </div>
 
@@ -7816,6 +7832,110 @@ function renderReport() {
     </div>`;
   }).join('') || '<div style="color:var(--muted);font-size:13px">No containers planned.</div>';
   document.getElementById('report-containers').innerHTML = ctnHTML;
+
+  // ── All deposited orders (basis for analytics) ──
+  const signedOrders = allOrders.filter(o => o.deposit_received && o.deposit_date);
+
+  // ── Product Type Mix (all-time) ──
+  const mixMap = { cabinet: 0, door: 0, both: 0 };
+  const mixCount = { cabinet: 0, door: 0, both: 0 };
+  signedOrders.forEach(o => { const p = orderProduct(o); mixMap[p] = (mixMap[p]||0) + orderTotal(o); mixCount[p] = (mixCount[p]||0) + 1; });
+  const mixTotal = mixMap.cabinet + mixMap.door + mixMap.both;
+  const mixBar = (pct, color) => `<div style="height:8px;border-radius:99px;background:${color};width:${pct}%;min-width:${pct>0?'4px':'0'}"></div>`;
+  const mixDefs = [
+    { key:'cabinet', label:'🗄 Cabinet', color:'#6366F1' },
+    { key:'door',    label:'🚪 Door',    color:'#F59E0B' },
+    { key:'both',    label:'🗄+🚪 Both', color:'#10B981' },
+  ];
+  const pmHTML = mixTotal > 0 ? `
+    <div style="display:flex;height:10px;border-radius:99px;overflow:hidden;margin-bottom:14px;gap:2px">
+      ${mixDefs.map(d => { const pct = Math.round(mixMap[d.key]/mixTotal*100); return pct>0?`<div title="${d.label}: ${pct}%" style="height:100%;background:${d.color};width:${pct}%;border-radius:99px"></div>`:''; }).join('')}
+    </div>
+    ${mixDefs.map(d => { const v = mixMap[d.key]; const pct = mixTotal>0?Math.round(v/mixTotal*100):0; return v>0?`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;color:var(--text-2)">${d.label}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--muted)">${mixCount[d.key]} order${mixCount[d.key]>1?'s':''}</span>
+          <span style="font-size:11px;font-weight:700;background:${d.color}20;color:${d.color};padding:2px 8px;border-radius:99px">${pct}%</span>
+          <span style="font-size:14px;font-weight:700;color:${d.color}">${fmtUSD(v)}</span>
+        </div>
+      </div>`:''}).join('')}
+    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:12px;color:var(--muted);font-weight:600;margin-top:4px">
+      <span>All-time signed orders</span><span>${fmtUSD(mixTotal)} total</span>
+    </div>` : '<div style="color:var(--muted);font-size:13px">No data yet</div>';
+  document.getElementById('report-product-mix').innerHTML = pmHTML;
+
+  // ── Averages (by month, quarter, YTD) ──
+  const now2 = new Date();
+  const ytdStart = new Date(now2.getFullYear(), 0, 1);
+  const ytdOrders = signedOrders.filter(o => new Date(o.deposit_date) >= ytdStart);
+  const ytdMonths = now2.getMonth() + 1;
+  const ytdRevenue = ytdOrders.reduce((s,o) => s+orderTotal(o), 0);
+  const ytdAvgOrder = ytdOrders.length > 0 ? Math.round(ytdRevenue / ytdOrders.length) : 0;
+  const ytdAvgOrderPerMonth = ytdMonths > 0 ? Math.round(ytdOrders.length / ytdMonths * 10) / 10 : 0;
+
+  // Current quarter
+  const qStart = new Date(now2.getFullYear(), Math.floor(now2.getMonth()/3)*3, 1);
+  const qOrders = signedOrders.filter(o => new Date(o.deposit_date) >= qStart);
+  const qMonths = Math.max(1, now2.getMonth() - qStart.getMonth() + 1);
+  const qRevenue = qOrders.reduce((s,o) => s+orderTotal(o), 0);
+  const qAvgOrder = qOrders.length > 0 ? Math.round(qRevenue / qOrders.length) : 0;
+  const qAvgOrderPerMonth = Math.round(qOrders.length / qMonths * 10) / 10;
+
+  // Current month
+  const mOrders = signedOrders.filter(o => inMonth(o.deposit_date, selMonth, selYear));
+  const mRevenue = mOrders.reduce((s,o) => s+orderTotal(o), 0);
+  const mAvgOrder = mOrders.length > 0 ? Math.round(mRevenue / mOrders.length) : 0;
+
+  const aRow = (label, val1, val2, val3) => `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center">
+      <div style="font-size:12px;color:var(--muted);font-weight:600">${label}</div>
+      <div style="font-size:13px;font-weight:700;text-align:center">${val1}</div>
+      <div style="font-size:13px;font-weight:700;text-align:center">${val2}</div>
+      <div style="font-size:13px;font-weight:700;text-align:center">${val3}</div>
+    </div>`;
+  const aHead = () => `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;padding:4px 0 8px;border-bottom:2px solid var(--border)">
+      <div></div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-align:center;text-transform:uppercase">This Month</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-align:center;text-transform:uppercase">This Quarter</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-align:center;text-transform:uppercase">YTD</div>
+    </div>`;
+  document.getElementById('report-averages').innerHTML =
+    aHead() +
+    aRow('Avg Order Value', mAvgOrder>0?fmtUSD(mAvgOrder):'—', qAvgOrder>0?fmtUSD(qAvgOrder):'—', ytdAvgOrder>0?fmtUSD(ytdAvgOrder):'—') +
+    aRow('Orders Signed', mOrders.length||'—', qOrders.length||'—', ytdOrders.length||'—') +
+    aRow('Orders / Month', '—', qAvgOrderPerMonth||'—', ytdAvgOrderPerMonth||'—') +
+    aRow('Revenue', mRevenue>0?fmtUSD(mRevenue):'—', qRevenue>0?fmtUSD(qRevenue):'—', ytdRevenue>0?fmtUSD(ytdRevenue):'—');
+
+  // ── Sales Rep Leaderboard (all-time) ──
+  const repMap = {};
+  signedOrders.forEach(o => {
+    const rep = o.sales_rep || o.customer?.sales_rep || 'Unassigned';
+    if (!repMap[rep]) repMap[rep] = { rev: 0, count: 0 };
+    repMap[rep].rev += orderTotal(o);
+    repMap[rep].count++;
+  });
+  const repRows = Object.entries(repMap).sort((a,b) => b[1].rev - a[1].rev);
+  const topRev = repRows[0]?.[1]?.rev || 1;
+  const medals = ['🥇','🥈','🥉'];
+  const srHTML = repRows.length > 0 ? repRows.map(([rep, d], i) => {
+    const avg = d.count > 0 ? Math.round(d.rev / d.count) : 0;
+    const barPct = Math.round(d.rev / topRev * 100);
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <div style="font-size:13px;font-weight:700">${medals[i]||'  '} ${rep}</div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span style="font-size:11px;color:var(--muted)">${d.count} order${d.count>1?'s':''} · avg ${fmtUSD(avg)}</span>
+          <span style="font-size:15px;font-weight:800;color:#059669">${fmtUSD(d.rev)}</span>
+        </div>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden">
+        <div style="height:100%;background:${i===0?'#6366F1':i===1?'#F59E0B':'#10B981'};width:${barPct}%;border-radius:99px;transition:width 0.4s"></div>
+      </div>
+    </div>`;
+  }).join('') : '<div style="color:var(--muted);font-size:13px">No data yet</div>';
+  document.getElementById('report-sales-rep').innerHTML = srHTML;
 }
 
 // =====================
