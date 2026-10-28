@@ -7520,23 +7520,25 @@ async function duplicateFPO(id) {
 // =====================
 function initReportMonthDropdown() {
   const sel = document.getElementById('report-month-sel');
-  if (!sel || sel.options.length > 0) return;
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '';
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const now = new Date();
-  // Show last 12 months, most recent first
-  for (let i = 0; i < 12; i++) {
+  // Show last 24 months, most recent first — always rebuilt so new months appear
+  for (let i = 0; i < 24; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const opt = document.createElement('option');
     opt.value = `${d.getFullYear()}-${d.getMonth()}`;
     opt.textContent = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-    if (i === 0) opt.selected = true;
     sel.appendChild(opt);
   }
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  else sel.selectedIndex = 0;
 }
 
 function renderReport() {
   initReportMonthDropdown();
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const rawVal = document.getElementById('report-month-sel')?.value || '';
   let selMonth, selYear;
@@ -7546,82 +7548,67 @@ function renderReport() {
     const now = new Date();
     selMonth = now.getMonth(); selYear = now.getFullYear();
   }
-  const monthName = months[selMonth];
   const nextMIdx = (selMonth + 1) % 12;
   const nextYear = nextMIdx === 0 ? selYear + 1 : selYear;
-  const nextMonthName = months[nextMIdx];
 
-  document.getElementById('report-period-label').textContent = `Reporting period: ${monthName} ${selYear}`;
+  document.getElementById('report-period-label').textContent = `Reporting period: ${monthNames[selMonth]} ${selYear}`;
 
-  // Gather all orders with ETAs in the selected month
+  // Helper: is date string in month/year
+  const inMonth = (ds, m, y) => { if (!ds) return false; const d = new Date(ds); return d.getMonth() === m && d.getFullYear() === y; };
+
   const allOrders = customers.flatMap(c => c.orders.map(o => ({ ...o, customer: c })));
-  const thisMonthOrders = allOrders.filter(o => {
-    if (!o.eta) return false;
-    const d = new Date(o.eta);
-    return d.getMonth() === selMonth && d.getFullYear() === selYear;
-  });
-  const nextMonthOrders = allOrders.filter(o => {
-    if (!o.eta) return false;
-    const d = new Date(o.eta);
-    return d.getMonth() === nextMIdx && d.getFullYear() === nextYear;
-  });
+  const fmtUSD = v => '$' + Number(v || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  const orderTotal = o => Number(o.balance || 0) + Number(o.deposit_amount || 0);
+  const orderCbm = o => {
+    const items = packingItems[o.id] || [];
+    return (parseFloat(o.cabinet_cbm) || 0) + items.reduce((s, f) => s + (parseFloat(f.cbm) || 0), 0);
+  };
 
-  // Leads converted (approximation: customers created in that month)
-  const leadsConverted = customers.filter(c => c.id >= 3 && c.id <= 7).length; // demo data
-  const newLeadsThisMonth = leads.length;
-  const containersThisMonth = factoryPOs.filter(f => {
-    if (!f.eta) return false;
-    const d = new Date(f.eta);
-    return d.getMonth() === selMonth && d.getFullYear() === selYear;
-  });
-  const containersFulfilled = containersThisMonth.filter(f => ['loaded','delivered'].includes(f.status)).length;
+  // ── Revenue Booked: deposit received this month → record full contract value ──
+  const bookedOrders = allOrders.filter(o => o.deposit_received && inMonth(o.deposit_date, selMonth, selYear));
+  const revenueBooked = bookedOrders.reduce((s, o) => s + orderTotal(o), 0);
+  const avgOrderValue = bookedOrders.length > 0 ? Math.round(revenueBooked / bookedOrders.length) : 0;
 
-  // Revenue collected this month (balance_collected_date in this month)
-  const collectedThisMonth = allOrders.filter(o => {
-    if (!o.balance_collected || !o.balance_collected_date) return false;
-    const d = new Date(o.balance_collected_date);
-    return d.getMonth() === selMonth && d.getFullYear() === selYear;
-  });
-  const revenueCollected = collectedThisMonth.reduce((s, o) => s + (Number(o.balance||0) + Number(o.deposit_amount||0)), 0);
-  const balanceCollected = collectedThisMonth.reduce((s, o) => s + Number(o.balance||0), 0);
-  const cogsCollected = collectedThisMonth.reduce((s, o) => s + Number(o.cost_of_goods||0), 0);
-  const grossProfit = revenueCollected - cogsCollected;
-  const grossMargin = revenueCollected > 0 ? Math.round(grossProfit / revenueCollected * 100) : 0;
+  // ── Cash Collected: deposits + final payments received this month ──
+  const depositOrders = allOrders.filter(o => o.deposit_received && inMonth(o.deposit_date, selMonth, selYear));
+  const depositCollected = depositOrders.reduce((s, o) => s + Number(o.deposit_amount || 0), 0);
 
-  // Pending balance: orders in delivery stage not yet collected
+  const balanceOrders = allOrders.filter(o => o.balance_collected && inMonth(o.balance_collected_date, selMonth, selYear));
+  const balanceFinalCollected = balanceOrders.reduce((s, o) => s + Number(o.balance || 0), 0);
+
+  const cashCollected = depositCollected + balanceFinalCollected;
+
+  // ── Pending ──
   const pendingDelivery = allOrders.filter(o => o.stage === 'delivery' && !o.balance_collected);
-  const pendingBalance = pendingDelivery.reduce((s, o) => s + Number(o.balance||0), 0);
+  const pendingBalance = pendingDelivery.reduce((s, o) => s + Number(o.balance || 0), 0);
 
-  // Orders completed this month
-  const completedThisMonth = collectedThisMonth.length;
+  // ── Containers active this month ──
+  const containersThisMonth = containerPlans.filter(c =>
+    inMonth(c.eta, selMonth, selYear) || inMonth(c.plannedLoadDate, selMonth, selYear)
+  );
+  const containersFulfilled = containersThisMonth.filter(c => c.trucking_confirmed).length;
 
-  // Revenue (sum of balance amounts from orders ETA this month - kept for forecast)
-  const revenue = thisMonthOrders.reduce((s, o) => s + (o.balance || 0), 0);
-  const nextRevEst = nextMonthOrders.reduce((s, o) => s + (o.balance || 0), 0);
+  // ── Next month forecast ──
+  const nextMonthOrders = allOrders.filter(o => o.eta && inMonth(o.eta, nextMIdx, nextYear));
+  const nextRevEst = nextMonthOrders.reduce((s, o) => s + orderTotal(o), 0);
 
-  // KPIs
+  // ── KPIs ──
   const kpis = [
-    { label: 'Revenue Collected', value: '$' + revenueCollected.toLocaleString(), color: '#059669', icon: '💰' },
-    { label: 'Gross Profit', value: cogsCollected ? '$' + grossProfit.toLocaleString() + ' (' + grossMargin + '%)' : '—', color: grossProfit >= 0 ? '#059669' : '#dc2626', icon: '📈' },
-    { label: 'Completed Orders', value: completedThisMonth, color: 'var(--done)', icon: '✅' },
-    { label: 'Pending Balance', value: pendingBalance > 0 ? '$' + pendingBalance.toLocaleString() : '$0', color: pendingBalance > 0 ? '#D97706' : 'var(--muted)', icon: '⏳' },
-    { label: 'Containers Loaded', value: containersFulfilled + ' / ' + containersThisMonth.length, color: 'var(--shipped)', icon: '🚢' },
+    { icon: '📋', label: 'Revenue Booked', value: fmtUSD(revenueBooked), sub: bookedOrders.length > 0 ? `${bookedOrders.length} order${bookedOrders.length > 1 ? 's' : ''} signed & deposited` : 'No new bookings', color: '#059669' },
+    { icon: '💰', label: 'Cash Collected', value: fmtUSD(cashCollected), sub: `💵 Deposit: ${fmtUSD(depositCollected)}  ·  🏁 Balance: ${fmtUSD(balanceFinalCollected)}`, color: '#0284C7' },
+    { icon: '📊', label: 'Avg Order Value', value: avgOrderValue > 0 ? fmtUSD(avgOrderValue) : '—', sub: bookedOrders.length > 0 ? `Across ${bookedOrders.length} booked` : 'No orders booked', color: '#7C3AED' },
+    { icon: '⏳', label: 'Pending Balance', value: pendingBalance > 0 ? fmtUSD(pendingBalance) : '$0', sub: pendingDelivery.length > 0 ? `${pendingDelivery.length} order${pendingDelivery.length > 1 ? 's' : ''} in delivery` : 'All collected', color: pendingBalance > 0 ? '#D97706' : 'var(--muted)' },
+    { icon: '🚢', label: 'Containers Loaded', value: containersFulfilled + ' / ' + containersThisMonth.length, sub: containersThisMonth.length > 0 ? `${containersThisMonth.length} planned this month` : 'No containers this month', color: 'var(--shipped)' },
   ];
   document.getElementById('report-kpi').innerHTML = kpis.map(k => `
     <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-sm)">
       <div style="font-size:18px;margin-bottom:6px">${k.icon}</div>
       <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">${k.label}</div>
-      <div style="font-size:26px;font-weight:800;color:${k.color};margin-top:4px">${k.value}</div>
+      <div style="font-size:24px;font-weight:800;color:${k.color};margin-top:4px;line-height:1.1">${k.value}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px">${k.sub}</div>
     </div>`).join('');
 
-  // Breakdown rows
-  const typeCount = {};
-  thisMonthOrders.forEach(o => { typeCount[o.type] = (typeCount[o.type] || 0) + 1; });
-  const stageCount = {};
-  thisMonthOrders.forEach(o => { stageCount[o.stage] = (stageCount[o.stage] || 0) + 1; });
-  const stageLabel = { collect:'Collecting Info', production:'In Production', shipped:'Shipped', done:'Delivered' };
-  const stageColor = { collect:'var(--collect)', production:'var(--production)', shipped:'var(--shipped)', done:'var(--done)' };
-
+  // ── Breakdown ──
   const bRow = (label, value, note = '', color = 'var(--text)') =>
     `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="font-size:13px;color:var(--text-2)">${label}</div>
@@ -7630,71 +7617,93 @@ function renderReport() {
         <span style="font-size:14px;font-weight:700;color:${color}">${value}</span>
       </div>
     </div>`;
+  const sHead = (label, color = '#059669') =>
+    `<div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:0.4px;margin:14px 0 6px;padding-top:4px">${label}</div>`;
 
-  // Completed orders detail
-  const completedRows = collectedThisMonth.map(o => {
-    const total = Number(o.balance||0) + Number(o.deposit_amount||0);
-    const cogs = Number(o.cost_of_goods||0);
-    const gp = cogs ? total - cogs : null;
-    const gpStr = gp !== null ? ` · GP: $${gp.toLocaleString()} (${Math.round(gp/total*100)}%)` : '';
-    return bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`, '$' + total.toLocaleString(), o.balance_collected_date + gpStr, '#059669');
-  }).join('');
-
-  // Pending delivery rows
-  const pendingRows = pendingDelivery.map(o =>
-    bRow(`${o.project_name||o.id} — ${o.customer?.name||''}`, '$' + Number(o.balance||0).toLocaleString(), 'balance pending', '#D97706')
+  const bookedRows = bookedOrders.map(o =>
+    bRow(`${o.project_name || o.id} — ${o.customer?.name || ''}`, fmtUSD(orderTotal(o)), `deposit ${fmtUSD(o.deposit_amount)} · ${o.deposit_date || ''}`, '#059669')
   ).join('');
 
-  document.getElementById('report-breakdown').innerHTML =
-    `<div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">✅ Completed this month</div>` +
-    (completedRows || '<div style="font-size:12px;color:var(--muted);padding:8px 0">No completed orders this month</div>') +
-    (revenueCollected > 0 ? bRow('Total Revenue', '$' + revenueCollected.toLocaleString(), '', '#059669') : '') +
-    (cogsCollected > 0 ? bRow('Total COGS', '$' + cogsCollected.toLocaleString(), '', '#dc2626') + bRow('Gross Profit', '$' + grossProfit.toLocaleString() + ' (' + grossMargin + '%)', '', grossProfit>=0?'#059669':'#dc2626') : '') +
-    (pendingRows ? `<div style="font-size:11px;font-weight:700;color:#D97706;text-transform:uppercase;letter-spacing:0.4px;margin:14px 0 8px">⏳ Balance Pending (In Delivery)</div>` + pendingRows : '') ||
-    '<div style="color:var(--muted);font-size:13px">No data for this period.</div>';
+  const depositRows = depositOrders.map(o =>
+    bRow(`${o.project_name || o.id} — ${o.customer?.name || ''}`, fmtUSD(o.deposit_amount), o.deposit_date || '', '#0284C7')
+  ).join('');
 
-  // Forecast next month
+  const balanceRows = balanceOrders.map(o =>
+    bRow(`${o.project_name || o.id} — ${o.customer?.name || ''}`, fmtUSD(o.balance), `collected ${o.balance_collected_date || ''}`, '#059669')
+  ).join('');
+
+  const pendingRows = pendingDelivery.map(o =>
+    bRow(`${o.project_name || o.id} — ${o.customer?.name || ''}`, fmtUSD(o.balance), 'balance pending', '#D97706')
+  ).join('');
+
+  let bd = '';
+  bd += sHead('📋 Revenue Booked (Full Contract Value)', '#059669');
+  bd += bookedRows || '<div style="font-size:12px;color:var(--muted);padding:6px 0">No new bookings this month</div>';
+  if (revenueBooked > 0) bd += bRow('Total Booked', fmtUSD(revenueBooked), '', '#059669');
+
+  bd += sHead('💵 Deposits Collected', '#0284C7');
+  bd += depositRows || '<div style="font-size:12px;color:var(--muted);padding:6px 0">No deposits this month</div>';
+  if (depositCollected > 0) bd += bRow('Total Deposits', fmtUSD(depositCollected), '', '#0284C7');
+
+  bd += sHead('🏁 Final Payments Collected', '#059669');
+  bd += balanceRows || '<div style="font-size:12px;color:var(--muted);padding:6px 0">No final payments this month</div>';
+  if (balanceFinalCollected > 0) bd += bRow('Total Final Payments', fmtUSD(balanceFinalCollected), '', '#059669');
+
+  if (pendingRows) {
+    bd += sHead('⏳ Balance Pending (In Delivery)', '#D97706');
+    bd += pendingRows;
+  }
+
+  document.getElementById('report-breakdown').innerHTML = bd;
+
+  // ── Forecast ──
   const inProdNow = allOrders.filter(o => o.stage === 'production').length;
   const collectingNow = allOrders.filter(o => o.stage === 'collect').length;
   const unassignedOrders = customers.flatMap(c => c.orders).filter(o =>
-    o.stage === 'production' && !containerPlans.some(cp => cp.orderRefs.some(r => r.orderId === o.id))
+    o.stage === 'production' && !containerPlans.some(cp => (cp.orderRefs || []).some(r => r.orderId === o.id))
   ).length;
-  const totalCtnCapacity = containerPlans.reduce((s, c) => s + (c.targetOrders - c.orderRefs.length), 0);
+  const totalCtnCapacity = containerPlans.reduce((s, c) => s + Math.max(0, (c.targetOrders || 0) - (c.orderRefs || []).length), 0);
 
   const fRow = (icon, label, value, sub, color = 'var(--brand)') =>
     `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
       <span style="font-size:18px">${icon}</span>
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:600">${label}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:1px">${sub}</div>
-      </div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600">${label}</div><div style="font-size:11px;color:var(--muted);margin-top:1px">${sub}</div></div>
       <div style="font-size:16px;font-weight:800;color:${color}">${value}</div>
     </div>`;
 
   document.getElementById('report-forecast').innerHTML =
-    fRow('📋', `Orders ETA ${nextMonthName}`, nextMonthOrders.length, 'Based on current ETAs') +
-    fRow('💰', 'Est. Revenue', '$' + nextRevEst.toLocaleString(), 'Sum of outstanding balances', 'var(--done)') +
+    fRow('📋', `Orders ETA ${monthNames[nextMIdx]}`, nextMonthOrders.length, 'Based on current ETAs') +
+    fRow('💰', 'Est. Revenue Next Month', fmtUSD(nextRevEst), 'Full contract value of ETA orders', 'var(--done)') +
     fRow('🏭', 'Still In Production', inProdNow, 'Orders at factory right now', 'var(--production)') +
     fRow('📝', 'Collecting Info', collectingNow, 'Waiting on customer details', 'var(--collect)') +
     fRow('📦', 'Unassigned to Container', unassignedOrders, 'Need container plan', unassignedOrders > 0 ? 'var(--lead)' : 'var(--done)') +
     fRow('🚢', 'Container Space Available', totalCtnCapacity + ' slots', 'Across planned containers', 'var(--shipped)');
 
-  // Container readiness
+  // ── Container Readiness ──
   const ctnHTML = containerPlans.map(c => {
-    const pct = Math.round((c.orderRefs.length / c.targetOrders) * 100);
+    const refs = c.orderRefs || [];
+    const target = Math.max(1, c.targetOrders || 1);
+    const pct = Math.min(100, Math.round((refs.length / target) * 100));
     const barColor = pct >= 100 ? 'var(--done)' : pct >= 60 ? 'var(--production)' : 'var(--collect)';
-    return `<div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--border)">
-      <div style="min-width:140px">
-        <div style="font-size:13px;font-weight:700">${c.id}</div>
-        <div style="font-size:11px;color:var(--muted)">${c.label} · Load ${c.plannedLoadDate}</div>
-      </div>
-      <div style="flex:1">
-        <div style="height:8px;background:var(--border);border-radius:99px;overflow:hidden">
-          <div style="height:100%;border-radius:99px;background:${barColor};width:${pct}%;transition:width 0.3s"></div>
+    const totalCbm = refs.reduce((s, r) => { const o = allOrders.find(x => x.id === r.orderId); return s + (o ? orderCbm(o) : 0); }, 0);
+    const ctnRevenue = refs.reduce((s, r) => { const o = allOrders.find(x => x.id === r.orderId); return s + (o ? orderTotal(o) : 0); }, 0);
+    const etaStr = c.eta ? ` · ETA ${c.eta}` : '';
+    return `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="min-width:150px">
+          <div style="font-size:13px;font-weight:700">${c.label || c.id}</div>
+          <div style="font-size:11px;color:var(--muted)">Load ${c.plannedLoadDate || '—'}${etaStr}</div>
         </div>
+        <div style="flex:1"><div style="height:8px;background:var(--border);border-radius:99px;overflow:hidden">
+          <div style="height:100%;border-radius:99px;background:${barColor};width:${pct}%;transition:width 0.3s"></div>
+        </div></div>
+        <div style="font-size:13px;font-weight:700;color:${barColor};min-width:80px;text-align:right">${refs.length}/${target} orders</div>
+        <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:${pct>=75?'var(--done-bg)':'var(--collect-bg)'};color:${pct>=75?'var(--done)':'var(--collect)'}">${pct >= 75 ? '✅ Ready' : pct + '%'}</span>
       </div>
-      <div style="font-size:13px;font-weight:700;color:${barColor};min-width:80px;text-align:right">${c.orderRefs.length}/${c.targetOrders} orders</div>
-      <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:${pct>=75?'var(--done-bg)':'var(--collect-bg)'};color:${pct>=75?'var(--done)':'var(--collect)'}">${pct >= 75 ? '✅ Ready' : `${100-pct}% to go`}</span>
+      <div style="display:flex;gap:14px;margin-top:6px;padding-left:2px">
+        ${totalCbm > 0 ? `<span style="font-size:11px;color:var(--muted)">📦 ${totalCbm.toFixed(1)} m³</span>` : ''}
+        ${ctnRevenue > 0 ? `<span style="font-size:11px;font-weight:600;color:#059669">💰 ${fmtUSD(ctnRevenue)}</span>` : ''}
+      </div>
     </div>`;
   }).join('') || '<div style="color:var(--muted);font-size:13px">No containers planned.</div>';
   document.getElementById('report-containers').innerHTML = ctnHTML;
