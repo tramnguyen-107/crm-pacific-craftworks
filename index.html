@@ -3239,22 +3239,22 @@ function buildOrderDetailStage(order, customer) {
   const isCollect = order.stage === 'collect';
   const isDelivery = order.stage === 'delivery';
   const phases = WORKFLOW_PHASES_BY_STAGE[order.stage];
-  // For delivery: show Container Info → Workflow (all) → Delivery & Installation
-  // For others: show Stage section → Workflow (phase-filtered) → Notes
   const stageSection    = buildStageSection(order, customer);
   const workflowSection = (phases !== undefined) ? buildWorkflowSection(order, customer, phases) : '';
   const notesSection    = buildNotesSection(order, customer);
   return [
+    // Workflow checklist always near top so it's immediately visible
+    workflowSection,
+    order.stage === 'production' ? buildProductionTimeline(order) : '',
+    stageSection,
+    isDelivery ? notesSection : '',
     buildSecCard(`q-${oid}`,   'stage', '💰', 'Quote',               quoteMeta(order),    buildOrderQuoteSection(order), false),
     buildSecCard(`dep-${oid}`, 'stage', '💵', 'Deposit',             depositMeta(order),  buildDepositSection(order, customer), !order.deposit_received),
-    buildSecCard(`urg-${oid}`, 'stage', '🗓', 'Priority & Delivery', priorityMeta(order), buildUrgentSection(order, customer), true),
+    buildSecCard(`urg-${oid}`, 'stage', '🗓', 'Priority & Delivery', priorityMeta(order), buildUrgentSection(order, customer), false),
     buildSecCard(`ci-${oid}`,  'stage', '📋', 'Order Info',          orderInfoMeta(order), buildOrderCollectInfoForm(order, customer), false),
     buildSecCard(`ck-${oid}`,  'stage', '✅', 'Info Checklist',      `<span id="ck-meta-${oid}">${checkedCount(order)}/${totalChecks(order)}</span>`, buildChecklistBody(order, customer), isCollect),
     buildSecCard(`fur-${oid}`, 'stage', '🪑', 'Furniture & CBM',     furnitureMeta(order), buildFurnitureSection(order, customer), false),
-    isDelivery ? notesSection    : stageSection,
-    isDelivery ? workflowSection : (phases ? workflowSection : ''),
-    order.stage === 'production' ? buildProductionTimeline(order) : '',
-    isDelivery ? stageSection    : notesSection,
+    isDelivery ? '' : notesSection,
     buildActionBar(order, customer),
   ].join('');
 }
