@@ -3124,22 +3124,30 @@ function buildStageSection(order, customer) {
           ✅ Items arrived at warehouse — verified
         </label>`)}
 
-      <div class="sub-title">📅 Installation Scheduling ${warehouseOk ? '' : '<span style="text-transform:none;font-weight:400">— complete warehouse arrival first</span>'}</div>
+      <div class="sub-title">📅 Delivery Date</div>
       ${subBox(`
         <div class="lp-contact-grid">
-          <div class="lp-field"><label class="lp-label">Installer / Crew *</label>
+          <div class="lp-field"><label class="lp-label">Delivery Date</label>
+            <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.delivery_date||''}"
+              onchange="saveOrderField(${customer.id},'${order.id}','delivery_date',this.value)"></div>
+          <div class="lp-field"><label class="lp-label">Customer Phone</label>
+            <input class="lp-input" type="text" value="${customer.phone||''}" readonly style="background:var(--surface);color:var(--muted)"></div>
+        </div>`)}
+
+      <div class="sub-title">🔧 Installation <span style="text-transform:none;font-weight:400">(optional)</span></div>
+      ${subBox(`
+        <div class="lp-contact-grid">
+          <div class="lp-field"><label class="lp-label">Installer / Crew</label>
             <div class="field-row">
               <input class="lp-input" id="installer_name_${order.id}" type="text" placeholder="Name or company" value="${order.installer_name||''}">
               <button class="field-save-btn" onclick="saveTextField(${customer.id},'${order.id}','installer_name','installer_name_${order.id}')">Save</button>
             </div></div>
-          <div class="lp-field"><label class="lp-label">Install Date *</label>
+          <div class="lp-field"><label class="lp-label">Install Date</label>
             <input class="lp-input" type="date" min="2020-01-01" max="2035-12-31" value="${order.install_date||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_date',this.value)"></div>
           <div class="lp-field"><label class="lp-label">Install Time</label>
             <input class="lp-input" type="time" value="${order.install_time||''}"
               onchange="saveOrderField(${customer.id},'${order.id}','install_time',this.value)"></div>
-          <div class="lp-field"><label class="lp-label">Customer Phone</label>
-            <input class="lp-input" type="text" value="${customer.phone||''}" readonly style="background:var(--surface);color:var(--muted)"></div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer">
           <input type="checkbox" ${order.install_confirmed?'checked':''} onchange="saveOrderField(${customer.id},'${order.id}','install_confirmed',this.checked)">
@@ -3186,7 +3194,7 @@ function buildActionBar(order, customer) {
     case 'unloaded': return btn(`<button class="btn btn-primary" ${!order.delivery_date?'disabled title="Enter Delivery Date first (see Schedule Delivery above)"':''} onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Ready → Move to Delivery</button>${!order.delivery_date?'<div style=\\"font-size:11px;color:#dc2626;margin-top:6px;text-align:center\\">⚠️ Enter delivery date above first</div>':''}`);
     case 'delivery': {
       if (order.balance_collected) return '';
-      const canDone = order.warehouse_arrived && order.install_date && order.installer_name && order.install_confirmed;
+      const canDone = order.warehouse_arrived && order.delivery_date;
       return btn(`<button class="btn btn-outline" style="font-size:12px" ${!canDone?'disabled title="Warehouse arrival + installation + customer confirm required"':''} onclick="markDone(${customer.id},'${order.id}')">✅ Complete without collecting</button>`);
     }
     case 'done':     return `<div style="padding:12px;text-align:center;color:var(--muted);font-size:13px">✅ Order completed.</div>`;
