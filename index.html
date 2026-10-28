@@ -4971,11 +4971,22 @@ async function dropCard(e, newStage) {
   if (!c) return;
   const order = c.orders.find(o => o.id === orderId);
   if (!order || order.stage === newStage) return;
+  const stageOrder = ['deposit','collect','production','shipped','unloaded','delivery','done'];
+  const fromIdx = stageOrder.indexOf(order.stage);
+  const toIdx   = stageOrder.indexOf(newStage);
+  // Moving backward from shipped (Loaded/Shipped) = dropping from container
+  const isDropFromLoaded = order.stage === 'shipped' && toIdx < fromIdx;
+  if (isDropFromLoaded) {
+    const fpo = factoryPOs.find(f => (f.customerOrders||[]).some(r => String(r.orderId||r.order_id||'') === String(orderId)));
+    const poLabel = fpo ? ` (${fpo.id} — ${fpo.factory_name||fpo.factory})` : '';
+    if (!confirm(`⚠️ "${order.project_name || orderId}" is currently in Loaded/Shipped stage${poLabel}.\n\nMoving it back to Production will mark it as DROPPED — Missed Container.\n\nAre you sure?`)) return;
+    order.dropped_from_po = true;
+    order.dropped_factory = fpo ? (fpo.factory_name || fpo.factory || '') : '';
+    await dbUpdate('orders', {id: orderId}, {dropped_from_po: true, dropped_factory: order.dropped_factory});
+    showToast('⚠️ ' + (order.project_name || orderId) + ' dropped — moved back to Production');
+  }
   order.stage = newStage;
-  const allDone = c.orders.every(o => o.stage === 'done');
   const anyStage = s => c.orders.some(o => o.stage === s);
-  // Customer stage = most advanced order stage
-  const stageOrder = ['deposit','collect','production','shipped','delivery','done'];
   const maxStage = stageOrder.slice().reverse().find(s => anyStage(s)) || 'deposit';
   c.stage = maxStage;
   renderBoard();
