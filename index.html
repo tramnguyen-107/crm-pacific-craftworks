@@ -3174,7 +3174,7 @@ function buildActionBar(order, customer) {
     case 'production': return btn(`<button class="btn btn-primary" onclick="moveToQC(${customer.id},'${order.id}')">🔍 Send to QC →</button>`);
     case 'shipped':  return btn(`<button class="btn btn-primary" onclick="moveToUnloaded(${customer.id},'${order.id}')">🏭 Container Arrived → Unloaded</button>`);
     case 'qc':       return btn(`<button class="btn btn-primary" onclick="markLoaded(${customer.id},'${order.id}')">🚢 QC Done → Load Container</button>`);
-    case 'unloaded': return btn(`<button class="btn btn-primary" ${!order.install_date?'disabled title="Enter installation date first"':''} onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Ready → Move to Delivery</button>`);
+    case 'unloaded': return btn(`<button class="btn btn-primary" onclick="moveToDeliveryStage(${customer.id},'${order.id}')">🚛 Ready → Move to Delivery</button>`);
     case 'delivery': {
       if (order.balance_collected) return '';
       const canDone = order.warehouse_arrived && order.install_date && order.installer_name && order.install_confirmed;
