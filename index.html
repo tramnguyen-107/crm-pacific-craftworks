@@ -7850,8 +7850,6 @@ function renderReport() {
   // Forecast rows
   const inProdNow=allOrders.filter(o=>o.stage==='production').length;
   const collectingNow=allOrders.filter(o=>o.stage==='collect').length;
-  const nextMonthOrders=allOrders.filter(o=>o.eta&&inMonth(o.eta,nextMIdx,nextYear));
-  const nextRevEst=nextMonthOrders.reduce((s,o)=>s+orderTotal(o),0);
   const forecastHtml=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       ${[
