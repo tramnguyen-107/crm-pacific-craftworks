@@ -6053,9 +6053,11 @@ async function saveNewSprintTask() {
 }
 async function loadSprintCustomTasks() {
   if (isDemoMode) return;
-  const testF = isTestMode ? true : false;
-  const { data } = await sb.from('sprint_custom_tasks').select('*').eq('is_test', testF).catch(() => ({ data: [] }));
-  sprintCustomTasks = (data || []).map(t => ({...t, desc: t.description, dw: t.done_when}));
+  try {
+    const testF = isTestMode ? true : false;
+    const { data, error } = await sb.from('sprint_custom_tasks').select('*').eq('is_test', testF);
+    if (!error) sprintCustomTasks = (data || []).map(t => ({...t, desc: t.description, dw: t.done_when}));
+  } catch(e) { console.warn('loadSprintCustomTasks:', e); }
 }
 
 function launchFireworks(title, sub) {
@@ -9045,9 +9047,11 @@ async function loadAllTasks() {
 }
 async function loadSprintCompletions() {
   if (isDemoMode) return;
-  const testF = isTestMode ? true : false;
-  const { data } = await sb.from('sprint_task_completions').select('*').eq('is_test', testF);
-  sprintCompletions = data || [];
+  try {
+    const testF = isTestMode ? true : false;
+    const { data, error } = await sb.from('sprint_task_completions').select('*').eq('is_test', testF);
+    if (!error) sprintCompletions = data || [];
+  } catch(e) { console.warn('loadSprintCompletions:', e); }
 }
 function updateTaskBadge() {
   const el = document.getElementById('task-badge');
