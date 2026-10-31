@@ -449,6 +449,9 @@
   .col-lead-quoted .column-header { background:var(--tint-blue); }
   .col-lead-quoted .col-title { color:var(--tint-blue-fg); }
   .col-lead-quoted .col-count { background:#6366F1; color:white; }
+  .col-lead-follow .column-header { background:#FFF7ED; }
+  .col-lead-follow .col-title { color:#C2410C; }
+  .col-lead-follow .col-count { background:#EA580C; color:white; }
   .lead-card[draggable=true] { cursor:grab; }
   .lead-card.dragging { opacity:0.4; }
   .sales-rep-chip { display:inline-block; font-size:10px; font-weight:600; padding:2px 8px; background:var(--tint-green); color:var(--tint-green-fg); border-radius:99px; margin-top:4px; }
@@ -896,6 +899,68 @@
     .report-card { break-inside:avoid; box-shadow:none!important; border:1px solid #ddd!important; }
     #report-chart-grid { grid-template-columns:1fr 1fr!important; }
   }
+  /* SPRINT VIEW */
+  .sprint-header{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .sprint-phase-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+  .sprint-meta{font-size:12px;color:var(--muted);margin-top:4px}
+  .sprint-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .sprint-kpi{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+  .sprint-kpi-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+  .sprint-kpi-val{font-size:22px;font-weight:800}
+  .sprint-kpi-target{font-size:11px;color:var(--muted);margin-top:1px}
+  .sprint-kpi-bar{height:4px;background:var(--border);border-radius:2px;margin-top:7px;overflow:hidden}
+  .sprint-kpi-fill{height:4px;border-radius:2px;transition:width .4s}
+  .sprint-alert{padding:9px 13px;border-radius:8px;margin-bottom:8px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .sprint-alert.red{background:#FEF2F2;border:1px solid #FCA5A5;color:#DC2626}
+  .sprint-alert.yellow{background:#FFFBEB;border:1px solid #FCD34D;color:#D97706}
+  .sprint-alert.green{background:#F0FDF4;border:1px solid #86EFAC;color:#16A34A}
+  .sprint-board{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+  @media(max-width:900px){.sprint-board{grid-template-columns:1fr}}
+  .sprint-col{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .sprint-col-hdr{padding:11px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .sprint-col-title{font-size:13px;font-weight:700}
+  .sprint-col-count{font-size:11px;font-weight:600;background:var(--border);color:var(--muted);padding:2px 7px;border-radius:20px}
+  .sprint-task{padding:9px 12px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:9px;transition:background .1s;cursor:pointer}
+  .sprint-task:last-child{border-bottom:none}
+  .sprint-task:hover{background:var(--surface)}
+  .sprint-task.done{opacity:.55}
+  .sprint-check{width:17px;height:17px;border:2px solid var(--border);border-radius:4px;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all .15s;user-select:none}
+  .sprint-check.checked{background:var(--brand);border-color:var(--brand);color:white}
+  .sprint-task-body{flex:1;min-width:0}
+  .sprint-task-desc{font-size:12px;font-weight:600;color:var(--text);line-height:1.4}
+  .sprint-task.done .sprint-task-desc{text-decoration:line-through;color:var(--muted)}
+  .sprint-task-when{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.3}
+  .sprint-task-foot{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
+  .sprint-assignee{font-size:10px;font-weight:700;color:white;padding:2px 7px;border-radius:20px;white-space:nowrap}
+  .sprint-done-by{font-size:10px;color:var(--muted)}
+  .sprint-stats{background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+  .sprint-stats-hdr{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700}
+  .sprint-stats-table{width:100%;border-collapse:collapse}
+  .sprint-stats-table th{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:8px 12px;border-bottom:2px solid var(--border);text-align:left}
+  .sprint-stats-table td{font-size:12px;padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+  .sprint-stats-table tr:last-child td{border-bottom:none}
+  .sprint-pbar{height:6px;background:var(--border);border-radius:3px;width:80px;display:inline-block;vertical-align:middle;overflow:hidden}
+  .sprint-pfill{height:6px;border-radius:3px;display:block}
+  .sprint-timeline{background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+  .sprint-timeline-hdr{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:space-between}
+  .sprint-timeline-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px;padding:12px}
+  .st-item{padding:7px 8px;border-radius:7px;border:1px solid var(--border);text-align:center;cursor:pointer;transition:all .12s;font-size:11px}
+  .st-item:hover{border-color:var(--brand)}
+  .st-item.current{border-color:var(--brand);background:rgba(152,66,22,.07)}
+  .st-item.past{background:var(--surface)}
+  .st-no{font-weight:800;color:var(--brand)}
+  .st-dates{font-size:9px;color:var(--muted);margin-top:2px}
+  .st-pct{font-size:12px;font-weight:700;margin-top:3px}
+  /* Fireworks */
+  #fw-overlay{position:fixed;inset:0;z-index:9990;display:none;pointer-events:none}
+  #fw-overlay.active{display:block}
+  #fw-canvas{position:absolute;inset:0;width:100%;height:100%}
+  #fw-msg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--white);border-radius:20px;padding:28px 44px;box-shadow:0 20px 60px rgba(0,0,0,.2);text-align:center;pointer-events:none;display:none}
+  .fw-title{font-size:28px;font-weight:800;color:var(--brand);margin-bottom:8px}
+  .fw-sub{font-size:14px;color:var(--text)}
+  /* Dashboard sprint strip */
+  .dash-sprint-strip{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;cursor:pointer;transition:border-color .15s}
+  .dash-sprint-strip:hover{border-color:var(--brand)}
 </style>
 </head>
 <body>
@@ -964,6 +1029,7 @@
   <div class="tab sb-item" data-view="production" onclick="switchView('production', this)"><span class="sb-ic">🏭</span>Production</div>
   <div class="tab sb-item" data-view="container" onclick="switchView('container', this)"><span class="sb-ic">📦</span>Containers</div>
   <div class="tab sb-item" data-view="report" onclick="switchView('report', this)"><span class="sb-ic">📈</span>Reports</div>
+  <div class="tab sb-item" data-view="sprint" onclick="switchView('sprint', this)"><span class="sb-ic">🏃</span>Sprints</div>
   <div class="sb-spacer"></div>
   <div class="sb-item" onclick="window.open('scan.html','_blank')"><span class="sb-ic">📷</span>Scan QR</div>
   <div class="tab sb-item" data-view="settings" onclick="switchView('settings', this)"><span class="sb-ic">⚙️</span>Settings</div>
@@ -1053,6 +1119,9 @@
       </div>
 
     </div>
+
+    <!-- SPRINT STRIP -->
+    <div id="sprint-dash-strip" style="margin-top:14px"></div>
 
     <!-- BOTTOM ROW: containers shipped this year -->
     <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;margin-top:14px;overflow:hidden;box-shadow:var(--shadow)">
@@ -1229,6 +1298,31 @@
   </div>
 </div>
 
+<!-- SPRINT VIEW -->
+<div class="view" id="view-sprint">
+  <div style="padding:20px 24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div style="font-size:18px;font-weight:800">🏃 Sprint Board</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="changeSprintView(-1)" style="width:30px;height:30px;border:1px solid var(--border);background:var(--white);border-radius:7px;cursor:pointer;font-size:16px;font-family:inherit">‹</button>
+        <span id="sprint-sel-label" style="font-size:13px;font-weight:700;min-width:70px;text-align:center">Sprint 1</span>
+        <button onclick="changeSprintView(1)" style="width:30px;height:30px;border:1px solid var(--border);background:var(--white);border-radius:7px;cursor:pointer;font-size:16px;font-family:inherit">›</button>
+        <button onclick="goToCurrentSprint()" style="padding:6px 12px;background:var(--brand);color:var(--on-brand);border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Today</button>
+      </div>
+    </div>
+    <div id="sprint-content"></div>
+  </div>
+</div>
+
+<!-- FIREWORKS OVERLAY -->
+<div id="fw-overlay">
+  <canvas id="fw-canvas"></canvas>
+  <div id="fw-msg">
+    <div class="fw-title" id="fw-title">🎉 Sprint Complete!</div>
+    <div class="fw-sub" id="fw-sub">Amazing work, team!</div>
+  </div>
+</div>
+
 <!-- LEAD PANEL OVERLAY -->
 <div class="overlay" id="lead-overlay" onclick="closeLeadPanel()"></div>
 
@@ -1347,6 +1441,62 @@
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeAddCustomer()">Cancel</button>
       <button class="btn btn-primary" onclick="addCustomer()">Add Customer</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUICK ADD LEAD MODAL -->
+<div class="modal-overlay" id="quick-lead-modal" onclick="if(event.target===this)closeQuickLead()">
+  <div class="modal" style="width:400px">
+    <div class="modal-title">🎯 New Lead</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Name *</label>
+        <input class="form-input" id="ql-name" placeholder="Customer name" autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input class="form-input" id="ql-phone" placeholder="(808) 555-0000" type="tel">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sales Rep</label>
+        <select class="form-select" id="ql-rep">
+          <option value="">— Select —</option>
+          <option>Dustin</option><option>Andy</option><option>Cezar</option><option>JJ</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Product Interest</label>
+        <select class="form-select" id="ql-interest">
+          <option value="">— Select —</option>
+          <option>Cabinet</option><option>Door</option><option>Cabinet + Door</option>
+          <option>Kitchen Remodel</option><option>Bathroom</option><option>Full Remodel</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Source</label>
+        <select class="form-select" id="ql-source">
+          <option value="">— Select —</option>
+          <option>Walk-in</option><option>Phone</option><option>Referral</option>
+          <option>Google Ads</option><option>Google LSA</option><option>Meta (FB/IG)</option>
+          <option>Google Business Profile</option><option>Houzz</option>
+          <option>Stone Concepts</option><option>Returning Client</option><option>Web Form</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Status</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${['New','Appointment Set','Quoted','Following Up'].map((s,i)=>`<label style="display:flex;align-items:center;gap:5px;padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600"><input type="radio" name="ql-status" value="${s}" ${i===0?'checked':''}> ${s}</label>`).join('')}
+        </div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="ql-notes" rows="2" placeholder="Budget, timeline, project details..." style="resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeQuickLead()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveQuickLead()">Add Lead →</button>
     </div>
   </div>
 </div>
@@ -1620,6 +1770,7 @@ async function startApp() {
   await loadTeam()
   await loadAllTasks()
   await loadNotifications()
+  await loadSprintCompletions()
   subscribeNotifications()
   document.getElementById('loading-overlay').classList.add('hidden')
   document.getElementById('app').style.display = 'block'
@@ -2122,13 +2273,15 @@ let factoryPOs     = [];
 let containerPlans = [];
 const LEAD_SOURCES = ['Web Form','Google Ads','Google LSA','Google Business Profile','Meta (FB/IG)','Houzz','Referral','Trade Partner','Stone Concepts','Returning Client','Event','Email','Phone','Walk-in','Sales Rep'];
 const COMMISSION_RATES = { 'Referral':0.15,'Trade Partner':0.15,'Sales Rep':0.08,'Stone Concepts':0.06 };
-const LEAD_STATUSES = ['New','Qualified','Appointment Set','Measured','Quoted','Signed','Lost'];
+const LEAD_STATUSES = ['New','Qualified','Appointment Set','Measured','Quoted','Following Up','Signed','Lost'];
 const LEAD_LOSS_REASONS = ['Price too high','Timeline too long','Chose competitor','Budget cut','No response','Project cancelled','Other'];
 let salesReps = ['JJ','Cezar','Dustin','Darrel','Andy'];
 let orderActivity = {}; // { orderId: { tasks:[], comments:[] } }
 let packingItems = {}; // { orderId: [items] }
 let invoiceItems = {}; // { orderId: [items] }
 let qrScanEvents = {}; // { qrId: [events] }
+let sprintCompletions = []; // from sprint_task_completions table
+let viewingSprintNo = null;
 
 let activeCustomerId = null;
 let activeFocusedOrderId = null;
@@ -5412,6 +5565,437 @@ async function addOrderFromLead(virtualLeadId, poId) {
 }
 
 // =====================
+// SPRINT MODULE
+// =====================
+const SPRINTS = [
+  {no:1, s:'2026-10-26',e:'2026-11-06',phase:'Foundation',   pNo:1,ts:38000, tc:2},
+  {no:2, s:'2026-11-09',e:'2026-11-20',phase:'Foundation',   pNo:1,ts:38000, tc:2},
+  {no:3, s:'2026-11-23',e:'2026-12-04',phase:'Foundation',   pNo:1,ts:41000, tc:2},
+  {no:4, s:'2026-12-07',e:'2026-12-18',phase:'Close & Open', pNo:2,ts:41000, tc:2},
+  {no:5, s:'2026-12-21',e:'2027-01-01',phase:'Close & Open', pNo:2,ts:36000, tc:1},
+  {no:6, s:'2027-01-04',e:'2027-01-15',phase:'Close & Open', pNo:2,ts:41000, tc:2},
+  {no:7, s:'2027-01-18',e:'2027-01-29',phase:'Accelerate',   pNo:3,ts:41000, tc:2},
+  {no:8, s:'2027-02-01',e:'2027-02-12',phase:'Accelerate',   pNo:3,ts:45000, tc:2},
+  {no:9, s:'2027-02-15',e:'2027-02-26',phase:'Accelerate',   pNo:3,ts:45000, tc:2},
+  {no:10,s:'2027-03-01',e:'2027-03-12',phase:'Accelerate',   pNo:3,ts:59000, tc:4},
+  {no:11,s:'2027-03-15',e:'2027-03-26',phase:'Accelerate',   pNo:3,ts:59000, tc:4},
+  {no:12,s:'2027-03-29',e:'2027-04-09',phase:'Accelerate',   pNo:3,ts:63000, tc:4},
+  {no:13,s:'2027-04-12',e:'2027-04-23',phase:'Expand',       pNo:4,ts:63000, tc:4},
+  {no:14,s:'2027-04-26',e:'2027-05-07',phase:'Expand',       pNo:4,ts:66000, tc:4},
+  {no:15,s:'2027-05-10',e:'2027-05-21',phase:'Expand',       pNo:4,ts:66000, tc:4},
+  {no:16,s:'2027-05-24',e:'2027-06-04',phase:'Expand',       pNo:4,ts:66000, tc:4},
+  {no:17,s:'2027-06-07',e:'2027-06-18',phase:'Expand',       pNo:4,ts:66000, tc:4},
+  {no:18,s:'2027-06-21',e:'2027-07-02',phase:'Expand',       pNo:4,ts:77000, tc:5},
+  {no:19,s:'2027-07-05',e:'2027-07-16',phase:'Reach Rhythm', pNo:5,ts:77000, tc:5},
+  {no:20,s:'2027-07-19',e:'2027-07-30',phase:'Reach Rhythm', pNo:5,ts:77000, tc:5},
+  {no:21,s:'2027-08-02',e:'2027-08-13',phase:'Reach Rhythm', pNo:5,ts:77000, tc:5},
+  {no:22,s:'2027-08-16',e:'2027-08-27',phase:'Reach Rhythm', pNo:5,ts:77000, tc:5},
+  {no:23,s:'2027-08-30',e:'2027-09-10',phase:'Reach Rhythm', pNo:5,ts:94000, tc:6},
+  {no:24,s:'2027-09-13',e:'2027-09-24',phase:'Reach Rhythm', pNo:5,ts:94000, tc:6},
+  {no:25,s:'2027-09-27',e:'2027-10-08',phase:'Reach Rhythm', pNo:5,ts:94000, tc:6},
+  {no:26,s:'2027-10-11',e:'2027-10-22',phase:'Hold Rhythm',  pNo:6,ts:94000, tc:6},
+  {no:27,s:'2027-10-25',e:'2027-11-05',phase:'Hold Rhythm',  pNo:6,ts:94000, tc:6},
+  {no:28,s:'2027-11-08',e:'2027-11-19',phase:'Hold Rhythm',  pNo:6,ts:94000, tc:6},
+  {no:29,s:'2027-11-22',e:'2027-12-03',phase:'Hold Rhythm',  pNo:6,ts:94000, tc:6},
+  {no:30,s:'2027-12-06',e:'2027-12-17',phase:'Hold Rhythm',  pNo:6,ts:94000, tc:6},
+  {no:31,s:'2027-12-20',e:'2027-12-31',phase:'Hold Rhythm',  pNo:6,ts:94000, tc:6},
+];
+const MONTHLY_TARGETS=[
+  {ym:'2026-11',signed:83000,clients:3.5},{ym:'2026-12',signed:90000,clients:4},
+  {ym:'2027-01',signed:90000,clients:4},{ym:'2027-02',signed:97000,clients:4},
+  {ym:'2027-03',signed:129000,clients:8},{ym:'2027-04',signed:136000,clients:8},
+  {ym:'2027-05',signed:143000,clients:8.5},{ym:'2027-06',signed:143000,clients:8.5},
+  {ym:'2027-07',signed:168000,clients:10},{ym:'2027-08',signed:168000,clients:10},
+  {ym:'2027-09',signed:204000,clients:14},{ym:'2027-10',signed:204000,clients:14},
+  {ym:'2027-11',signed:204000,clients:14},{ym:'2027-12',signed:204000,clients:14},
+];
+const ASSIGNEE_COLORS={Tram:'#984216',Andy:'#6366F1',Sale:'#0EA5E9',MKT:'#EC4899',BG:'#F59E0B',HT:'#10B981',Nhan:'#8B5CF6',Giao:'#14B8A6',FL:'#64748B'};
+const PHASE_BG  =['','#FEF3C7','#DBEAFE','#D1FAE5','#EDE9FE','#FCE7F3','#F0FDF4'];
+const PHASE_TEXT=['','#92400E','#1D4ED8','#065F46','#5B21B6','#9D174D','#14532D'];
+const SPRINT_TASK_DEFS=[
+// S1
+{id:'s1-s1',sp:1,area:'Sales',desc:'Apply 8–10% tariff surcharge on all 2027-delivery cabinet/vanity quotes; wood doors exempt; email template for sales team',assignee:'Tram',dw:'100% of quotes from Nov 4 include surcharge line'},
+{id:'s1-s2',sp:1,area:'Sales',desc:'Draft pricing packages: floor coefficient, $3,500 min order, tariff surcharge, commission structure',assignee:'Andy',dw:'Sent to Nhan & Andy for approval'},
+{id:'s1-s3',sp:1,area:'Sales',desc:'Enter all open quotes (last 6 months) into CRM by product line',assignee:'Sale',dw:'100% of open quotes in CRM'},
+{id:'s1-s4',sp:1,area:'Sales',desc:'Build list of 20 contractors currently buying Stone Concepts stone (name, contact, projects/year)',assignee:'Sale',dw:'20 contractors in CRM tagged Contractor'},
+{id:'s1-m1',sp:1,area:'Marketing',desc:'Export 15-year customer list into CRM',assignee:'HT',dw:'Can count contacts with email/phone'},
+{id:'s1-m2',sp:1,area:'Marketing',desc:'Email/SMS past customers: 2027 tariff warning, 50% surcharge waived if deposit before Dec 15, $250 referral bonus',assignee:'Tram',dw:'Sent to 100% of list'},
+{id:'s1-m3',sp:1,area:'Marketing',desc:'Build list of 30 developers and project contractors in Hawaii',assignee:'Tram',dw:'30 contacts in CRM with assigned owner and email'},
+{id:'s1-m4',sp:1,area:'Marketing',desc:'Hire Google Ads freelancer (3-month KPI contract); set up Google Ads + Local Services Ads $750/month starting Nov 16',assignee:'Tram',dw:'Account approved, conversions linked to CRM'},
+{id:'s1-o1',sp:1,area:'Operations',desc:'Move container CTN20262746 (Fujimoto, Bazins) from Nov 30 to before Nov 20 to clear customs before Dec 31',assignee:'Nhan',dw:'Van Hue confirms new departure and vessel date'},
+{id:'s1-o2',sp:1,area:'Operations',desc:'Craftica: get written plan for C5 (Oct/Nov) and C6 (Nov or split batch)',assignee:'Tram',dw:'Written plan for C5 and C6'},
+{id:'s1-o3',sp:1,area:'Operations',desc:'Customs broker confirms 10-digit HTS codes (cabinets 9403, wood doors 4418.29); factory itemizes by HTS on invoices',assignee:'Tram',dw:'Broker email confirmation + sample itemized invoice'},
+{id:'s1-o4',sp:1,area:'Operations',desc:'Confirm deposit balances and release/tax payment schedule Dec 2026–Feb 2027',assignee:'Andy',dw:'4-month cash flow table approved by Nhan'},
+{id:'s1-o5',sp:1,area:'Operations',desc:'Project container values, arrival dates, install schedule for 5 containers; spread installs across months',assignee:'Tram',dw:'Revenue forecast Nov 2026–Feb 2027 table'},
+{id:'s1-o6',sp:1,area:'Operations',desc:'Compile base data: 24-month revenue, signed contracts with deposit, factory invoices, US payroll, commissions, lease terms',assignee:'Andy',dw:'Break-even recalculated with real numbers'},
+// S2
+{id:'s2-s1',sp:2,area:'Sales',desc:'Formal approval of pricing packages and order acceptance policy',assignee:'Andy',dw:'Approval confirmed via email'},
+{id:'s2-s2',sp:2,area:'Sales',desc:'Independent sales reps sign commission agreement; training on client filtering and order policy',assignee:'Andy',dw:'Signed agreement + training minutes'},
+{id:'s2-s3',sp:2,area:'Sales',desc:'Finalize Trade Program: independent sales and referral agreements (attorney/CPA review)',assignee:'Tram',dw:'Approved agreement template'},
+{id:'s2-s4',sp:2,area:'Sales',desc:'Contractor Trade Account policy (×2.1 price, 50/50 deposit, 3% bonus) submitted to Nhan',assignee:'Tram',dw:'Policy approved by Nhan'},
+{id:'s2-s5',sp:2,area:'Sales',desc:'Enforce: all incoming leads entered in CRM Leads; update 5 stale "New" clients from Jun/Jul',assignee:'Sale',dw:'No lead in New status for more than 7 days'},
+{id:'s2-m1',sp:2,area:'Marketing',desc:'Portfolio document: Fujimoto + 5 showcase projects, factory, QC process',assignee:'Tram',dw:'Complete PDF portfolio file ready'},
+{id:'s2-m2',sp:2,area:'Marketing',desc:'Cross-referral process with Stone Concepts',assignee:'Tram',dw:'First client referred between the two brands'},
+{id:'s2-m3',sp:2,area:'Marketing',desc:'Request Google reviews from 30 satisfied customers',assignee:'HT',dw:'4+ new Google reviews received'},
+{id:'s2-m4',sp:2,area:'Marketing',desc:'Launch Trade Program landing page; registration form feeds into CRM',assignee:'MKT',dw:'Page live with working form'},
+{id:'s2-o1',sp:2,area:'Operations',desc:'New quote template in CRM by product line (coefficient, tariff surcharge, $350 design fee)',assignee:'BG',dw:'3 sample quotes pass validation check'},
+{id:'s2-o2',sp:2,area:'Operations',desc:'Build list of pre-tariff deposit orders that can clear customs before Dec 31',assignee:'Nhan',dw:'List with factory departure and vessel dates'},
+// S3
+{id:'s3-s1',sp:3,area:'Sales',desc:'Call back 100% of open quotes: deposit before Dec 15 = 50% tariff surcharge waived',assignee:'Sale',dw:'Every open quote has a new status (signed/declined/deferred)'},
+{id:'s3-s2',sp:3,area:'Sales',desc:'Send portfolio to 30 developers; schedule 5 meetings',assignee:'Andy',dw:'30 emails sent, 5 meetings booked'},
+{id:'s3-s3',sp:3,area:'Sales',desc:'Post job listing for independent sales reps (Honolulu & Kona); direct invites to 20 industry contacts',assignee:'Tram',dw:'10+ candidates respond'},
+{id:'s3-s4',sp:3,area:'Sales',desc:'Send portfolio + intro letter to 40 contractors; follow up by phone after 3 days',assignee:'Sale',dw:'40 letters sent, 8+ meetings scheduled'},
+{id:'s3-m1',sp:3,area:'Marketing',desc:'Black Friday campaign Nov 27: email to past customers, 3 posts with Stone Concepts, 1 Google Business post',assignee:'Tram',dw:'Content posted on all 3 channels'},
+{id:'s3-m2',sp:3,area:'Marketing',desc:'Landing page "Custom Cabinets — 3D design in 72 hours" for ads; form feeds CRM with UTM source',assignee:'FL',dw:'Form feeds CRM with source tracked'},
+{id:'s3-o1',sp:3,area:'Operations',desc:'Apply new pricing table; all quotes delivered within 72 hours of measuring',assignee:'BG',dw:'100% of new quotes use correct template; 90%+ on time'},
+// S4
+{id:'s4-s1',sp:4,area:'Sales',desc:'Final outreach to all undecided prospects; collect 75% deposits before Dec 15',assignee:'Sale',dw:'Every open quote has outcome: signed/declined/deferred'},
+{id:'s4-s2',sp:4,area:'Sales',desc:'5 in-person meetings with project developers/contractors',assignee:'Andy',dw:'5 meeting notes logged in CRM'},
+{id:'s4-s3',sp:4,area:'Sales',desc:'Interview independent sales candidates; sign 2 Honolulu reps + 1 Big Island rep',assignee:'Andy',dw:'3 signed agreements'},
+{id:'s4-s4',sp:4,area:'Sales',desc:'Meet 5 contractors at showroom; sample quote for one of their active projects',assignee:'Andy',dw:'5 meetings held, 2+ quotes sent'},
+{id:'s4-m1',sp:4,area:'Marketing',desc:'Email past customers: "5 days left to lock in 2026 pricing"',assignee:'Tram',dw:'Sent to 100% of list'},
+{id:'s4-m2',sp:4,area:'Marketing',desc:'Build list of 60 trade partners; MKT completes Google Ads Search certification',assignee:'HT',dw:'60 contacts in CRM; certification earned'},
+{id:'s4-o1',sp:4,area:'Operations',desc:'Expedite pre-tariff deposit orders to clear customs before Dec 31',assignee:'Nhan',dw:'Vessel booking confirmed'},
+{id:'s4-o2',sp:4,area:'Operations',desc:'Factory scorecard for Van Hue and Craftica: QC, lead time, price; propose product line split',assignee:'Nhan',dw:'PO sent, QC checklist in place'},
+{id:'s4-o3',sp:4,area:'Operations',desc:'Lock in Q1/2027 container schedule: 1 container per month, consistent loading dates',assignee:'Tram',dw:'3-month schedule confirmed'},
+// S5
+{id:'s5-s1',sp:5,area:'Sales',desc:'Send quotes for 3 active project proposals',assignee:'Andy',dw:'3 project quotes sent'},
+{id:'s5-m1',sp:5,area:'Marketing',desc:'MKT reviews Dec ad report with freelancer; identify 3 optimizations',assignee:'MKT',dw:'1 optimization selected and implemented'},
+{id:'s5-m2',sp:5,area:'Marketing',desc:'Add vanity and door keyword groups; complete Local Services Ads profile',assignee:'FL',dw:'Profile submitted'},
+{id:'s5-o1',sp:5,area:'Operations',desc:'Clear all pre-tariff imports through customs before Dec 31',assignee:'Tram',dw:'All shipments entered ≤ Dec 31'},
+{id:'s5-o2',sp:5,area:'Operations',desc:'Q4 report: signed contracts, pending delivery backlog, clients by source, avg order value',assignee:'Tram',dw:'Report sent to Nhan and Andy'},
+// S6
+{id:'s6-s1',sp:6,area:'Sales',desc:'Offer cabinet + countertop bundle to 100% of kitchen clients',assignee:'Sale',dw:'100% of kitchen quotes include a countertop option'},
+{id:'s6-s2',sp:6,area:'Sales',desc:'Email invitation to 60 trade partners; schedule 10 meetings',assignee:'Sale',dw:'60 emails sent, 10 meetings booked'},
+{id:'s6-s3',sp:6,area:'Sales',desc:'Onboard 3 new sales reps: positioning, packages, CRM training; each shadows Andy/JJ for 2 client calls',assignee:'Andy',dw:'3 new reps independently register clients in CRM'},
+{id:'s6-s4',sp:6,area:'Sales',desc:'Open first 2 contractor trade accounts (orders with 50% deposit)',assignee:'Andy',dw:'2 contractor orders with deposit recorded'},
+{id:'s6-m1',sp:6,area:'Marketing',desc:'Google Ads: review 3 keyword groups; track incoming calls into CRM',assignee:'FL',dw:'First ad-sourced client enters CRM'},
+{id:'s6-m2',sp:6,area:'Marketing',desc:'Evaluate Dec freelancer KPIs: renew or replace',assignee:'Tram',dw:'Contract signed or replacement in progress'},
+{id:'s6-m3',sp:6,area:'Marketing',desc:'Build list of 20 Big Island trade partners (contractors, architects, resort managers in Kona/Kohala/Waimea/Hilo)',assignee:'MKT',dw:'20 contacts in CRM tagged Big Island'},
+{id:'s6-o1',sp:6,area:'Operations',desc:'Collect $350 design fee before measuring for all residential clients',assignee:'Sale',dw:'100% of new residential clients pay before measuring'},
+{id:'s6-o2',sp:6,area:'Operations',desc:'Schedule Dec installs to meet $76k and $90k revenue targets',assignee:'Tram',dw:'Install schedule sent to clients'},
+// S7
+{id:'s7-s1',sp:7,area:'Sales',desc:'5 active trade partners each refer at least 1 client',assignee:'Sale',dw:'5 partners have clients logged in CRM'},
+{id:'s7-s2',sp:7,area:'Sales',desc:'Invite 20 referral partners (agents, property managers, contractors) to sign 5% referral agreement',assignee:'Sale',dw:'8+ signed referral agreements'},
+{id:'s7-m1',sp:7,area:'Marketing',desc:'Train MKT: product positioning, CRM, ad management; MKT produces weekly ad report independently',assignee:'Tram',dw:'MKT completes first independent weekly ad report'},
+{id:'s7-m2',sp:7,area:'Marketing',desc:'Pause keywords with cost-per-qualified-client > $450',assignee:'MKT',dw:'Budget reallocated to performing keywords'},
+{id:'s7-m3',sp:7,area:'Marketing',desc:'90-day channel performance report',assignee:'Tram',dw:'Report sent to Nhan and Andy'},
+{id:'s7-o1',sp:7,area:'Operations',desc:'Route all new client inquiries through CRM; set up Vietnam Tet on-call schedule (approx Feb 4–12)',assignee:'Tram',dw:'0 clients received directly by Andy; on-call schedule distributed'},
+{id:'s7-o2',sp:7,area:'Operations',desc:'Get quotes from 3 Big Island install crews; Young Brothers freight rates Honolulu → Kawaihae/Hilo',assignee:'Tram',dw:'Big Island delivery cost table'},
+// S8
+{id:'s8-s1',sp:8,area:'Sales',desc:'Send quote for 4th active project proposal',assignee:'Andy',dw:'Quote sent'},
+{id:'s8-m1',sp:8,area:'Marketing',desc:'Email past customer list #3: before/after photos, cabinet + countertop bundle offer',assignee:'MKT',dw:'Sent to 100% of list'},
+{id:'s8-o1',sp:8,area:'Operations',desc:'On-call quoting schedule during Vietnam Tet; QC photos for Feb container before loading',assignee:'BG',dw:'No quote delayed > 5 days; QC photos received'},
+{id:'s8-o2',sp:8,area:'Operations',desc:'Create contractor installation guide; separate warranty terms for manufacturing vs installation defects',assignee:'Giao',dw:'Guide included with all contractor orders'},
+// S9
+{id:'s9-s1',sp:9,area:'Sales',desc:'Quote-to-signed rate ≥ 35%',assignee:'Sale',dw:'CRM data shows ≥35% conversion rate'},
+{id:'s9-m1',sp:9,area:'Marketing',desc:'Keep top-performing keyword groups; pause underperforming ones',assignee:'MKT',dw:'Cost per qualified client ≤ $120'},
+{id:'s9-m2',sp:9,area:'Marketing',desc:'End freelancer contract; MKT takes over ad account management',assignee:'Tram',dw:'MKT manages account independently; freelancer access revoked'},
+{id:'s9-o1',sp:9,area:'Operations',desc:'Inspect container CTN8173 (Gosselin) on arrival at Hawaii warehouse',assignee:'Giao',dw:'Inspection report: pass/fail'},
+{id:'s9-o2',sp:9,area:'Operations',desc:'Finalize Big Island delivery surcharge: 6–8%, min $1,500; min order $15,000',assignee:'Tram',dw:'Policy approved by Nhan; sample quote includes surcharge line'},
+// S10
+{id:'s10-s1',sp:10,area:'Sales',desc:'Hold 10 trade partner meetings; reach 10 active partners who have sent clients',assignee:'Sale',dw:'10 partners have clients in CRM'},
+{id:'s10-s2',sp:10,area:'Sales',desc:'Call 20 Big Island trade partners; schedule meetings for first measurement trip',assignee:'Sale',dw:'5+ meetings scheduled'},
+{id:'s10-s3',sp:10,area:'Sales',desc:'5 contractor trade accounts with active orders',assignee:'Sale',dw:'CRM data shows 5 accounts with orders'},
+{id:'s10-m1',sp:10,area:'Marketing',desc:'2 project case studies published; cumulative Google reviews reach 30',assignee:'MKT',dw:'Posts published; 30 reviews confirmed'},
+{id:'s10-o1',sp:10,area:'Operations',desc:'Implement warranty ticket system separate from sales',assignee:'Tram',dw:'100% of new warranty requests have a ticket number'},
+// S11
+{id:'s11-s1',sp:11,area:'Sales',desc:'Quote all kitchen projects with Stone Concepts countertop option; target ≥50% of kitchen orders include countertop',assignee:'Sale',dw:'≥50% of signed kitchen orders include countertop'},
+{id:'s11-m1',sp:11,area:'Marketing',desc:'Produce 3 before/after videos for Instagram, Facebook, and Google Business Profile',assignee:'MKT',dw:'3 videos published'},
+{id:'s11-o1',sp:11,area:'Operations',desc:'Assess minimum space requirements for showroom, warehouse, and assembly (square footage)',assignee:'Tram',dw:'Minimum sq ft figure documented'},
+{id:'s11-o2',sp:11,area:'Operations',desc:'First Big Island measurement trip: meet partners, measure 2+ clients',assignee:'Tram',dw:'2+ clients measured; 1 signed or awaiting quote'},
+// S12
+{id:'s12-s1',sp:12,area:'Sales',desc:'Average commission rate ≥ 12%',assignee:'Tram',dw:'CRM data confirms ≥12% average commission'},
+{id:'s12-s2',sp:12,area:'Sales',desc:'90-day review of new independent sales reps; replace underperformers',assignee:'Andy',dw:'Performance report per rep'},
+{id:'s12-m1',sp:12,area:'Marketing',desc:'If cost-per-client ≤ $300, raise ad budget to $1,500/month; launch Kona/Hilo campaign $500/month',assignee:'MKT',dw:'Kona/Hilo campaign live'},
+{id:'s12-o1',sp:12,area:'Operations',desc:'Q1 report; confirmed Q2 container schedule',assignee:'Tram',dw:'Report sent to Nhan; Q2 schedule confirmed'},
+{id:'s12-o2',sp:12,area:'Operations',desc:'Evaluate contractor channel Q1: revenue, margin, collection time, install complaints',assignee:'Tram',dw:'Report sent to Nhan'},
+// S13
+{id:'s13-s1',sp:13,area:'Sales',desc:'Andy focuses only on projects and orders ≥$50k; sales team handles all residential closing',assignee:'Sale',dw:'5th project quote sent by Andy'},
+{id:'s13-m1',sp:13,area:'Marketing',desc:'Publish 3 before/after videos and bundle messaging on all organic channels',assignee:'MKT',dw:'5+ clients from organic channel this sprint'},
+{id:'s13-m2',sp:13,area:'Marketing',desc:'Launch Google Ads campaign targeting Kona/Hilo at $500/month',assignee:'MKT',dw:'Campaign live with separate cost-per-client tracking'},
+{id:'s13-o1',sp:13,area:'Operations',desc:'Q2 container schedule: 1 container/month, orders locked by 5th of each month',assignee:'Nhan',dw:'PO sent to factory'},
+// S14
+{id:'s14-s1',sp:14,area:'Sales',desc:'12 active trade partners (10 Oahu, 2 Big Island) who have sent clients',assignee:'Sale',dw:'20 partners with clients in CRM'},
+{id:'s14-m1',sp:14,area:'Marketing',desc:'Plan showroom event #1 with Stone Concepts',assignee:'MKT',dw:'Guest list with 100+ invitees'},
+{id:'s14-o1',sp:14,area:'Operations',desc:'Sign agreement with Big Island install crew (project-based pricing)',assignee:'Tram',dw:'1 primary crew + 1 backup crew contracted'},
+// S15
+{id:'s15-s1',sp:15,area:'Sales',desc:'Follow up with 100% of showroom guests within 48 hours',assignee:'Sale',dw:'Every showroom guest has a status update in CRM'},
+{id:'s15-m1',sp:15,area:'Marketing',desc:'Host showroom event #1',assignee:'MKT',dw:'8+ guests qualify under order acceptance policy'},
+{id:'s15-o1',sp:15,area:'Operations',desc:'Big Island measurement trip: batch 2+ clients per trip',assignee:'Tram',dw:'2+ clients measured per trip'},
+// S16
+{id:'s16-s1',sp:16,area:'Sales',desc:'Meet 5 Big Island trade partners; sign ×2.1 trade pricing agreements',assignee:'Sale',dw:'5 partners with signed agreements'},
+{id:'s16-s2',sp:16,area:'Sales',desc:'Average commission rate ≥ 12%',assignee:'Tram',dw:'CRM data confirms target'},
+{id:'s16-s3',sp:16,area:'Sales',desc:'8 contractor trade accounts with active orders; meet 3 Big Island contractors during measurement trip',assignee:'Sale',dw:'CRM data confirmed'},
+{id:'s16-m1',sp:16,area:'Marketing',desc:'Evaluate organic social channel after 60 days; keep if cost-per-client ≤ $100',assignee:'MKT',dw:'Decision documented'},
+// S17
+{id:'s17-s1',sp:17,area:'Sales',desc:'Andy fully hands off residential closing by Jun 30; handover document signed',assignee:'Andy',dw:'Handover document signed by incoming sales rep'},
+{id:'s17-m1',sp:17,area:'Marketing',desc:'Email past customer list #4',assignee:'MKT',dw:'Sent to 100% of list'},
+{id:'s17-o1',sp:17,area:'Operations',desc:'15-minute response alert in CRM; track compliance daily',assignee:'MKT',dw:'≥90% of inquiries responded within 15 minutes'},
+// S18
+{id:'s18-s1',sp:18,area:'Sales',desc:'Review sales capacity: if new clients ≥12/month for 2 consecutive months, propose adding 2nd sales rep',assignee:'Andy',dw:'Capacity report submitted to Nhan'},
+{id:'s18-s2',sp:18,area:'Sales',desc:'Recruit: Honolulu to 4 reps, Big Island to 3 independent reps',assignee:'Tram',dw:'7 active independent reps'},
+{id:'s18-m1',sp:18,area:'Marketing',desc:'Set H2 ad budget: $2,500/month total including $500 Kona/Hilo',assignee:'Tram',dw:'Budget approved by Nhan'},
+{id:'s18-o1',sp:18,area:'Operations',desc:'Q2 report; 3 space options with pricing for potential new location',assignee:'Tram',dw:'Report and space options sent to Nhan'},
+// S19
+{id:'s19-s1',sp:19,area:'Sales',desc:'Call all past clients 2024–2026 requesting referrals',assignee:'Sale',dw:'4+ referral clients enter CRM'},
+{id:'s19-m1',sp:19,area:'Marketing',desc:'Reallocate $2,500/month ad budget to groups with lowest cost-per-signed-contract',assignee:'MKT',dw:'Budget adjusted to best-performing groups'},
+{id:'s19-o1',sp:19,area:'Operations',desc:'Target lead time from deposit to install ≤ 10 weeks for orders signed from May 2027',assignee:'Nhan',dw:'Decision confirmed in writing'},
+// S20
+{id:'s20-s1',sp:20,area:'Sales',desc:'Send quote for 6th active project proposal',assignee:'Andy',dw:'6 projects in active quoting stage'},
+{id:'s20-s2',sp:20,area:'Sales',desc:'12 contractor trade accounts with orders (9 Oahu, 3 Big Island); verify container and install capacity',assignee:'Sale',dw:'CRM data confirmed; Q4 capacity plan'},
+{id:'s20-m1',sp:20,area:'Marketing',desc:'Plan showroom event #2 (guest list ≥150)',assignee:'MKT',dw:'Guest list ready'},
+{id:'s20-o1',sp:20,area:'Operations',desc:'Sign agreements with 3 subcontract install crews',assignee:'Giao',dw:'3 signed agreements with pricing'},
+{id:'s20-o2',sp:20,area:'Operations',desc:'First Big Island install supervised alongside local crew; create Big Island install checklist',assignee:'Giao',dw:'Checklist documented and used'},
+// S21
+{id:'s21-s1',sp:21,area:'Sales',desc:'Close ≥3 contracts with deposits this sprint',assignee:'Sale',dw:'CRM shows 3+ signed contracts with deposit'},
+{id:'s21-m1',sp:21,area:'Marketing',desc:'Host showroom event #2',assignee:'MKT',dw:'8+ guests qualify under order policy'},
+{id:'s21-o1',sp:21,area:'Operations',desc:'Create Big Island quote template in CRM (delivery surcharge, Young Brothers freight, truck)',assignee:'BG',dw:'Template used for 2+ Big Island quotes'},
+// S22
+{id:'s22-s1',sp:22,area:'Sales',desc:'15 active trade partners (10 Oahu, 5 Big Island) who have sent clients within 6 months',assignee:'Sale',dw:'15 active partners in CRM'},
+{id:'s22-m1',sp:22,area:'Marketing',desc:'Publish 2 project case studies (1 commercial, 1 full-kitchen bundle)',assignee:'MKT',dw:'2 posts published'},
+{id:'s22-o1',sp:22,area:'Operations',desc:'Confirm Q4 production capacity with factory; lock Q4 container schedule',assignee:'Nhan',dw:'Q4 schedule confirmed'},
+// S23
+{id:'s23-s1',sp:23,area:'Sales',desc:'Quote-to-signed rate ≥ 35%',assignee:'Sale',dw:'CRM data confirmed'},
+{id:'s23-s2',sp:23,area:'Sales',desc:'If Big Island demand ≥ 4 clients waiting, increase to 2 measurement trips per month',assignee:'Sale',dw:'Sep–Oct schedule updated'},
+{id:'s23-m1',sp:23,area:'Marketing',desc:'Plan Black Friday 2027 campaign',assignee:'MKT',dw:'Campaign plan approved'},
+{id:'s23-o1',sp:23,area:'Operations',desc:'If quoting volume > 30/month, propose hiring second estimator for 2028',assignee:'Tram',dw:'Capacity report documented'},
+// S24
+{id:'s24-s1',sp:24,area:'Sales',desc:'≥50% of signed kitchen orders include Stone Concepts countertop',assignee:'Sale',dw:'CRM data confirmed'},
+{id:'s24-s2',sp:24,area:'Sales',desc:'Rank reps by signed revenue and avg order value; reward top rep of quarter',assignee:'Tram',dw:'Leaderboard sent to team'},
+{id:'s24-s3',sp:24,area:'Sales',desc:'15 contractor accounts with orders; offer net-30 terms to accounts with 3+ on-time payments',assignee:'Sale',dw:'Account list and credit limits approved'},
+{id:'s24-m1',sp:24,area:'Marketing',desc:'Create holiday ad content (new kitchen before New Year)',assignee:'MKT',dw:'Complete creative set ready'},
+{id:'s24-o1',sp:24,area:'Operations',desc:'Make location decision; send notice to landlord per lease terms',assignee:'Andy',dw:'Notice sent to landlord'},
+// S25
+{id:'s25-s1',sp:25,area:'Sales',desc:'Review all open quotes; prioritize closing before holiday season',assignee:'Sale',dw:'Every open quote has a new status'},
+{id:'s25-m1',sp:25,area:'Marketing',desc:'Lock Q4 ad budget',assignee:'Tram',dw:'Budget approved by Nhan'},
+{id:'s25-o1',sp:25,area:'Operations',desc:'Q3 report; pending delivery backlog ≥$408,000',assignee:'Tram',dw:'Report sent to Nhan'},
+// S26
+{id:'s26-s1',sp:26,area:'Sales',desc:'Close ≥4 contracts with deposits this sprint',assignee:'Sale',dw:'CRM shows 4+ signed contracts with deposit'},
+{id:'s26-m1',sp:26,area:'Marketing',desc:'Host showroom event #3',assignee:'MKT',dw:'8+ guests qualify under order policy'},
+{id:'s26-o1',sp:26,area:'Operations',desc:'Schedule Nov–Dec installs to match $204,000/month revenue target',assignee:'Tram',dw:'Install schedule sent to clients'},
+// S27
+{id:'s27-s1',sp:27,area:'Sales',desc:'Follow up with 100% of showroom #3 guests within 48 hours',assignee:'Sale',dw:'Every guest has a status in CRM'},
+{id:'s27-m1',sp:27,area:'Marketing',desc:'Prepare Black Friday campaign (cabinet + countertop bundle, no discounts below floor price)',assignee:'MKT',dw:'Content and ads ready to launch'},
+{id:'s27-o1',sp:27,area:'Operations',desc:'Track install delivery; close October revenue in books',assignee:'Tram',dw:'≥90% installs on schedule; QuickBooks reconciled'},
+// S28
+{id:'s28-s1',sp:28,area:'Sales',desc:'Close Black Friday clients; reach sprint signed target',assignee:'Sale',dw:'Signed ≥$94,000 this sprint'},
+{id:'s28-m1',sp:28,area:'Marketing',desc:'Execute Black Friday campaign across all channels',assignee:'MKT',dw:'10+ qualified leads from campaign'},
+{id:'s28-o1',sp:28,area:'Operations',desc:'Negotiate new lease agreement',assignee:'Andy',dw:'Draft lease agreement ready for review'},
+// S29
+{id:'s29-s1',sp:29,area:'Sales',desc:'Average commission rate ≥ 12%',assignee:'Tram',dw:'CRM data confirmed'},
+{id:'s29-m1',sp:29,area:'Marketing',desc:'Year-end email to past customer list',assignee:'MKT',dw:'Sent to 100% of list'},
+{id:'s29-o1',sp:29,area:'Operations',desc:'Sign new lease agreement in company name (no personal guarantee from Andy)',assignee:'Andy',dw:'Signed lease agreement'},
+// S30
+{id:'s30-s1',sp:30,area:'Sales',desc:'Draft 2028 sales targets by product line',assignee:'Sale',dw:'Draft submitted to Nhan'},
+{id:'s30-s2',sp:30,area:'Sales',desc:'Calculate 3% year-end bonus for contractors exceeding $100k; send confirmation letters',assignee:'Tram',dw:'Bonus letters sent to each qualifying contractor'},
+{id:'s30-m1',sp:30,area:'Marketing',desc:'2028 marketing plan',assignee:'MKT',dw:'Draft submitted to Nhan'},
+{id:'s30-o1',sp:30,area:'Operations',desc:'2028 operations, staffing, and container schedule plan',assignee:'Tram',dw:'Draft submitted to Nhan'},
+{id:'s30-o2',sp:30,area:'Operations',desc:'Big Island 2027 review: revenue, delivery costs, recommendation for 2028',assignee:'Tram',dw:'Report submitted to Nhan'},
+// S31
+{id:'s31-s1',sp:31,area:'Sales',desc:'Year-end sales summary by product line and client source',assignee:'Sale',dw:'Report submitted to Nhan'},
+{id:'s31-m1',sp:31,area:'Marketing',desc:'Year-end marketing cost and performance summary by channel',assignee:'MKT',dw:'Report submitted to Nhan'},
+{id:'s31-o1',sp:31,area:'Operations',desc:'Complete all December installs on schedule; close 2027 annual revenue',assignee:'Tram',dw:'December revenue reconciled in QuickBooks'},
+];
+
+function getCurrentSprintNo() {
+  const today = new Date().toISOString().split('T')[0];
+  const sp = SPRINTS.find(s => s.s <= today && today <= s.e);
+  if (sp) return sp.no;
+  if (today < SPRINTS[0].s) return 1;
+  return 31;
+}
+function sprintCompletedIds(sprintNo) {
+  return new Set(sprintCompletions.filter(c => c.sprint_no === sprintNo).map(c => c.task_id));
+}
+function getAssigneeColor(name) {
+  const n = (name||'').split(',')[0].trim();
+  return ASSIGNEE_COLORS[n] || '#64748B';
+}
+
+function renderSprintView() {
+  if (viewingSprintNo === null) viewingSprintNo = getCurrentSprintNo();
+  const sprintNo = viewingSprintNo;
+  const sprint = SPRINTS.find(s => s.no === sprintNo);
+  if (!sprint) return;
+  const completedIds = sprintCompletedIds(sprintNo);
+  const tasks = SPRINT_TASK_DEFS.filter(t => t.sp === sprintNo);
+  const currentNo = getCurrentSprintNo();
+  const areas = ['Sales','Marketing','Operations'];
+  const tasksByArea = {};
+  areas.forEach(a => { tasksByArea[a] = tasks.filter(t => t.area === a); });
+  const totalTasks = tasks.length;
+  const doneTasks = tasks.filter(t => completedIds.has(t.id)).length;
+  const completionPct = totalTasks ? Math.round(doneTasks/totalTasks*100) : 0;
+
+  // KPIs from CRM data
+  const allOrders = customers.flatMap(c => c.orders);
+  const sprintSigned = allOrders.filter(o => o.deposit_date && o.deposit_date >= sprint.s && o.deposit_date <= sprint.e)
+    .reduce((t,o) => t + orderTotal(o), 0);
+  const newClientsThisSprint = leads.filter(l => {
+    if (!l.created_at) return false;
+    const d = l.created_at.split('T')[0];
+    return d >= sprint.s && d <= sprint.e;
+  }).length;
+
+  const signedPct = sprint.ts ? Math.round(sprintSigned/sprint.ts*100) : 100;
+  const clientPct = sprint.tc ? Math.round(newClientsThisSprint/sprint.tc*100) : 100;
+
+  // Alerts
+  const alerts = [];
+  if (signedPct >= 100) alerts.push({cls:'green',msg:`✅ Sprint signed target reached! $${(sprintSigned/1000).toFixed(0)}k of $${(sprint.ts/1000).toFixed(0)}k`});
+  else if (signedPct >= 85) alerts.push({cls:'yellow',msg:`🟡 Signed contracts at ${signedPct}% of target. Need $${((sprint.ts-sprintSigned)/1000).toFixed(0)}k more.`});
+  else alerts.push({cls:'red',msg:`🔴 Signed contracts at ${signedPct}% of target ($${(sprint.ts/1000).toFixed(0)}k). Need $${((sprint.ts-sprintSigned)/1000).toFixed(0)}k more.`});
+  if (sprint.tc > 0 && clientPct < 80) alerts.push({cls:'yellow',msg:`⚠️ New clients: ${newClientsThisSprint}/${sprint.tc} (${clientPct}% of target). Need ${sprint.tc-newClientsThisSprint} more.`});
+
+  // Per-person stats
+  const personStats = {};
+  tasks.forEach(t => {
+    const nm = (t.assignee||'').split(',')[0].trim();
+    if (!personStats[nm]) personStats[nm] = {assigned:0,done:0};
+    personStats[nm].assigned++;
+    if (completedIds.has(t.id)) personStats[nm].done++;
+  });
+
+  const fmtDate = d => { const [y,m,dy]=d.split('-'); return `${m}/${dy}/${y.slice(2)}`; };
+  const barCol = p => p>=100?'#16A34A':p>=85?'#D97706':'#DC2626';
+
+  document.getElementById('sprint-sel-label').textContent = `Sprint ${sprintNo}`;
+  document.getElementById('sprint-content').innerHTML = `
+    <div class="sprint-header">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:18px;font-weight:800">Sprint ${sprintNo}</span>
+          <span class="sprint-phase-badge" style="background:${PHASE_BG[sprint.pNo]};color:${PHASE_TEXT[sprint.pNo]}">Phase ${sprint.pNo}: ${sprint.phase}</span>
+          ${sprintNo===currentNo?'<span style="font-size:11px;font-weight:700;background:#EEF2FF;color:#4338CA;padding:2px 9px;border-radius:20px">▶ Current Sprint</span>':''}
+        </div>
+        <div class="sprint-meta">📅 ${fmtDate(sprint.s)} – ${fmtDate(sprint.e)} &nbsp;·&nbsp; Target: $${(sprint.ts/1000).toFixed(0)}k signed · ${sprint.tc} new clients</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:28px;font-weight:800;color:${completionPct===100?'#16A34A':completionPct>=50?'var(--brand)':'var(--muted)'}">${completionPct}%</div>
+        <div style="font-size:11px;color:var(--muted)">${doneTasks}/${totalTasks} tasks done</div>
+        <div style="height:4px;background:var(--border);border-radius:2px;margin-top:6px;width:100px;overflow:hidden"><div style="height:4px;width:${completionPct}%;background:${completionPct===100?'#16A34A':'var(--brand)'};border-radius:2px"></div></div>
+      </div>
+    </div>
+    <div>${alerts.map(a=>`<div class="sprint-alert ${a.cls}">${a.msg}</div>`).join('')}</div>
+    <div class="sprint-kpis">
+      <div class="sprint-kpi">
+        <div class="sprint-kpi-label">Tasks Complete</div>
+        <div class="sprint-kpi-val" style="color:${completionPct===100?'#16A34A':completionPct>=50?'var(--brand)':'#F59E0B'}">${completionPct}%</div>
+        <div class="sprint-kpi-target">${doneTasks} of ${totalTasks} tasks</div>
+        <div class="sprint-kpi-bar"><div class="sprint-kpi-fill" style="width:${completionPct}%;background:${completionPct===100?'#16A34A':completionPct>=50?'var(--brand)':'#F59E0B'}"></div></div>
+      </div>
+      <div class="sprint-kpi">
+        <div class="sprint-kpi-label">Signed Contracts</div>
+        <div class="sprint-kpi-val" style="color:${barCol(signedPct)}">$${(sprintSigned/1000).toFixed(0)}k</div>
+        <div class="sprint-kpi-target">Target $${(sprint.ts/1000).toFixed(0)}k</div>
+        <div class="sprint-kpi-bar"><div class="sprint-kpi-fill" style="width:${Math.min(100,signedPct)}%;background:${barCol(signedPct)}"></div></div>
+      </div>
+      <div class="sprint-kpi">
+        <div class="sprint-kpi-label">New Clients</div>
+        <div class="sprint-kpi-val" style="color:${barCol(clientPct)}">${newClientsThisSprint}</div>
+        <div class="sprint-kpi-target">Target ${sprint.tc}</div>
+        <div class="sprint-kpi-bar"><div class="sprint-kpi-fill" style="width:${Math.min(100,clientPct)}%;background:${barCol(clientPct)}"></div></div>
+      </div>
+    </div>
+    <div class="sprint-board">
+      ${areas.map(area => {
+        const at = tasksByArea[area]; const dc = at.filter(t=>completedIds.has(t.id)).length;
+        const icon = area==='Sales'?'💰':area==='Marketing'?'📣':'⚙️';
+        return `<div class="sprint-col">
+          <div class="sprint-col-hdr"><span class="sprint-col-title">${icon} ${area}</span><span class="sprint-col-count">${dc}/${at.length}</span></div>
+          ${at.map(t => {
+            const done = completedIds.has(t.id);
+            const comp = sprintCompletions.find(c=>c.task_id===t.id);
+            return `<div class="sprint-task ${done?'done':''}" onclick="toggleSprintTask('${t.id}',${sprintNo})">
+              <div class="sprint-check ${done?'checked':''}">${done?'✓':''}</div>
+              <div class="sprint-task-body">
+                <div class="sprint-task-desc">${escHtml(t.desc)}</div>
+                ${t.dw?`<div class="sprint-task-when">✔ ${escHtml(t.dw)}</div>`:''}
+                <div class="sprint-task-foot">
+                  <span class="sprint-assignee" style="background:${getAssigneeColor(t.assignee)}">${escHtml(t.assignee)}</span>
+                  ${done&&comp?`<span class="sprint-done-by">Done by ${escHtml(comp.done_by||'team')}</span>`:''}
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="sprint-stats">
+      <div class="sprint-stats-hdr">👥 Team Performance — Sprint ${sprintNo}</div>
+      <table class="sprint-stats-table">
+        <thead><tr><th>Team Member</th><th>Assigned</th><th>Done</th><th>Rate</th><th>Progress</th></tr></thead>
+        <tbody>${Object.entries(personStats).sort((a,b)=>b[1].done-a[1].done).map(([nm,st])=>{
+          const p = st.assigned?Math.round(st.done/st.assigned*100):0; const c=barCol(p);
+          return `<tr><td><span class="sprint-assignee" style="background:${getAssigneeColor(nm)}">${escHtml(nm)}</span></td><td>${st.assigned}</td><td><b>${st.done}</b></td><td style="color:${c};font-weight:700">${p}%</td><td><span class="sprint-pbar"><span class="sprint-pfill" style="width:${p}%;background:${c}"></span></span></td></tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>
+    <div class="sprint-timeline">
+      <div class="sprint-timeline-hdr"><span>📅 All 31 Sprints — 2026/2027</span><span style="font-size:12px;color:var(--muted)">Click to navigate</span></div>
+      <div class="sprint-timeline-grid">${SPRINTS.map(s=>{
+        const cIds=sprintCompletedIds(s.no); const sTasks=SPRINT_TASK_DEFS.filter(t=>t.sp===s.no);
+        const sPct=sTasks.length?Math.round(cIds.size/sTasks.length*100):0;
+        const today2=new Date().toISOString().split('T')[0];
+        const isCur=s.s<=today2&&today2<=s.e; const isPast=s.e<today2;
+        const cls=isCur?'current':isPast?'past':'future';
+        const pcol=sPct===100?'#16A34A':sPct>0?'var(--brand)':'var(--muted)';
+        return `<div class="st-item ${cls}" onclick="viewSprint(${s.no})"><div class="st-no">S${s.no}</div><div class="st-dates">${s.s.slice(5).replace('-','/')}→${s.e.slice(5).replace('-','/')}</div><div class="st-pct" style="color:${pcol}">${sTasks.length?sPct+'%':'—'}</div></div>`;
+      }).join('')}</div>
+    </div>`;
+}
+
+async function toggleSprintTask(taskId, sprintNo) {
+  const completedIds = sprintCompletedIds(sprintNo);
+  const isDone = completedIds.has(taskId);
+  const memberName = me ? (me.name||me.email||'Team') : 'Team';
+  const testF = isTestMode ? true : false;
+  if (isDone) {
+    sprintCompletions = sprintCompletions.filter(c => c.task_id !== taskId);
+    if (!isDemoMode) await sb.from('sprint_task_completions').delete().eq('task_id', taskId).eq('is_test', testF);
+  } else {
+    const rec = {task_id:taskId,sprint_no:sprintNo,done_by:memberName,done_at:new Date().toISOString(),is_test:testF};
+    sprintCompletions.push(rec);
+    if (!isDemoMode) await sb.from('sprint_task_completions').upsert(rec);
+  }
+  renderSprintView();
+  if (!isDone) {
+    const tasks = SPRINT_TASK_DEFS.filter(t => t.sp === sprintNo);
+    const newIds = sprintCompletedIds(sprintNo);
+    if (tasks.length > 0 && tasks.every(t => newIds.has(t.id))) {
+      launchFireworks(`🎉 Sprint ${sprintNo} Complete!`, `Amazing work, team! All ${tasks.length} tasks done.`);
+    }
+  }
+}
+function viewSprint(no) { viewingSprintNo=no; renderSprintView(); window.scrollTo(0,0); }
+function changeSprintView(delta) { const n=(viewingSprintNo||getCurrentSprintNo())+delta; if(n>=1&&n<=31){viewingSprintNo=n;renderSprintView();} }
+function goToCurrentSprint() { viewingSprintNo=getCurrentSprintNo(); renderSprintView(); }
+
+function launchFireworks(title, sub) {
+  const ov=document.getElementById('fw-overlay');
+  const cv=document.getElementById('fw-canvas');
+  const msg=document.getElementById('fw-msg');
+  document.getElementById('fw-title').textContent=title;
+  document.getElementById('fw-sub').textContent=sub;
+  msg.style.display='block'; ov.classList.add('active');
+  cv.width=window.innerWidth; cv.height=window.innerHeight;
+  const ctx=cv.getContext('2d');
+  const cols=['#FF6B6B','#FFD93D','#6BCB77','#4D96FF','#FF6FC8','#FF9F1C','#2EC4B6','#FF8C42'];
+  const parts=[];
+  for(let i=0;i<200;i++) parts.push({x:Math.random()*cv.width,y:Math.random()*cv.height*.7,vx:(Math.random()-.5)*9,vy:Math.random()*-7-2,color:cols[Math.floor(Math.random()*cols.length)],r:Math.random()*5+2,alpha:1,g:.12});
+  let frame=0;
+  function tick(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.alpha-=.007;ctx.globalAlpha=Math.max(0,p.alpha);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();});
+    if(++frame<220) requestAnimationFrame(tick);
+    else { ov.classList.remove('active'); msg.style.display='none'; }
+  }
+  tick();
+  setTimeout(()=>{ov.classList.remove('active');msg.style.display='none';},5500);
+}
+
+// =====================
 // VIEW SWITCHER
 // =====================
 let currentView = 'pipeline';
@@ -5434,6 +6018,7 @@ function switchView(view, el) {
   if (view === 'settings') { renderSettings(); renderTeamSettings(); renderNotifSettings(); }
   if (view === 'notifications') renderNotificationsView();
   if (view === 'tasks') renderTasksView();
+  if (view === 'sprint') { viewingSprintNo = viewingSprintNo || getCurrentSprintNo(); renderSprintView(); }
   window.scrollTo(0, 0);
 }
 
@@ -5546,6 +6131,40 @@ function renderDashboard() {
   }).join('');
   document.getElementById('containers-row').innerHTML = ctnCards ||
     `<div style="color:var(--muted);font-size:12px">No containers yet this year.</div>`;
+
+  // Sprint strip
+  const curNo = getCurrentSprintNo();
+  const curSprint = SPRINTS.find(s => s.no === curNo);
+  const stripEl = document.getElementById('sprint-dash-strip');
+  if (curSprint && stripEl) {
+    const cIds = sprintCompletedIds(curNo);
+    const sTasks = SPRINT_TASK_DEFS.filter(t => t.sp === curNo);
+    const sPct = sTasks.length ? Math.round(cIds.size / sTasks.length * 100) : 0;
+    const sprintSigned2 = allOrders.filter(o => o.deposit_date && o.deposit_date >= curSprint.s && o.deposit_date <= curSprint.e)
+      .reduce((t,o) => t + orderTotal(o), 0);
+    const signedPct2 = curSprint.ts ? Math.round(sprintSigned2/curSprint.ts*100) : 100;
+    const barCol2 = p => p>=100?'#16A34A':p>=85?'#D97706':'#DC2626';
+    const alerts2 = [];
+    if (signedPct2 < 80) alerts2.push(`<span style="color:#DC2626;font-weight:700">⚠️ Signed at ${signedPct2}% of target</span>`);
+    else if (signedPct2 < 85) alerts2.push(`<span style="color:#D97706;font-weight:700">🟡 Signed at ${signedPct2}% of target</span>`);
+    stripEl.innerHTML = `<div class="dash-sprint-strip" onclick="switchView('sprint', document.querySelector('[data-view=sprint]'))">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:700">🏃 Sprint ${curNo} — Current</span>
+          <span style="font-size:11px;color:var(--muted)">${curSprint.s.slice(5).replace('-','/')} → ${curSprint.e.slice(5).replace('-','/')}</span>
+          ${alerts2.join('')}
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;font-size:12px">
+          <span>Tasks: <b style="color:${barCol2(sPct)}">${sPct}%</b> (${cIds.size}/${sTasks.length})</span>
+          <span>Signed: <b style="color:${barCol2(signedPct2)}">$${(sprintSigned2/1000).toFixed(0)}k</b> / $${(curSprint.ts/1000).toFixed(0)}k</span>
+          <span style="font-size:11px;color:var(--brand)">View Sprint →</span>
+        </div>
+      </div>
+      <div style="height:3px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden">
+        <div style="height:3px;width:${sPct}%;background:${barCol2(sPct)};border-radius:2px"></div>
+      </div>
+    </div>`;
+  }
 }
 
 function setFilter(filter, el) {
@@ -7393,6 +8012,7 @@ function renderLeads() {
     { key:'appt',  label:'Appointment Set', emoji:'📐', cls:'col-lead-quoting', match: l => l.status === 'Appointment Set' },
     { key:'meas',  label:'Measured',        emoji:'📏', cls:'col-lead-quoting', match: l => l.status === 'Measured' },
     { key:'quot',  label:'Quoted',          emoji:'💰', cls:'col-lead-quoted',  match: l => l.status === 'Quoted' },
+    { key:'follow',label:'Following Up',    emoji:'🔄', cls:'col-lead-follow',  match: l => l.status === 'Following Up' },
     { key:'sign',  label:'Signed',          emoji:'✅', cls:'col-lead-quoted',  match: l => l.status === 'Signed' },
     { key:'lost',  label:'Lost',            emoji:'❌', cls:'col-lead-new',     match: l => l.status === 'Lost' },
   ];
@@ -7420,7 +8040,8 @@ async function dropLead(e, colKey) {
   if (!leadId) return;
   const l = leads.find(x => x.id === leadId);
   if (!l) return;
-  const newStatus = colKey === 'quoting' ? 'Quoting' : colKey === 'quoted' ? 'Quoted' : 'New';
+  const statusMap = { new:'New', appt:'Appointment Set', meas:'Measured', quot:'Quoted', follow:'Following Up', sign:'Signed', lost:'Lost' };
+  const newStatus = statusMap[colKey] || 'New';
   if (l.status === newStatus) return;
   l.status = newStatus;
   renderLeads();
@@ -7499,11 +8120,40 @@ function removeLead(leadId) {
   deleteLead(leadId);
 }
 
+function openQuickLead() {
+  document.getElementById('quick-lead-modal').classList.add('open');
+  setTimeout(() => document.getElementById('ql-name')?.focus(), 50);
+}
+function closeQuickLead() {
+  document.getElementById('quick-lead-modal').classList.remove('open');
+  ['ql-name','ql-phone','ql-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['ql-rep','ql-interest','ql-source'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const firstRadio = document.querySelector('input[name="ql-status"][value="New"]');
+  if(firstRadio) firstRadio.checked = true;
+}
+async function saveQuickLead() {
+  const name = document.getElementById('ql-name').value.trim();
+  if (!name) { document.getElementById('ql-name').focus(); return; }
+  const phone    = document.getElementById('ql-phone').value.trim();
+  const rep      = document.getElementById('ql-rep').value;
+  const interest = document.getElementById('ql-interest').value;
+  const source   = document.getElementById('ql-source').value;
+  const notes    = document.getElementById('ql-notes').value.trim();
+  const status   = document.querySelector('input[name="ql-status"]:checked')?.value || 'New';
+  const lid = 'L'+String(Date.now()).slice(-6);
+  const newL = await dbInsert('leads', {id:lid, name, phone, sales_rep:rep, interest, source, status, notes, budget:''});
+  if (newL) {
+    leads.push(newL);
+    closeQuickLead();
+    const leadsTab = document.querySelector('.tab[data-view="leads"]');
+    switchView('leads', leadsTab);
+    showToast('Lead added: ' + name);
+    renderLeads();
+  }
+}
+
 function openAddLead() {
-  // Reuse add customer modal, just set intent
-  document.getElementById('add-modal').classList.add('open');
-  document.getElementById('add-modal').dataset.isLead = 'true';
-  document.querySelector('.modal-title').textContent = 'Add New Lead';
+  openQuickLead();
 }
 
 // Archive a customer (move to done + collapse from pipeline)
@@ -8306,6 +8956,12 @@ async function loadAllTasks() {
   const { data } = await sb.from('order_tasks').select('*').order('created_at', { ascending: false });
   allTasks = (data || []).map(t => ({ ...t, status: t.status || (t.completed ? 'done' : 'todo') }));
   updateTaskBadge();
+}
+async function loadSprintCompletions() {
+  if (isDemoMode) return;
+  const testF = isTestMode ? true : false;
+  const { data } = await sb.from('sprint_task_completions').select('*').eq('is_test', testF);
+  sprintCompletions = data || [];
 }
 function updateTaskBadge() {
   const el = document.getElementById('task-badge');
