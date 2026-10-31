@@ -961,6 +961,8 @@
   /* Dashboard sprint strip */
   .dash-sprint-strip{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;cursor:pointer;transition:border-color .15s}
   .dash-sprint-strip:hover{border-color:var(--brand)}
+  .dept-kpi{padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .annual-goal-card{background:var(--white);border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-top:14px;box-shadow:var(--shadow)}
 </style>
 </head>
 <body>
@@ -1118,6 +1120,17 @@
         <div style="padding:10px" id="action-items"></div>
       </div>
 
+    </div>
+
+    <!-- 2027 ANNUAL GOAL TRACKER -->
+    <div class="annual-goal-card">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span style="font-size:13px;font-weight:700">🎯 2027 Annual Revenue Goal</span>
+        <span id="dash-annual-pct" style="font-size:13px;font-weight:800;color:var(--brand)">0%</span>
+      </div>
+      <div style="padding:14px 16px" id="dash-annual-content">
+        <div style="color:var(--muted);font-size:12px">Loading...</div>
+      </div>
     </div>
 
     <!-- SPRINT STRIP -->
@@ -5873,15 +5886,39 @@ function renderSprintView() {
   const doneTasks = tasks.filter(t => completedIds.has(t.id)).length;
   const completionPct = totalTasks ? Math.round(doneTasks/totalTasks*100) : 0;
 
-  // KPIs from CRM data
+  // ── Annual plan target (sum of all sprint targets)
+  const ANNUAL_TARGET = SPRINTS.reduce((t,s) => t+s.ts, 0);
+  const planStart = SPRINTS[0].s, planEnd = SPRINTS[SPRINTS.length-1].e;
   const allOrders = customers.flatMap(c => c.orders);
+  const calcVal = o => Number(o.balance||0) + Number(o.deposit_amount||0);
+  const totalSignedAllTime = allOrders
+    .filter(o => o.deposit_date && o.deposit_date >= planStart && o.deposit_date <= planEnd)
+    .reduce((t,o) => t + calcVal(o), 0);
+  const annualPct = Math.min(100, Math.round(totalSignedAllTime/ANNUAL_TARGET*100));
+  const annualBar = p => p>=100?'#16A34A':p>=50?'var(--brand)':'#F59E0B';
+  // How many sprints completed (all tasks done)
+  const sprintsCompleted = SPRINTS.filter(s => {
+    const t = SPRINT_TASK_DEFS.filter(x=>x.sp===s.no); if(!t.length) return false;
+    const ids = sprintCompletedIds(s.no); return t.every(x=>ids.has(x.id));
+  }).length;
+
+  // ── Sprint KPIs
   const sprintSigned = allOrders.filter(o => o.deposit_date && o.deposit_date >= sprint.s && o.deposit_date <= sprint.e)
-    .reduce((t,o) => t + Number(o.balance||0) + Number(o.deposit_amount||0), 0);
-  const newClientsThisSprint = leads.filter(l => {
+    .reduce((t,o) => t + calcVal(o), 0);
+  const newLeadsThisSprint = leads.filter(l => {
     if (!l.created_at) return false;
     const d = l.created_at.split('T')[0];
     return d >= sprint.s && d <= sprint.e;
   }).length;
+  const newClientsThisSprint = leads.filter(l => {
+    if (!l.created_at || !l.signed_date) return false;
+    const d = l.signed_date.split('T')[0];
+    return d >= sprint.s && d <= sprint.e;
+  }).length + allOrders.filter(o => o.deposit_date >= sprint.s && o.deposit_date <= sprint.e).length;
+  const sprintInstalls = allOrders.filter(o =>
+    (o.stage==='done'||o.stage==='delivery') && o.eta && o.eta >= sprint.s && o.eta <= sprint.e
+  );
+  const installRevenue = sprintInstalls.reduce((t,o) => t + calcVal(o), 0);
 
   const signedPct = sprint.ts ? Math.round(sprintSigned/sprint.ts*100) : 100;
   const clientPct = sprint.tc ? Math.round(newClientsThisSprint/sprint.tc*100) : 100;
@@ -5907,6 +5944,29 @@ function renderSprintView() {
 
   document.getElementById('sprint-sel-label').textContent = `Sprint ${sprintNo}`;
   document.getElementById('sprint-content').innerHTML = `
+    <!-- ANNUAL $2M GOAL BAR -->
+    <div style="background:var(--white);border:1.5px solid ${annualPct>=100?'#16A34A':annualPct>=50?'var(--brand)':'var(--border)'};border-radius:12px;padding:14px 18px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:14px;font-weight:800">🎯 2027 Annual Goal</span>
+          <span style="font-size:11px;font-weight:700;background:${PHASE_BG[1]};color:${PHASE_TEXT[1]};padding:2px 8px;border-radius:20px">${sprintsCompleted}/31 Sprints Complete</span>
+        </div>
+        <div style="text-align:right">
+          <span style="font-size:22px;font-weight:900;color:${annualBar(annualPct)}">$${(totalSignedAllTime/1000).toFixed(0)}k</span>
+          <span style="font-size:13px;color:var(--muted)"> / $${(ANNUAL_TARGET/1000).toFixed(0)}k</span>
+          <span style="font-size:12px;font-weight:700;margin-left:8px;color:${annualBar(annualPct)}">${annualPct}%</span>
+        </div>
+      </div>
+      <div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden;position:relative">
+        <div style="height:10px;width:${annualPct}%;background:${annualBar(annualPct)};border-radius:5px;transition:width .5s"></div>
+        ${SPRINTS.map(s=>{const x=Math.round(SPRINTS.filter(x2=>x2.no<=s.no).reduce((t,x2)=>t+x2.ts,0)/ANNUAL_TARGET*100);return `<div style="position:absolute;top:0;bottom:0;left:${x}%;width:1px;background:rgba(0,0,0,.1)"></div>`;}).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px">
+        <span>Oct 2026</span>
+        <span style="color:var(--brand);font-weight:600">$${((ANNUAL_TARGET-totalSignedAllTime)/1000).toFixed(0)}k to go</span>
+        <span>Dec 2027</span>
+      </div>
+    </div>
     <div class="sprint-header">
       <div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
@@ -5947,8 +6007,41 @@ function renderSprintView() {
       ${areas.map(area => {
         const at = tasksByArea[area]; const dc = at.filter(t=>completedIds.has(t.id)).length;
         const icon = area==='Sales'?'💰':area==='Marketing'?'📣':'⚙️';
+        // Department sub-goal KPI
+        let deptKpi = '';
+        if (area === 'Sales') {
+          const sp = signedPct; const bc = barCol(sp);
+          deptKpi = `<div class="dept-kpi">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+              <span style="font-size:11px;font-weight:700;color:${bc}">$${(sprintSigned/1000).toFixed(1)}k signed</span>
+              <span style="font-size:10px;color:var(--muted)">target $${(sprint.ts/1000).toFixed(0)}k</span>
+            </div>
+            <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:4px;width:${Math.min(100,sp)}%;background:${bc};border-radius:2px"></div></div>
+            <div style="font-size:10px;color:${bc};font-weight:700;margin-top:2px">${sp}% of sprint target</div>
+          </div>`;
+        } else if (area === 'Marketing') {
+          const lp = sprint.tc ? Math.min(100,Math.round(newLeadsThisSprint/sprint.tc*100)) : 0; const bc = barCol(lp);
+          deptKpi = `<div class="dept-kpi">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+              <span style="font-size:11px;font-weight:700;color:${bc}">${newLeadsThisSprint} new leads</span>
+              <span style="font-size:10px;color:var(--muted)">target ${sprint.tc} clients</span>
+            </div>
+            <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:4px;width:${lp}%;background:${bc};border-radius:2px"></div></div>
+            <div style="font-size:10px;color:${bc};font-weight:700;margin-top:2px">${lp}% pipeline toward target</div>
+          </div>`;
+        } else {
+          const bc = sprintInstalls.length>0?'#16A34A':'var(--muted)';
+          deptKpi = `<div class="dept-kpi">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+              <span style="font-size:11px;font-weight:700;color:${bc}">${sprintInstalls.length} installs</span>
+              <span style="font-size:10px;color:var(--muted)">${installRevenue>0?'$'+(installRevenue/1000).toFixed(0)+'k delivered':''}</span>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">${sprintInstalls.length>0?'Revenue recognized this sprint':'No installs scheduled this sprint'}</div>
+          </div>`;
+        }
         return `<div class="sprint-col">
           <div class="sprint-col-hdr"><span class="sprint-col-title">${icon} ${area}</span><span class="sprint-col-count">${dc}/${at.length}</span></div>
+          ${deptKpi}
           ${at.map(t => {
             const done = completedIds.has(t.id);
             const comp = sprintCompletions.find(c=>c.task_id===t.id);
@@ -6219,6 +6312,66 @@ function renderDashboard() {
   }).join('');
   document.getElementById('containers-row').innerHTML = ctnCards ||
     `<div style="color:var(--muted);font-size:12px">No containers yet this year.</div>`;
+
+  // 2027 Annual Goal Tracker
+  const annualEl = document.getElementById('dash-annual-content');
+  if (annualEl) {
+    const ANN_TARGET = SPRINTS.reduce((t,s)=>t+s.ts,0);
+    const pStart = SPRINTS[0].s, pEnd = SPRINTS[SPRINTS.length-1].e;
+    const annSigned = allOrders.filter(o=>o.deposit_date&&o.deposit_date>=pStart&&o.deposit_date<=pEnd)
+      .reduce((t,o)=>t+Number(o.balance||0)+Number(o.deposit_amount||0),0);
+    const annPct = Math.min(100,Math.round(annSigned/ANN_TARGET*100));
+    const annCol = p=>p>=100?'#16A34A':p>=50?'var(--brand)':'#F59E0B';
+    const pctEl = document.getElementById('dash-annual-pct');
+    if (pctEl) { pctEl.textContent = annPct+'%'; pctEl.style.color = annCol(annPct); }
+    // Per-sprint progress breakdown for current phase
+    const curSprintNo = getCurrentSprintNo();
+    const curSprint = SPRINTS.find(s=>s.no===curSprintNo);
+    const sprintsDone = SPRINTS.filter(s=>s.e < new Date().toISOString().split('T')[0]).length;
+    const sprintsLeft = 31 - sprintsDone;
+    const needed = ANN_TARGET - annSigned;
+    const paceNeeded = sprintsLeft>0 ? Math.round(needed/sprintsLeft) : 0;
+    // Monthly breakdown for 2027
+    const months2027 = MONTHLY_TARGETS.filter(m=>m.ym.startsWith('2027'));
+    const monthRows = months2027.map(m=>{
+      const [y,mo] = m.ym.split('-');
+      const mSigned = allOrders.filter(o=>o.deposit_date&&o.deposit_date.startsWith(m.ym))
+        .reduce((t,o)=>t+Number(o.balance||0)+Number(o.deposit_amount||0),0);
+      const mp = Math.min(100,Math.round(mSigned/m.signed*100)); const mc = annCol(mp);
+      const mName = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(mo)];
+      const isPast = m.ym < new Date().toISOString().slice(0,7);
+      const isCur = m.ym === new Date().toISOString().slice(0,7);
+      return `<div style="display:grid;grid-template-columns:44px 1fr 70px 56px;align-items:center;gap:8px;padding:4px 0;${isCur?'background:var(--tint-blue);border-radius:5px;padding:4px 5px;':''}">
+        <span style="font-size:11px;font-weight:${isCur?800:600};color:${isCur?'var(--brand)':'var(--text)'}">${mName}${isCur?' ◀':''}</span>
+        <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:5px;width:${mp}%;background:${mc};border-radius:3px"></div></div>
+        <span style="font-size:10px;color:${mc};font-weight:700;text-align:right">${mSigned>0?'$'+(mSigned/1000).toFixed(0)+'k':isPast?'$0k':'—'}</span>
+        <span style="font-size:10px;color:var(--muted);text-align:right">/$${(m.signed/1000).toFixed(0)}k</span>
+      </div>`;
+    }).join('');
+    annualEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:900;color:${annCol(annPct)}">$${(annSigned/1000).toFixed(0)}k</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:600">SIGNED TO DATE</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:900;color:var(--text)">$${(needed/1000).toFixed(0)}k</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:600">REMAINING</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:900;color:${annCol(Math.round(annSigned/ANN_TARGET*100))}">$${(paceNeeded/1000).toFixed(0)}k</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:600">NEEDED / SPRINT</div>
+        </div>
+      </div>
+      <div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:4px">
+        <div style="height:10px;width:${annPct}%;background:${annCol(annPct)};border-radius:5px;transition:width .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:14px">
+        <span>Oct 2026</span><span style="font-weight:700;color:var(--brand)">$${(ANN_TARGET/1000).toFixed(0)}k plan total · ${sprintsDone} of 31 sprints done</span><span>Dec 2027</span>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">2027 Monthly Breakdown</div>
+      ${monthRows}`;
+  }
 
   // Sprint strip
   const curNo = getCurrentSprintNo();
