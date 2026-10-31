@@ -1300,16 +1300,17 @@
 
 <!-- SPRINT VIEW -->
 <div class="view" id="view-sprint">
-  <div style="padding:20px 24px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-      <div style="font-size:18px;font-weight:800">🏃 Sprint Board</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button onclick="changeSprintView(-1)" style="width:30px;height:30px;border:1px solid var(--border);background:var(--white);border-radius:7px;cursor:pointer;font-size:16px;font-family:inherit">‹</button>
-        <span id="sprint-sel-label" style="font-size:13px;font-weight:700;min-width:70px;text-align:center">Sprint 1</span>
-        <button onclick="changeSprintView(1)" style="width:30px;height:30px;border:1px solid var(--border);background:var(--white);border-radius:7px;cursor:pointer;font-size:16px;font-family:inherit">›</button>
-        <button onclick="goToCurrentSprint()" style="padding:6px 12px;background:var(--brand);color:var(--on-brand);border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Today</button>
-      </div>
+  <div style="position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div style="font-size:16px;font-weight:800">🏃 Sprint Board</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button onclick="changeSprintView(-1)" style="min-width:38px;height:38px;border:1.5px solid var(--border);background:var(--white);border-radius:8px;cursor:pointer;font-size:20px;font-weight:700;font-family:inherit;padding:0 8px;color:var(--text)" title="Previous sprint">‹</button>
+      <span id="sprint-sel-label" style="font-size:14px;font-weight:800;min-width:76px;text-align:center;padding:0 4px">Sprint 1</span>
+      <button onclick="changeSprintView(1)" style="min-width:38px;height:38px;border:1.5px solid var(--border);background:var(--white);border-radius:8px;cursor:pointer;font-size:20px;font-weight:700;font-family:inherit;padding:0 8px;color:var(--text)" title="Next sprint">›</button>
+      <button onclick="goToCurrentSprint()" style="padding:8px 14px;background:var(--brand);color:var(--on-brand);border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Today</button>
+      <button onclick="openAddSprintTaskModal(viewingSprintNo||getCurrentSprintNo())" style="padding:8px 14px;background:#EEF2FF;color:#4338CA;border:1px solid #C7D2FE;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">+ Add Task</button>
     </div>
+  </div>
+  <div style="padding:16px 20px">
     <div id="sprint-content"></div>
   </div>
 </div>
@@ -1320,6 +1321,48 @@
   <div id="fw-msg">
     <div class="fw-title" id="fw-title">🎉 Sprint Complete!</div>
     <div class="fw-sub" id="fw-sub">Amazing work, team!</div>
+  </div>
+</div>
+
+<!-- ADD SPRINT TASK MODAL -->
+<div id="add-task-overlay" onclick="closeAddTaskModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000"></div>
+<div id="add-task-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--white);border-radius:14px;padding:24px;width:min(480px,94vw);z-index:3001;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+    <div style="font-size:16px;font-weight:800" id="add-task-title">Add Task — Sprint 1</div>
+    <button onclick="closeAddTaskModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:4px">✕</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:13px">
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Area</label>
+      <select id="new-task-area" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--white);color:var(--text)">
+        <option value="Sales">💰 Sales</option>
+        <option value="Marketing">📣 Marketing</option>
+        <option value="Operations">⚙️ Operations</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Task Description</label>
+      <textarea id="new-task-desc" rows="3" placeholder="What needs to be done?" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;background:var(--white);color:var(--text)"></textarea>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Assignee</label>
+      <select id="new-task-assignee" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--white);color:var(--text)">
+        <option value="Tram">Tram</option>
+        <option value="Andy">Andy</option>
+        <option value="Sale">Sale</option>
+        <option value="MKT">MKT</option>
+        <option value="BG">BG</option>
+        <option value="HT">HT</option>
+        <option value="Nhan">Nhan</option>
+        <option value="Giao">Giao</option>
+        <option value="FL">FL</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Done When (success criteria)</label>
+      <input id="new-task-dw" type="text" placeholder="e.g. Sent to team, Confirmed in writing..." style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;background:var(--white);color:var(--text)">
+    </div>
+    <button onclick="saveNewSprintTask()" style="padding:11px;background:var(--brand);color:var(--on-brand);border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px">Add Task</button>
   </div>
 </div>
 
@@ -1771,6 +1814,7 @@ async function startApp() {
   await loadAllTasks()
   await loadNotifications()
   await loadSprintCompletions()
+  await loadSprintCustomTasks()
   subscribeNotifications()
   document.getElementById('loading-overlay').classList.add('hidden')
   document.getElementById('app').style.display = 'block'
@@ -5819,7 +5863,8 @@ function renderSprintView() {
   const sprint = SPRINTS.find(s => s.no === sprintNo);
   if (!sprint) return;
   const completedIds = sprintCompletedIds(sprintNo);
-  const tasks = SPRINT_TASK_DEFS.filter(t => t.sp === sprintNo);
+  const customTasks = sprintCustomTasks.filter(t => t.sprint_no === sprintNo).map(t => ({...t, sp: t.sprint_no, isCustom: true}));
+  const tasks = [...SPRINT_TASK_DEFS.filter(t => t.sp === sprintNo), ...customTasks];
   const currentNo = getCurrentSprintNo();
   const areas = ['Sales','Marketing','Operations'];
   const tasksByArea = {};
@@ -5831,7 +5876,7 @@ function renderSprintView() {
   // KPIs from CRM data
   const allOrders = customers.flatMap(c => c.orders);
   const sprintSigned = allOrders.filter(o => o.deposit_date && o.deposit_date >= sprint.s && o.deposit_date <= sprint.e)
-    .reduce((t,o) => t + orderTotal(o), 0);
+    .reduce((t,o) => t + Number(o.balance||0) + Number(o.deposit_amount||0), 0);
   const newClientsThisSprint = leads.filter(l => {
     if (!l.created_at) return false;
     const d = l.created_at.split('T')[0];
@@ -5971,6 +6016,47 @@ async function toggleSprintTask(taskId, sprintNo) {
 function viewSprint(no) { viewingSprintNo=no; renderSprintView(); window.scrollTo(0,0); }
 function changeSprintView(delta) { const n=(viewingSprintNo||getCurrentSprintNo())+delta; if(n>=1&&n<=31){viewingSprintNo=n;renderSprintView();} }
 function goToCurrentSprint() { viewingSprintNo=getCurrentSprintNo(); renderSprintView(); }
+
+// Custom sprint tasks (stored in Supabase sprint_custom_tasks table)
+let sprintCustomTasks = [];
+let addTaskForSprint = null;
+
+function openAddSprintTaskModal(sprintNo) {
+  addTaskForSprint = sprintNo;
+  document.getElementById('add-task-title').textContent = `Add Task — Sprint ${sprintNo}`;
+  document.getElementById('new-task-desc').value = '';
+  document.getElementById('new-task-dw').value = '';
+  document.getElementById('add-task-modal').style.display = 'block';
+  document.getElementById('add-task-overlay').style.display = 'block';
+  setTimeout(() => document.getElementById('new-task-desc').focus(), 50);
+}
+function closeAddTaskModal() {
+  document.getElementById('add-task-modal').style.display = 'none';
+  document.getElementById('add-task-overlay').style.display = 'none';
+}
+async function saveNewSprintTask() {
+  const desc = document.getElementById('new-task-desc').value.trim();
+  if (!desc) { document.getElementById('new-task-desc').focus(); return; }
+  const area = document.getElementById('new-task-area').value;
+  const assignee = document.getElementById('new-task-assignee').value;
+  const dw = document.getElementById('new-task-dw').value.trim();
+  const spNo = addTaskForSprint || getCurrentSprintNo();
+  const id = `custom-${spNo}-${Date.now()}`;
+  const rec = { id, sprint_no: spNo, area, description: desc, assignee, done_when: dw, is_test: isTestMode ? true : false, created_by: me ? (me.name||me.email||'Team') : 'Team' };
+  sprintCustomTasks.push({...rec, desc, dw});
+  if (!isDemoMode) {
+    await sb.from('sprint_custom_tasks').insert(rec).catch(() => {});
+  }
+  closeAddTaskModal();
+  renderSprintView();
+  showToast('Task added to Sprint ' + spNo);
+}
+async function loadSprintCustomTasks() {
+  if (isDemoMode) return;
+  const testF = isTestMode ? true : false;
+  const { data } = await sb.from('sprint_custom_tasks').select('*').eq('is_test', testF).catch(() => ({ data: [] }));
+  sprintCustomTasks = (data || []).map(t => ({...t, desc: t.description, dw: t.done_when}));
+}
 
 function launchFireworks(title, sub) {
   const ov=document.getElementById('fw-overlay');
@@ -6141,7 +6227,7 @@ function renderDashboard() {
     const sTasks = SPRINT_TASK_DEFS.filter(t => t.sp === curNo);
     const sPct = sTasks.length ? Math.round(cIds.size / sTasks.length * 100) : 0;
     const sprintSigned2 = allOrders.filter(o => o.deposit_date && o.deposit_date >= curSprint.s && o.deposit_date <= curSprint.e)
-      .reduce((t,o) => t + orderTotal(o), 0);
+      .reduce((t,o) => t + Number(o.balance||0) + Number(o.deposit_amount||0), 0);
     const signedPct2 = curSprint.ts ? Math.round(sprintSigned2/curSprint.ts*100) : 100;
     const barCol2 = p => p>=100?'#16A34A':p>=85?'#D97706':'#DC2626';
     const alerts2 = [];
