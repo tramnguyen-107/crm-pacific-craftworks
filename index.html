@@ -813,6 +813,29 @@
   .team-add .td-in { width:auto; flex:1; min-width:120px; }
   @media (max-width: 700px) { .tk-board { grid-template-columns:1fr; } .tasks-page { padding:16px; } .td-props { grid-template-columns:90px 1fr; } }
 
+  /* ─── Option editor ─── */
+  .opt-editor{position:fixed;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-md);z-index:2600;width:260px;padding:10px 0}
+  .opt-editor-title{font-size:11px;font-weight:700;color:var(--muted);padding:0 14px 8px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);margin-bottom:4px}
+  .opt-item{display:flex;align-items:center;gap:8px;padding:5px 14px;cursor:pointer}
+  .opt-item:hover{background:var(--hover)}
+  .opt-swatch{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+  .opt-label{font-size:13px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .opt-del{font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;padding:0;opacity:0}
+  .opt-item:hover .opt-del{opacity:1}
+  .opt-add-row{display:flex;gap:6px;padding:8px 14px 0;border-top:1px solid var(--border);margin-top:4px}
+  .opt-add-row input{flex:1;padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--text);outline:none}
+  .opt-colors{display:flex;flex-wrap:wrap;gap:4px;padding:4px 14px 8px}
+  .opt-color-swatch{width:18px;height:18px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+  .opt-color-swatch.selected{border-color:var(--text)}
+  /* Tag input */
+  .tag-chip{display:inline-flex;align-items:center;gap:3px;font-size:11px;background:var(--hover);color:var(--text-2);border-radius:10px;padding:2px 8px;font-weight:500}
+  .tag-chip button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:11px;padding:0;line-height:1}
+  .tag-input-wrap{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:32px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--white)}
+  .tag-input-wrap input{border:none;outline:none;font-size:12px;background:transparent;color:var(--text);font-family:inherit;width:80px;min-width:60px}
+  /* Custom props section */
+  .custom-props-section{margin-top:0}
+  /* Sprint peek images */
+  .sp-images-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
   /* ─── Linear dept layout ─── */
   .tk-dept-section{margin-bottom:6px}
   .tk-dept-hdr{display:flex;align-items:center;gap:8px;padding:8px 6px;cursor:pointer;user-select:none;font-size:13px;font-weight:700;color:var(--text);border-bottom:2px solid var(--border);border-radius:6px 6px 0 0}
@@ -9331,6 +9354,7 @@ async function loadTaskExtras() {
     const tImgs = {}, sImgs = {};
     (imgRes.data || []).forEach(img => {
       if (img.subtask_id) { if (!sImgs[img.subtask_id]) sImgs[img.subtask_id] = []; sImgs[img.subtask_id].push(img); }
+      else if (img.sprint_task_id) { const k='sprint_'+img.sprint_task_id; if(!tImgs[k])tImgs[k]=[]; tImgs[k].push(img); }
       else { if (!tImgs[img.task_id]) tImgs[img.task_id] = []; tImgs[img.task_id].push(img); }
     });
     taskImages = tImgs; subtaskImages = sImgs;
@@ -9456,6 +9480,16 @@ function renderSprintTaskPeek() {
           ${done?'↩ Mark as Not Done':'✓ Mark as Done'}
         </button>
       </div>
+      <div style="margin-top:22px">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);border-top:1px solid var(--border);padding-top:14px;margin-bottom:8px">Images</div>
+        <div class="sp-images-grid" id="sp-images-grid">
+          ${(taskImages['sprint_'+task.id]||[]).map(img => `<div class="img-wrap"><img class="img-thumb" src="${escHtml(img.url)}" onclick="window.open('${escHtml(img.url)}','_blank')"><button class="img-del" onclick="deleteSprintTaskImage('${img.id}','${task.id}')">✕</button></div>`).join('')}
+          <label class="img-upload-btn">
+            <span style="font-size:18px">＋</span><span>Image</span>
+            <input type="file" accept="image/*" multiple style="display:none" onchange="uploadSprintTaskImages('${task.id}',this.files)">
+          </label>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -9475,10 +9509,11 @@ async function notify(memberId, type, task, title, body = '') {
 
 async function createTask(fields) {
   const row = {
-    title: fields.title, description: fields.description || '', status: fields.status || 'todo',
+    title: fields.title, description: fields.description || '', notes: fields.notes || '', status: fields.status || 'todo',
     priority: fields.priority || 'normal', assignee_id: fields.assignee_id || null, due_date: fields.due_date || null,
-    order_id: fields.order_id || null, created_by: me?.id || null,
-    assigned_to: memberName(fields.assignee_id) || '', completed: (fields.status === 'done'),
+    start_date: fields.start_date || null, deadline: fields.deadline || null,
+    order_id: fields.order_id || null, department: fields.department || null, tags: fields.tags || [],
+    created_by: me?.id || null, assigned_to: memberName(fields.assignee_id) || '', completed: (fields.status === 'done'),
   };
   const { data, error } = await sb.from('order_tasks').insert(row).select().single();
   if (error || !data) { showToast('❌ ' + (error?.message || 'Could not create task')); return null; }
@@ -9716,7 +9751,15 @@ function renderTaskDrawer() {
     </div>`;
   }).join('');
   const imgsHtml = imgs.map(img => `<div class="img-wrap"><img class="img-thumb" src="${escHtml(img.url)}" onclick="window.open('${escHtml(img.url)}','_blank')" alt="${escHtml(img.filename||'')}"><button class="img-del" onclick="deleteTaskImage('${img.id}','task')">✕</button></div>`).join('');
-  const deptSel = `<select id="td-dept" class="td-in"><option value="">— No department —</option>${DEPT_OPTIONS.map(d => `<option value="${d}"${t.department===d?' selected':''}>${d}</option>`).join('')}</select>`;
+  const deptSel = `<select id="td-dept" class="td-in" onchange="renderTaskDrawer.__deptChange=this.value;renderCustomPropInputs('${t.id||''}',this.value)"><option value="">— No department —</option>${DEPT_OPTIONS.map(d => `<option value="${d}"${t.department===d?' selected':''}>${d}</option>`).join('')}</select>`;
+  const myTags = t.tags || [];
+  const tagsHtml = `<div class="tag-input-wrap" id="td-tags-wrap">
+    ${myTags.map(tag => `<span class="tag-chip">${escHtml(tag)}<button onclick="removeTaskTag('${t.id||''}','${escHtml(tag)}')">×</button></span>`).join('')}
+    <input id="td-tag-input" placeholder="${myTags.length?'':'+ tag'}" onkeydown="if(event.key==='Enter'||event.key===','){event.preventDefault();addTaskTag('${t.id||''}',this)}">
+  </div>`;
+  const dept = t.department || '';
+  const deptProps = dept ? taskProperties.filter(p => p.workspace === dept) : [];
+  const customPropsHtml = deptProps.length && !isNew ? `<div class="td-sec">Custom Properties</div><div class="td-props" id="td-custom-props">${deptProps.map(p => `<label style="display:flex;align-items:center;gap:4px">${escHtml(p.name)}${['select','multi_select','status'].includes(p.prop_type)?`<button class="td-btn" style="padding:1px 5px;font-size:10px" onclick="openOptionEditor('${p.id}',this)">⚙</button>`:''}</label>${renderPropertyInput(p,(taskPropertyValues[t.id]||{})[p.id],t.id)}`).join('')}</div>` : '<div id="td-custom-props"></div>';
   el.innerHTML = `<div class="td-backdrop" onclick="closeTaskDrawer()"></div>
   <div class="td-panel">
     <div class="td-top">
@@ -9736,9 +9779,11 @@ function renderTaskDrawer() {
       <label>Deadline</label><input id="td-deadline" type="date" class="td-in" value="${t.deadline||''}">
       <label>Due date</label><input id="td-due" type="date" class="td-in" value="${t.due_date||''}">
       <label>Priority</label>${sel('priority', [['low','Low'],['normal','Normal'],['high','High']].map(([v,l]) => `<option value="${v}"${t.priority===v?' selected':''}>${l}</option>`).join(''))}
+      <label>Tags</label>${tagsHtml}
       <label>Order</label>${sel('order', orderOptionsHtml(t.order_id))}
       ${!isNew ? `<label>Created by</label><div class="td-static">${escHtml(memberName(t.created_by) || '—')}</div>` : ''}
     </div>
+    ${customPropsHtml}
     <div class="td-sec">Description</div>
     <textarea id="td-desc" class="td-desc" rows="3" placeholder="Add a description…">${escHtml(t.description || '')}</textarea>
     <div class="td-sec">Notes</div>
@@ -10052,6 +10097,162 @@ async function deleteTaskImage(imgId, kind) {
     for (const key of Object.keys(taskImages)) taskImages[key] = taskImages[key].filter(x => x.id !== imgId);
     renderTaskDrawer();
   }
+}
+
+// ─── Sprint task images ───
+async function uploadSprintTaskImages(sprintTaskId, files) {
+  const arr = Array.from(files); if (!arr.length) return;
+  for (const f of arr) {
+    const ext = f.name.split('.').pop();
+    const path = `sprint-images/${sprintTaskId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error: upErr } = await sb.storage.from('crm-assets').upload(path, f, { upsert: false });
+    if (upErr) { showToast('❌ Upload failed: ' + upErr.message); continue; }
+    const { data: urlData } = sb.storage.from('crm-assets').getPublicUrl(path);
+    const url = urlData?.publicUrl; if (!url) continue;
+    const { data: img, error: dbErr } = await sb.from('task_images').insert({ sprint_task_id: sprintTaskId, url, filename: f.name }).select().single();
+    if (dbErr) continue;
+    const k = 'sprint_' + sprintTaskId;
+    if (!taskImages[k]) taskImages[k] = [];
+    taskImages[k].push(img);
+  }
+  renderSprintTaskPeek();
+  showToast('✅ Image(s) uploaded');
+}
+async function deleteSprintTaskImage(imgId, sprintTaskId) {
+  await sb.from('task_images').delete().eq('id', imgId);
+  const k = 'sprint_' + sprintTaskId;
+  if (taskImages[k]) taskImages[k] = taskImages[k].filter(x => x.id !== imgId);
+  renderSprintTaskPeek();
+}
+
+// ─── Tags ───
+async function addTaskTag(taskId, input) {
+  const tag = (typeof input === 'string' ? input : input?.value?.trim()).replace(/,/g,'').trim();
+  if (!input || !tag) return;
+  if (typeof input !== 'string' && input.value !== undefined) input.value = '';
+  if (!taskId || taskId === '') {
+    // new task — store in preset
+    const preset = window.__newTaskPreset || {};
+    preset.tags = [...(preset.tags||[]).filter(t => t !== tag), tag];
+    window.__newTaskPreset = preset;
+    renderTaskDrawer(); return;
+  }
+  const t = allTasks.find(x => x.id === taskId); if (!t) return;
+  const tags = [...(t.tags||[]).filter(x => x !== tag), tag];
+  await updateTask(taskId, { tags });
+  renderTaskDrawer();
+}
+async function removeTaskTag(taskId, tag) {
+  if (!taskId) return;
+  const t = allTasks.find(x => x.id === taskId); if (!t) return;
+  const tags = (t.tags||[]).filter(x => x !== tag);
+  await updateTask(taskId, { tags });
+  renderTaskDrawer();
+}
+
+// ─── Custom property inputs in drawer ───
+function renderPropertyInput(prop, value, taskId) {
+  const eid = `cprop-${prop.id}`;
+  const onchange = `savePropInputDebounced('${taskId}','${prop.id}','${prop.prop_type}')`;
+  const opts = prop.options || [];
+  switch (prop.prop_type) {
+    case 'text': return `<input id="${eid}" class="td-in" type="text" value="${escHtml(value||'')}" oninput="${onchange}">`;
+    case 'url': return `<input id="${eid}" class="td-in" type="url" value="${escHtml(value||'')}" oninput="${onchange}" placeholder="https://…">`;
+    case 'phone': return `<input id="${eid}" class="td-in" type="tel" value="${escHtml(value||'')}" oninput="${onchange}">`;
+    case 'email': return `<input id="${eid}" class="td-in" type="email" value="${escHtml(value||'')}" oninput="${onchange}">`;
+    case 'number': return `<input id="${eid}" class="td-in" type="number" value="${escHtml(value||'')}" oninput="${onchange}">`;
+    case 'date': return `<input id="${eid}" class="td-in" type="date" value="${value||''}" onchange="${onchange}">`;
+    case 'checkbox': return `<input id="${eid}" type="checkbox" ${value==='true'?'checked':''} onchange="setPropValue('${taskId}','${prop.id}',this.checked?'true':'false');renderTaskDrawer()">`;
+    case 'person': return `<select id="${eid}" class="td-in" onchange="${onchange}"><option value="">Unassigned</option>${team.map(m=>`<option value="${m.id}"${m.id===value?' selected':''}>${escHtml(m.name)}</option>`).join('')}</select>`;
+    case 'select': case 'status': {
+      if (!opts.length) return `<button class="td-btn" onclick="openOptionEditor('${prop.id}',this)">+ Add options</button>`;
+      return `<select id="${eid}" class="td-in" onchange="${onchange}"><option value="">—</option>${opts.map(o=>`<option value="${o.value}"${o.value===value?' selected':''}>${escHtml(o.label)}</option>`).join('')}</select>`;
+    }
+    case 'multi_select': {
+      if (!opts.length) return `<button class="td-btn" onclick="openOptionEditor('${prop.id}',this)">+ Add options</button>`;
+      const selected = (value||'').split(',').filter(Boolean);
+      return `<div style="display:flex;flex-wrap:wrap;gap:4px">${opts.map(o=>{const on=selected.includes(o.value);return `<span class="prop-select-tag" style="background:${on?(o.color||'#6366F1'):'var(--hover)'};color:${on?'#fff':'var(--text-2)'};cursor:pointer" onclick="toggleMultiSelectProp('${taskId}','${prop.id}','${o.value}')">${escHtml(o.label)}</span>`;}).join('')}<button class="td-btn" style="font-size:10px;padding:1px 5px" onclick="openOptionEditor('${prop.id}',this)">⚙</button></div>`;
+    }
+    case 'images': return `<label class="img-upload-btn" style="width:auto;height:auto;flex-direction:row;padding:4px 10px;gap:6px"><span>Upload image</span><input type="file" accept="image/*" multiple style="display:none" onchange="uploadPropImages('${taskId}','${prop.id}',this.files)"></label>`;
+    default: return `<input id="${eid}" class="td-in" type="text" value="${escHtml(value||'')}" oninput="${onchange}">`;
+  }
+}
+function renderCustomPropInputs(taskId, dept) {
+  const el = document.getElementById('td-custom-props'); if (!el) return;
+  const deptProps = dept ? taskProperties.filter(p => p.workspace === dept) : [];
+  if (!deptProps.length) { el.innerHTML = ''; return; }
+  el.className = 'td-props';
+  el.innerHTML = deptProps.map(p => `<label style="display:flex;align-items:center;gap:4px">${escHtml(p.name)}${['select','multi_select','status'].includes(p.prop_type)?`<button class="td-btn" style="padding:1px 5px;font-size:10px" onclick="openOptionEditor('${p.id}',this)">⚙</button>`:''}</label>${renderPropertyInput(p,(taskPropertyValues[taskId]||{})[p.id],taskId)}`).join('');
+}
+const __propSaveTimers = {};
+function savePropInputDebounced(taskId, propId, type) {
+  clearTimeout(__propSaveTimers[propId]);
+  __propSaveTimers[propId] = setTimeout(() => {
+    const el = document.getElementById(`cprop-${propId}`); if (!el) return;
+    const value = type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value;
+    setPropValue(taskId, propId, value);
+  }, 600);
+}
+async function toggleMultiSelectProp(taskId, propId, optVal) {
+  const cur = (taskPropertyValues[taskId]||{})[propId] || '';
+  const selected = cur.split(',').filter(Boolean);
+  const next = selected.includes(optVal) ? selected.filter(x=>x!==optVal) : [...selected, optVal];
+  await setPropValue(taskId, propId, next.join(','));
+  renderTaskDrawer();
+}
+
+// ─── Option editor for Select / Multi-select / Status ───
+const OPT_COLORS = ['#6366F1','#0EA5E9','#10B981','#F59E0B','#EF4444','#EC4899','#8B5CF6','#14B8A6','#F97316','#84CC16','#64748B','#A855F7'];
+let __optEditorPropId = null;
+let __optEditorColor = OPT_COLORS[0];
+function openOptionEditor(propId, anchor) {
+  document.getElementById('opt-editor')?.remove();
+  __optEditorPropId = propId;
+  __optEditorColor = OPT_COLORS[0];
+  const prop = taskProperties.find(p => p.id === propId); if (!prop) return;
+  const rect = anchor.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.id = 'opt-editor'; el.className = 'opt-editor';
+  const top = Math.min(rect.bottom + 4, window.innerHeight - 260);
+  el.style.top = top + 'px';
+  el.style.left = Math.max(4, rect.left - 80) + 'px';
+  renderOptionEditorContent(el, prop);
+  document.body.appendChild(el);
+  setTimeout(() => document.addEventListener('click', function h(e){ if(!el.contains(e.target)){el.remove();document.removeEventListener('click',h);} }), 100);
+}
+function renderOptionEditorContent(el, prop) {
+  const opts = prop.options || [];
+  el.innerHTML = `<div class="opt-editor-title">Options · ${escHtml(prop.name)}</div>
+    ${opts.map((o,i) => `<div class="opt-item">
+      <span class="opt-swatch" style="background:${o.color||'#64748B'}"></span>
+      <span class="opt-label">${escHtml(o.label)}</span>
+      <button class="opt-del" onclick="deletePropOption('${prop.id}',${i})">✕</button>
+    </div>`).join('')}
+    <div class="opt-colors">${OPT_COLORS.map(c=>`<span class="opt-color-swatch${c===__optEditorColor?' selected':''}" style="background:${c}" onclick="__optEditorColor='${c}';renderOptionEditorContent(document.getElementById('opt-editor'),taskProperties.find(p=>p.id==='${prop.id}'))"></span>`).join('')}</div>
+    <div class="opt-add-row">
+      <input id="opt-new-label" placeholder="Option name" onkeydown="if(event.key==='Enter')addPropOption('${prop.id}',document.getElementById('opt-new-label').value)">
+      <button class="td-btn" onclick="addPropOption('${prop.id}',document.getElementById('opt-new-label').value)">Add</button>
+    </div>`;
+}
+async function addPropOption(propId, label) {
+  label = (label||'').trim(); if (!label) return;
+  const prop = taskProperties.find(p => p.id === propId); if (!prop) return;
+  const opts = [...(prop.options||[]), { value: label.toLowerCase().replace(/\s+/g,'_')+Date.now(), label, color: __optEditorColor, textColor: '#fff' }];
+  const { error } = await sb.from('task_properties').update({ options: opts }).eq('id', propId);
+  if (error) { showToast('❌ ' + error.message); return; }
+  prop.options = opts;
+  const el = document.getElementById('opt-editor');
+  if (el) renderOptionEditorContent(el, prop);
+  renderTaskDrawer();
+}
+async function deletePropOption(propId, idx) {
+  const prop = taskProperties.find(p => p.id === propId); if (!prop) return;
+  const opts = (prop.options||[]).filter((_,i) => i !== idx);
+  await sb.from('task_properties').update({ options: opts }).eq('id', propId);
+  prop.options = opts;
+  const el = document.getElementById('opt-editor');
+  if (el) renderOptionEditorContent(el, prop);
+  renderTaskDrawer();
 }
 
 // ─── Tasks inside an order ───
