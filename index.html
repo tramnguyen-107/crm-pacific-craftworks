@@ -958,6 +958,23 @@
   #fw-msg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--white);border-radius:20px;padding:28px 44px;box-shadow:0 20px 60px rgba(0,0,0,.2);text-align:center;pointer-events:none;display:none}
   .fw-title{font-size:28px;font-weight:800;color:var(--brand);margin-bottom:8px}
   .fw-sub{font-size:14px;color:var(--text)}
+  /* Sprint task peek side panel */
+  #sprint-peek-bg{position:fixed;inset:0;background:rgba(0,0,0,.2);z-index:1100;display:none}
+  #sprint-peek-panel{position:fixed;top:0;right:0;bottom:0;width:min(540px,100vw);background:var(--white);border-left:1px solid var(--border);z-index:1101;box-shadow:-6px 0 30px rgba(0,0,0,.15);transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);overflow-y:auto}
+  #sprint-peek-panel.open{transform:translateX(0)}
+  .sp-prop-row{display:grid;grid-template-columns:140px 1fr;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
+  .sp-prop-label{font-size:12px;color:var(--muted);font-weight:600}
+  .sa-assign-btn{border:1px dashed var(--border);background:none;border-radius:6px;font-size:11px;padding:3px 8px;cursor:pointer;color:var(--muted);font-family:inherit}
+  .sa-assign-btn:hover{border-color:var(--brand);color:var(--brand)}
+  /* sprint task card - clickable body only */
+  .sprint-task{cursor:default}
+  .sprint-task-body{cursor:pointer;flex:1;min-width:0}
+  .sprint-task-body:hover .sprint-task-desc{color:var(--brand)}
+  /* Task drawer slide animation */
+  .td-panel{transition:transform .25s cubic-bezier(.4,0,.2,1)}
+  /* By person view */
+  .tk-person-group{margin-bottom:20px}
+  .tk-person-hdr{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:13px;font-weight:700;border-bottom:1px solid var(--border);margin-bottom:6px}
   /* Dashboard sprint strip */
   .dash-sprint-strip{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;cursor:pointer;transition:border-color .15s}
   .dash-sprint-strip:hover{border-color:var(--brand)}
@@ -1335,6 +1352,12 @@
     <div class="fw-title" id="fw-title">🎉 Sprint Complete!</div>
     <div class="fw-sub" id="fw-sub">Amazing work, team!</div>
   </div>
+</div>
+
+<!-- SPRINT TASK PEEK PANEL -->
+<div id="sprint-peek-bg" onclick="closeSprintTaskPeek()"></div>
+<div id="sprint-peek-panel">
+  <div id="sprint-peek-content"></div>
 </div>
 
 <!-- ADD SPRINT TASK MODAL -->
@@ -1819,6 +1842,7 @@ async function startApp() {
   await loadAllTasks()
   await loadNotifications()
   await loadSprintCompletions()
+  await loadSprintAssignments()
   await loadSprintCustomTasks()
   subscribeNotifications()
   document.getElementById('loading-overlay').classList.add('hidden')
@@ -2330,7 +2354,10 @@ let packingItems = {}; // { orderId: [items] }
 let invoiceItems = {}; // { orderId: [items] }
 let qrScanEvents = {}; // { qrId: [events] }
 let sprintCompletions = []; // from sprint_task_completions table
+let sprintAssignments = []; // from sprint_task_assignments table
 let viewingSprintNo = null;
+let sprintPeekTaskId = null;
+let sprintPeekSprintNo = null;
 
 let activeCustomerId = null;
 let activeFocusedOrderId = null;
@@ -5929,11 +5956,16 @@ function renderSprintView() {
   else alerts.push({cls:'red',msg:`🔴 Signed contracts at ${signedPct}% of target ($${(sprint.ts/1000).toFixed(0)}k). Need $${((sprint.ts-sprintSigned)/1000).toFixed(0)}k more.`});
   if (sprint.tc > 0 && clientPct < 80) alerts.push({cls:'yellow',msg:`⚠️ New clients: ${newClientsThisSprint}/${sprint.tc} (${clientPct}% of target). Need ${sprint.tc-newClientsThisSprint} more.`});
 
-  // Per-person stats
+  // Per-person stats — use sprint assignments (real members) instead of hardcoded names
   const personStats = {};
+  const testF2 = isTestMode ? true : false;
   tasks.forEach(t => {
-    const nm = (t.assignee||'').split(',')[0].trim();
-    if (!personStats[nm]) personStats[nm] = {assigned:0,done:0};
+    const assignment = sprintAssignments.find(a => a.task_id === t.id && a.is_test === testF2);
+    const memberId = assignment?.member_id;
+    const member = memberId ? memberById(memberId) : null;
+    const nm = member ? member.name : null;
+    if (!nm) return; // skip unassigned tasks in performance table
+    if (!personStats[nm]) personStats[nm] = {assigned:0,done:0,color:member?.color||'#64748B'};
     personStats[nm].assigned++;
     if (completedIds.has(t.id)) personStats[nm].done++;
   });
@@ -6044,13 +6076,13 @@ function renderSprintView() {
           ${at.map(t => {
             const done = completedIds.has(t.id);
             const comp = sprintCompletions.find(c=>c.task_id===t.id);
-            return `<div class="sprint-task ${done?'done':''}" onclick="toggleSprintTask('${t.id}',${sprintNo})">
-              <div class="sprint-check ${done?'checked':''}">${done?'✓':''}</div>
-              <div class="sprint-task-body">
+            return `<div class="sprint-task ${done?'done':''}">
+              <div class="sprint-check ${done?'checked':''}" onclick="toggleSprintTask('${t.id}',${sprintNo})">${done?'✓':''}</div>
+              <div class="sprint-task-body" onclick="openSprintTaskPeek('${t.id}',${sprintNo})">
                 <div class="sprint-task-desc">${escHtml(t.desc)}</div>
                 ${t.dw?`<div class="sprint-task-when">✔ ${escHtml(t.dw)}</div>`:''}
                 <div class="sprint-task-foot">
-                  <span class="sprint-assignee" style="background:${getAssigneeColor(t.assignee)}">${escHtml(getAssigneeDisplayName(t.assignee))}</span>
+                  ${sprintAssigneeHtml(t.id)}
                   ${done&&comp?`<span class="sprint-done-by">Done by ${escHtml(comp.done_by||'team')}</span>`:''}
                 </div>
               </div>
@@ -6065,7 +6097,7 @@ function renderSprintView() {
         <thead><tr><th>Team Member</th><th>Assigned</th><th>Done</th><th>Rate</th><th>Progress</th></tr></thead>
         <tbody>${Object.entries(personStats).sort((a,b)=>b[1].done-a[1].done).map(([nm,st])=>{
           const p = st.assigned?Math.round(st.done/st.assigned*100):0; const c=barCol(p);
-          return `<tr><td><span class="sprint-assignee" style="background:${getAssigneeColor(nm)}">${escHtml(getAssigneeDisplayName(nm))}</span></td><td>${st.assigned}</td><td><b>${st.done}</b></td><td style="color:${c};font-weight:700">${p}%</td><td><span class="sprint-pbar"><span class="sprint-pfill" style="width:${p}%;background:${c}"></span></span></td></tr>`;
+          return `<tr><td><span class="sprint-assignee" style="background:${st.color||getAssigneeColor(nm)}">${escHtml(nm)}</span></td><td>${st.assigned}</td><td><b>${st.done}</b></td><td style="color:${c};font-weight:700">${p}%</td><td><span class="sprint-pbar"><span class="sprint-pfill" style="width:${p}%;background:${c}"></span></span></td></tr>`;
         }).join('')}</tbody>
       </table>
     </div>
@@ -6097,6 +6129,7 @@ async function toggleSprintTask(taskId, sprintNo) {
     if (!isDemoMode) await sb.from('sprint_task_completions').upsert(rec);
   }
   renderSprintView();
+  if (sprintPeekTaskId === taskId) renderSprintTaskPeek();
   if (!isDone) {
     const tasks = SPRINT_TASK_DEFS.filter(t => t.sp === sprintNo);
     const newIds = sprintCompletedIds(sprintNo);
@@ -6105,9 +6138,9 @@ async function toggleSprintTask(taskId, sprintNo) {
     }
   }
 }
-function viewSprint(no) { viewingSprintNo=no; renderSprintView(); window.scrollTo(0,0); }
-function changeSprintView(delta) { const n=(viewingSprintNo||getCurrentSprintNo())+delta; if(n>=1&&n<=31){viewingSprintNo=n;renderSprintView();} }
-function goToCurrentSprint() { viewingSprintNo=getCurrentSprintNo(); renderSprintView(); }
+function viewSprint(no) { viewingSprintNo=no; closeSprintTaskPeek(); renderSprintView(); window.scrollTo(0,0); }
+function changeSprintView(delta) { const n=(viewingSprintNo||getCurrentSprintNo())+delta; if(n>=1&&n<=31){viewingSprintNo=n;closeSprintTaskPeek();renderSprintView();} }
+function goToCurrentSprint() { viewingSprintNo=getCurrentSprintNo(); closeSprintTaskPeek(); renderSprintView(); }
 
 // Custom sprint tasks (stored in Supabase sprint_custom_tasks table)
 let sprintCustomTasks = [];
@@ -9213,6 +9246,137 @@ async function loadSprintCompletions() {
     if (!error) sprintCompletions = data || [];
   } catch(e) { console.warn('loadSprintCompletions:', e); }
 }
+async function loadSprintAssignments() {
+  if (isDemoMode) return;
+  try {
+    const testF = isTestMode ? true : false;
+    const { data, error } = await sb.from('sprint_task_assignments').select('*').eq('is_test', testF);
+    if (!error) sprintAssignments = data || [];
+  } catch(e) { console.warn('loadSprintAssignments:', e); }
+}
+
+// ─── Sprint task assignee helpers ───
+function sprintAssigneeHtml(taskId) {
+  const testF = isTestMode ? true : false;
+  const a = sprintAssignments.find(x => x.task_id === taskId && x.is_test === testF);
+  const member = a?.member_id ? memberById(a.member_id) : null;
+  if (!member) return `<button class="sa-assign-btn" onclick="event.stopPropagation();openSprintAssignMenu('${taskId}',this)">+ Assign</button>`;
+  const ini = member.name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  return `<span class="sprint-assignee" style="background:${member.color||'#6366F1'};cursor:pointer" onclick="event.stopPropagation();openSprintAssignMenu('${taskId}',this)" title="Reassign">${ini} ${escHtml(member.name.split(' ')[0])}</span>`;
+}
+
+function openSprintAssignMenu(taskId, anchor) {
+  document.querySelectorAll('.sprint-assign-menu').forEach(el => el.remove());
+  const menu = document.createElement('div');
+  menu.className = 'sprint-assign-menu';
+  menu.style.cssText = 'position:fixed;background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:2000;min-width:180px;max-height:260px;overflow-y:auto;padding:4px 0';
+  menu.innerHTML = `
+    <div style="padding:6px 12px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px">Assign to</div>
+    <div onclick="setSprintTaskAssignee('${taskId}',null,this)" style="padding:8px 14px;cursor:pointer;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;border-top:1px solid var(--border)">
+      <span style="width:22px;height:22px;border-radius:50%;background:var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px">—</span> Unassign
+    </div>
+    ${team.filter(m=>m.is_active!==false).map(m=>{
+      const ini = m.name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      return `<div onclick="setSprintTaskAssignee('${taskId}','${m.id}',this)" style="padding:8px 14px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;border-top:1px solid var(--border)">
+        <span style="width:22px;height:22px;border-radius:50%;background:${m.color||'#6366F1'};display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff">${ini}</span>
+        ${escHtml(m.name)}
+      </div>`;
+    }).join('')}`;
+  const rect = anchor.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 200) + 'px';
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+}
+
+async function setSprintTaskAssignee(taskId, memberId, menuEl) {
+  menuEl?.closest('.sprint-assign-menu')?.remove();
+  const testF = isTestMode ? true : false;
+  const sprintNo = sprintPeekSprintNo || viewingSprintNo || getCurrentSprintNo();
+  const rec = { task_id: taskId, sprint_no: sprintNo, member_id: memberId || null, assigned_by: me?.id || null, is_test: testF };
+  const idx = sprintAssignments.findIndex(a => a.task_id === taskId && a.is_test === testF);
+  if (idx >= 0) sprintAssignments[idx] = { ...sprintAssignments[idx], ...rec };
+  else sprintAssignments.push(rec);
+  if (!isDemoMode) {
+    await sb.from('sprint_task_assignments').upsert(rec, { onConflict: 'task_id,is_test' }).catch(()=>{});
+  }
+  renderSprintView();
+  if (sprintPeekTaskId === taskId) renderSprintTaskPeek();
+}
+
+// ─── Sprint task side peek ───
+function openSprintTaskPeek(taskId, sprintNo) {
+  sprintPeekTaskId = taskId;
+  sprintPeekSprintNo = sprintNo;
+  renderSprintTaskPeek();
+  document.getElementById('sprint-peek-bg').style.display = 'block';
+  const panel = document.getElementById('sprint-peek-panel');
+  panel.offsetHeight; // force reflow
+  panel.classList.add('open');
+}
+function closeSprintTaskPeek() {
+  sprintPeekTaskId = null;
+  sprintPeekSprintNo = null;
+  document.getElementById('sprint-peek-bg').style.display = 'none';
+  document.getElementById('sprint-peek-panel').classList.remove('open');
+}
+function renderSprintTaskPeek() {
+  const el = document.getElementById('sprint-peek-content'); if (!el) return;
+  if (!sprintPeekTaskId) return;
+  const sprintNo = sprintPeekSprintNo;
+  const task = [...SPRINT_TASK_DEFS, ...sprintCustomTasks].find(t => t.id === sprintPeekTaskId);
+  if (!task) return;
+  const sprint = SPRINTS.find(s => s.no === sprintNo);
+  const done = sprintCompletedIds(sprintNo).has(sprintPeekTaskId);
+  const comp = sprintCompletions.find(c => c.task_id === sprintPeekTaskId);
+  const testF = isTestMode ? true : false;
+  const assignment = sprintAssignments.find(a => a.task_id === sprintPeekTaskId && a.is_test === testF);
+  const assignedMember = assignment?.member_id ? memberById(assignment.member_id) : null;
+  el.innerHTML = `
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--white);z-index:1">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="sprint-check ${done?'checked':''}" style="width:22px;height:22px;cursor:pointer;flex-shrink:0" onclick="toggleSprintTask('${task.id}',${sprintNo})">${done?'✓':''}</div>
+        <span style="font-size:12px;color:var(--muted);font-weight:600">Sprint ${sprintNo} · ${escHtml(task.area)}</span>
+      </div>
+      <button onclick="closeSprintTaskPeek()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--muted);padding:4px;line-height:1">✕</button>
+    </div>
+    <div style="padding:20px 22px">
+      <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1.55;margin-bottom:22px${done?';text-decoration:line-through;color:var(--muted)':''}">${escHtml(task.desc)}</div>
+      <div>
+        <div class="sp-prop-row"><span class="sp-prop-label">Status</span>
+          <span style="font-size:13px;font-weight:700;color:${done?'#16A34A':'#D97706'}">${done?'✅ Done':'⏳ Open'}</span></div>
+        <div class="sp-prop-row"><span class="sp-prop-label">Assignee</span>
+          <div id="sp-assignee-cell">
+            ${assignedMember
+              ? `<span style="display:inline-flex;align-items:center;gap:7px">
+                  ${avatarHtml(assignedMember.id,22)}
+                  <span style="font-size:13px">${escHtml(assignedMember.name)}</span>
+                  <button class="sa-assign-btn" onclick="openSprintAssignMenu('${task.id}',this)">Change</button>
+                </span>`
+              : `<button class="sa-assign-btn" onclick="openSprintAssignMenu('${task.id}',this)">+ Assign someone</button>`}
+          </div>
+        </div>
+        <div class="sp-prop-row"><span class="sp-prop-label">Sprint</span>
+          <span style="font-size:13px">Sprint ${sprintNo}${sprint?` · ${sprint.phase}`:''}</span></div>
+        <div class="sp-prop-row"><span class="sp-prop-label">Department</span>
+          <span style="font-size:13px">${escHtml(task.area)}</span></div>
+        ${sprint?`<div class="sp-prop-row"><span class="sp-prop-label">Timeline</span>
+          <span style="font-size:13px;color:var(--muted)">${sprint.s} → ${sprint.e}</span></div>`:''}
+        ${done&&comp?`<div class="sp-prop-row"><span class="sp-prop-label">Done by</span>
+          <span style="font-size:13px">${escHtml(comp.done_by||'Team')}</span></div>`:''}
+      </div>
+      ${task.dw?`<div style="margin-top:18px;padding:13px 15px;background:var(--surface);border-radius:9px;border-left:3px solid var(--brand)">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Done When</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5">${escHtml(task.dw)}</div>
+      </div>`:''}
+      <div style="margin-top:22px">
+        <button onclick="toggleSprintTask('${task.id}',${sprintNo})" style="width:100%;padding:12px;border-radius:9px;border:none;background:${done?'var(--surface)':'var(--brand)'};color:${done?'var(--text)':'white'};font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;border:1px solid ${done?'var(--border)':'var(--brand)'}">
+          ${done?'↩ Mark as Not Done':'✓ Mark as Done'}
+        </button>
+      </div>
+    </div>`;
+}
+
 function updateTaskBadge() {
   const el = document.getElementById('task-badge');
   if (!el) return;
@@ -9310,7 +9474,35 @@ function renderTasksView() {
   const tab = (k, label) => `<button class="tk-tab${taskTab === k ? ' active' : ''}" onclick="taskTab='${k}';renderTasksView()">${label}</button>`;
   const lay = (k, label) => `<button class="tk-seg${taskLayout === k ? ' active' : ''}" onclick="setTaskLayout('${k}')">${label}</button>`;
   let body = '';
-  if (taskLayout === 'board') {
+  if (taskLayout === 'person') {
+    const open = list.filter(t => t.status !== 'done');
+    const grouped = {};
+    open.forEach(t => {
+      const key = t.assignee_id || '__unassigned__';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(t);
+    });
+    const keys = Object.keys(grouped).sort((a,b) => {
+      if (a === '__unassigned__') return 1;
+      if (b === '__unassigned__') return -1;
+      return (memberName(a)||'').localeCompare(memberName(b)||'');
+    });
+    body = keys.length ? keys.map(key => {
+      const m = key === '__unassigned__' ? null : memberById(key);
+      const tasks = grouped[key];
+      const ini = m ? m.name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase() : '?';
+      const col = m?.color || '#94A3B8';
+      return `<div class="tk-person-group">
+        <div class="tk-person-hdr">
+          <span style="width:28px;height:28px;border-radius:50%;background:${col};display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0">${ini}</span>
+          <span>${m ? escHtml(m.name) : 'Unassigned'}</span>
+          <span style="font-size:12px;color:var(--muted);font-weight:400">${tasks.length} task${tasks.length!==1?'s':''}</span>
+          ${m?`<button class="sa-assign-btn" onclick="openNewTask({assignee_id:'${m.id}'})" style="margin-left:auto">+ Assign task</button>`:''}
+        </div>
+        ${tasks.map(t => taskRowHtml(t)).join('')}
+      </div>`;
+    }).join('') : `<div class="tk-empty">No open tasks.</div>`;
+  } else if (taskLayout === 'board') {
     const col = (status, label) => {
       const items = list.filter(t => t.status === status);
       return `<div class="tk-col" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')"
@@ -9350,7 +9542,7 @@ function renderTasksView() {
     </div>
     <div class="tk-bar">
       <div class="tk-tabs">${tab('mine', 'Assigned to me')}${tab('created', 'Created by me')}${tab('all', 'All tasks')}</div>
-      <div class="tk-segs">${lay('list', '☰ List')}${lay('board', '▦ Board')}</div>
+      <div class="tk-segs">${lay('list', '☰ List')}${lay('board', '▦ Board')}${lay('person', '👤 By Person')}</div>
     </div>
     ${!me ? `<div class="tk-warn">Your login email isn't linked to a team member yet. Ask an admin to add it in Settings → Team.</div>` : ''}
     ${body}`;
