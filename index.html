@@ -1360,15 +1360,7 @@
     <div>
       <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Assignee</label>
       <select id="new-task-assignee" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--white);color:var(--text)">
-        <option value="Tram">Tram</option>
-        <option value="Andy">Andy</option>
-        <option value="Sale">Sale</option>
-        <option value="MKT">MKT</option>
-        <option value="BG">BG</option>
-        <option value="HT">HT</option>
-        <option value="Nhan">Nhan</option>
-        <option value="Giao">Giao</option>
-        <option value="FL">FL</option>
+        <option value="">— Unassigned —</option>
       </select>
     </div>
     <div>
@@ -5867,7 +5859,14 @@ function sprintCompletedIds(sprintNo) {
 }
 function getAssigneeColor(name) {
   const n = (name||'').split(',')[0].trim();
+  const member = team.find(m => m.sprint_alias && m.sprint_alias.toLowerCase() === n.toLowerCase());
+  if (member?.color) return member.color;
   return ASSIGNEE_COLORS[n] || '#64748B';
+}
+function getAssigneeDisplayName(name) {
+  const n = (name||'').split(',')[0].trim();
+  const member = team.find(m => m.sprint_alias && m.sprint_alias.toLowerCase() === n.toLowerCase());
+  return member ? member.name : n;
 }
 
 function renderSprintView() {
@@ -6051,7 +6050,7 @@ function renderSprintView() {
                 <div class="sprint-task-desc">${escHtml(t.desc)}</div>
                 ${t.dw?`<div class="sprint-task-when">✔ ${escHtml(t.dw)}</div>`:''}
                 <div class="sprint-task-foot">
-                  <span class="sprint-assignee" style="background:${getAssigneeColor(t.assignee)}">${escHtml(t.assignee)}</span>
+                  <span class="sprint-assignee" style="background:${getAssigneeColor(t.assignee)}">${escHtml(getAssigneeDisplayName(t.assignee))}</span>
                   ${done&&comp?`<span class="sprint-done-by">Done by ${escHtml(comp.done_by||'team')}</span>`:''}
                 </div>
               </div>
@@ -6066,7 +6065,7 @@ function renderSprintView() {
         <thead><tr><th>Team Member</th><th>Assigned</th><th>Done</th><th>Rate</th><th>Progress</th></tr></thead>
         <tbody>${Object.entries(personStats).sort((a,b)=>b[1].done-a[1].done).map(([nm,st])=>{
           const p = st.assigned?Math.round(st.done/st.assigned*100):0; const c=barCol(p);
-          return `<tr><td><span class="sprint-assignee" style="background:${getAssigneeColor(nm)}">${escHtml(nm)}</span></td><td>${st.assigned}</td><td><b>${st.done}</b></td><td style="color:${c};font-weight:700">${p}%</td><td><span class="sprint-pbar"><span class="sprint-pfill" style="width:${p}%;background:${c}"></span></span></td></tr>`;
+          return `<tr><td><span class="sprint-assignee" style="background:${getAssigneeColor(nm)}">${escHtml(getAssigneeDisplayName(nm))}</span></td><td>${st.assigned}</td><td><b>${st.done}</b></td><td style="color:${c};font-weight:700">${p}%</td><td><span class="sprint-pbar"><span class="sprint-pfill" style="width:${p}%;background:${c}"></span></span></td></tr>`;
         }).join('')}</tbody>
       </table>
     </div>
@@ -6119,6 +6118,13 @@ function openAddSprintTaskModal(sprintNo) {
   document.getElementById('add-task-title').textContent = `Add Task — Sprint ${sprintNo}`;
   document.getElementById('new-task-desc').value = '';
   document.getElementById('new-task-dw').value = '';
+  // Populate assignee dropdown from team members
+  const sel = document.getElementById('new-task-assignee');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Unassigned —</option>' +
+    (team.length > 0
+      ? team.filter(m => m.is_active !== false).map(m => `<option value="${escHtml(m.sprint_alias || m.name)}"${(m.sprint_alias||m.name)===cur?' selected':''}>${escHtml(m.name)}</option>`).join('')
+      : Object.keys(ASSIGNEE_COLORS).map(k => `<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''));
   document.getElementById('add-task-modal').style.display = 'block';
   document.getElementById('add-task-overlay').style.display = 'block';
   setTimeout(() => document.getElementById('new-task-desc').focus(), 50);
@@ -9175,7 +9181,8 @@ function avatarHtml(id, size = 22) {
   if (!m) return `<span class="av av-empty" style="width:${size}px;height:${size}px" title="Unassigned">·</span>`;
   const words = m.name.trim().split(/\s+/);
   const ini = (words.length > 1 ? words.map(w => w[0]).join('') : m.name.trim()).slice(0, 2).toUpperCase();
-  return `<span class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.45)}px" title="${escHtml(m.name)}">${ini}</span>`;
+  const bg = m.color || '#6366F1';
+  return `<span class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.45)}px;background:${bg};color:#fff" title="${escHtml(m.name)}">${ini}</span>`;
 }
 function orderLabel(orderId) {
   for (const c of customers) {
@@ -9471,37 +9478,142 @@ async function quickAddOrderTask(orderId) {
 }
 
 // ─── Settings → Team ───
+const DEPT_OPTIONS = ['Sales','Marketing','Operations','Production','Admin','General'];
+const COLOR_PALETTE = ['#984216','#6366F1','#0EA5E9','#EC4899','#F59E0B','#10B981','#8B5CF6','#14B8A6','#64748B','#EF4444','#F97316','#84CC16','#06B6D4','#A855F7','#E11D48'];
+
 function renderTeamSettings() {
   const el = document.getElementById('team-settings'); if (!el) return;
   const admin = me?.role === 'admin';
+  const memberCards = team.map(m => {
+    const ini = (m.name||'?').trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const col = m.color || '#64748B';
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px">
+      <div style="width:40px;height:40px;border-radius:50%;background:${col};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0">${ini}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-weight:700;font-size:14px;color:var(--text)">${escHtml(m.name)}</span>
+          ${me?.id === m.id ? '<span class="t-chip">You</span>' : ''}
+          <span style="font-size:11px;color:var(--muted);background:var(--bg);border:1px solid var(--border);padding:1px 7px;border-radius:20px">${m.role==='admin'?'Admin':'Member'}</span>
+          ${m.department ? `<span style="font-size:11px;color:var(--muted)">${escHtml(m.department)}</span>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">${(m.emails||[]).join(', ')||'No email'}</div>
+        ${m.sprint_alias ? `<div style="font-size:11px;color:var(--muted)">Sprint ID: <code>${escHtml(m.sprint_alias)}</code></div>` : ''}
+      </div>
+      ${admin ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <button class="td-btn" onclick="openEditMemberModal('${m.id}')">Edit</button>
+        ${(m.emails||[]).length ? `<button class="td-btn" style="background:#EEF2FF;color:#4338CA;border-color:#C7D2FE" onclick="inviteMember('${escHtml((m.emails||[])[0])}', this)">Invite</button>` : ''}
+        ${me?.id !== m.id ? `<button class="td-btn" style="color:var(--tint-red-fg)" onclick="removeMember('${m.id}')">Remove</button>` : ''}
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
   el.innerHTML = `
-    <table class="team-table">
-      <thead><tr><th>Name</th><th>Login emails</th><th>Role</th>${admin ? '<th></th>' : ''}</tr></thead>
-      <tbody>${team.map(m => `<tr>
-        <td><span style="display:inline-flex;align-items:center;gap:8px">${avatarHtml(m.id, 24)}<b>${escHtml(m.name)}</b>${me?.id === m.id ? ' <span class="t-chip">You</span>' : ''}</span></td>
-        <td>${(m.emails || []).map(e => `<div class="team-email">${escHtml(e)}${admin ? ` <button class="td-btn" onclick="inviteMember('${escHtml(e)}', this)">Invite</button>` : ''}</div>`).join('')}</td>
-        <td>${admin && me?.id !== m.id ? `<select class="td-in" onchange="updateMember('${m.id}',{role:this.value})"><option value="member"${m.role==='member'?' selected':''}>Member</option><option value="admin"${m.role==='admin'?' selected':''}>Admin</option></select>` : (m.role === 'admin' ? 'Admin' : 'Member')}</td>
-        ${admin ? `<td style="white-space:nowrap"><button class="td-btn" onclick="editMemberEmails('${m.id}')">Edit emails</button>
-          ${me?.id !== m.id ? `<button class="td-btn" onclick="removeMember('${m.id}')">Remove</button>` : ''}</td>` : ''}
-      </tr>`).join('')}</tbody>
-    </table>
-    ${admin ? `<div class="team-add">
-      <input id="tm-name" class="td-in" placeholder="Name">
-      <input id="tm-email" class="td-in" placeholder="Email">
-      <select id="tm-role" class="td-in"><option value="member">Member</option><option value="admin">Admin</option></select>
-      <button class="sb-new" style="margin:0" onclick="addMember()">Add member</button>
-    </div>
-    <div class="settings-desc" style="margin-top:8px">Add a member, then press <b>Invite</b> next to their email. They'll receive an email to set their own password.</div>`
-    : `<div class="settings-desc">Only admins can change the team.</div>`}`;
+    ${team.length === 0 ? `<div style="color:var(--muted);font-size:13px;padding:12px 0">No team members yet. Add your first member below.</div>` : `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${memberCards}</div>`}
+    ${admin ? `
+    <div style="border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">Add New Member</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <input id="tm-name" class="td-in" placeholder="Full name" style="grid-column:1/-1">
+        <input id="tm-email" class="td-in" placeholder="Email (for login)">
+        <select id="tm-dept" class="td-in"><option value="">Department…</option>${DEPT_OPTIONS.map(d=>`<option value="${d}">${d}</option>`).join('')}</select>
+        <input id="tm-alias" class="td-in" placeholder="Sprint ID (e.g. Tram, Andy)">
+        <select id="tm-role" class="td-in"><option value="member">Member</option><option value="admin">Admin</option></select>
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Avatar Color</div>
+        <div id="tm-color-picker" style="display:flex;flex-wrap:wrap;gap:6px">
+          ${COLOR_PALETTE.map(c=>`<div onclick="selectTmColor('${c}')" style="width:24px;height:24px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent" data-color="${c}" title="${c}"></div>`).join('')}
+        </div>
+        <input type="hidden" id="tm-color" value="${COLOR_PALETTE[0]}">
+      </div>
+      <button class="sb-new" style="margin:0" onclick="addMember()">Add Member</button>
+      <div class="settings-desc" style="margin-top:8px">After adding, press <b>Invite</b> on their card — they'll get an email to set their password. <b>Sprint ID</b> links this person to their tasks in the Sprint Board (e.g. if tasks say "Tram", set Sprint ID to <code>Tram</code>).</div>
+    </div>` : `<div class="settings-desc">Only admins can manage the team.</div>`}
+  `;
+  // Highlight first color by default
+  selectTmColor(COLOR_PALETTE[0]);
+}
+
+// Edit member modal
+function openEditMemberModal(id) {
+  const m = memberById(id); if (!m) return;
+  const existing = document.getElementById('edit-member-modal');
+  if (existing) existing.remove();
+  const el = document.createElement('div'); el.id = 'edit-member-modal';
+  el.style.cssText = 'position:fixed;inset:0;z-index:4000;display:flex;align-items:center;justify-content:center';
+  const ini = (m.name||'?').trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  el.innerHTML = `
+    <div onclick="document.getElementById('edit-member-modal').remove()" style="position:absolute;inset:0;background:rgba(0,0,0,.4)"></div>
+    <div style="position:relative;background:var(--white);border-radius:14px;padding:24px;width:min(440px,94vw);box-shadow:0 20px 60px rgba(0,0,0,.25);z-index:1;max-height:90vh;overflow-y:auto">
+      <div style="font-size:16px;font-weight:800;margin-bottom:16px">Edit Member</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Name</label>
+          <input id="em-name" class="td-in" style="width:100%;box-sizing:border-box" value="${escHtml(m.name)}">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Login Emails (comma separated)</label>
+          <input id="em-emails" class="td-in" style="width:100%;box-sizing:border-box" value="${escHtml((m.emails||[]).join(', '))}">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Department</label>
+          <select id="em-dept" class="td-in" style="width:100%;box-sizing:border-box"><option value="">—</option>${DEPT_OPTIONS.map(d=>`<option value="${d}"${m.department===d?' selected':''}>${d}</option>`).join('')}</select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Sprint ID <span style="font-weight:400;text-transform:none;letter-spacing:0">(short key used in Sprint tasks, e.g. Tram, Andy, Sale)</span></label>
+          <input id="em-alias" class="td-in" style="width:100%;box-sizing:border-box" value="${escHtml(m.sprint_alias||'')}" placeholder="e.g. Tram">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px">Avatar Color</label>
+          <div id="em-color-picker" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+            ${COLOR_PALETTE.map(c=>`<div onclick="selectEmColor('${c}')" style="width:24px;height:24px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${c===(m.color||'#64748B')?'var(--text)':'transparent'}" data-color="${c}" title="${c}"></div>`).join('')}
+          </div>
+          <input type="hidden" id="em-color" value="${escHtml(m.color||'#64748B')}">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:18px">
+        <button class="sb-new" style="margin:0;flex:1" onclick="saveEditMember('${m.id}')">Save Changes</button>
+        <button onclick="document.getElementById('edit-member-modal').remove()" style="padding:9px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;font-family:inherit;font-size:13px;color:var(--text)">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+function selectTmColor(c) {
+  document.getElementById('tm-color').value = c;
+  document.querySelectorAll('#tm-color-picker [data-color]').forEach(d => d.style.border = `2px solid ${d.dataset.color===c?'var(--text)':'transparent'}`);
+}
+function selectEmColor(c) {
+  document.getElementById('em-color').value = c;
+  document.querySelectorAll('#em-color-picker [data-color]').forEach(d => d.style.border = `2px solid ${d.dataset.color===c?'var(--text)':'transparent'}`);
+}
+async function saveEditMember(id) {
+  const name = document.getElementById('em-name').value.trim();
+  const emailsRaw = document.getElementById('em-emails').value.trim();
+  const emails = emailsRaw ? emailsRaw.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean) : [];
+  const department = document.getElementById('em-dept').value;
+  const sprint_alias = document.getElementById('em-alias').value.trim();
+  const color = document.getElementById('em-color').value;
+  if (!name) { showToast('⚠️ Name is required'); return; }
+  const patch = { name, emails, department, sprint_alias: sprint_alias||null, color };
+  const { error } = await sb.from('team_members').update(patch).eq('id', id);
+  if (error) { showToast('❌ ' + error.message); return; }
+  Object.assign(memberById(id), patch);
+  document.getElementById('edit-member-modal').remove();
+  renderTeamSettings();
+  showToast('✅ Member updated');
 }
 async function addMember() {
   const name = document.getElementById('tm-name').value.trim();
   const email = document.getElementById('tm-email').value.trim().toLowerCase();
   const role = document.getElementById('tm-role').value;
-  if (!name || !email) { showToast('⚠️ Name and email are required'); return; }
-  const { data, error } = await sb.from('team_members').insert({ name, emails: [email], role }).select().single();
+  const department = document.getElementById('tm-dept').value;
+  const sprint_alias = document.getElementById('tm-alias').value.trim();
+  const color = document.getElementById('tm-color').value || COLOR_PALETTE[0];
+  if (!name) { showToast('⚠️ Name is required'); return; }
+  const row = { name, role, department: department||null, sprint_alias: sprint_alias||null, color, is_active: true, emails: email ? [email] : [] };
+  const { data, error } = await sb.from('team_members').insert(row).select().single();
   if (error) { showToast('❌ ' + error.message); return; }
-  team.push(data); renderTeamSettings(); showToast('✅ Member added');
+  team.push(data); renderTeamSettings(); showToast('✅ Member added' + (email ? ' — press Invite to send login email' : ''));
 }
 async function updateMember(id, patch) {
   const { error } = await sb.from('team_members').update(patch).eq('id', id);
