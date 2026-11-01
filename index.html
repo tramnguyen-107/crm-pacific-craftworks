@@ -813,6 +813,55 @@
   .team-add .td-in { width:auto; flex:1; min-width:120px; }
   @media (max-width: 700px) { .tk-board { grid-template-columns:1fr; } .tasks-page { padding:16px; } .td-props { grid-template-columns:90px 1fr; } }
 
+  /* ─── Linear dept layout ─── */
+  .tk-dept-section{margin-bottom:6px}
+  .tk-dept-hdr{display:flex;align-items:center;gap:8px;padding:8px 6px;cursor:pointer;user-select:none;font-size:13px;font-weight:700;color:var(--text);border-bottom:2px solid var(--border);border-radius:6px 6px 0 0}
+  .tk-dept-hdr:hover{background:var(--hover)}
+  .dk-chevron{font-size:10px;color:var(--muted);flex-shrink:0}
+  .tk-dept-count{font-size:12px;color:var(--muted);font-weight:400}
+  .tk-col-headers{display:grid;align-items:center;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.03em;background:var(--surface);overflow:hidden}
+  .tk-linear-row{display:grid;align-items:center;padding:7px 8px;border-bottom:1px solid var(--border);cursor:pointer;overflow:hidden}
+  .tk-linear-row:hover{background:var(--hover)}
+  .tk-linear-row.done .tk-row-title{text-decoration:line-through;color:var(--muted)}
+  .tk-row-title{font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .tk-new-task-row{display:flex;align-items:center;gap:6px;padding:7px 10px;color:var(--muted);font-size:13px;cursor:pointer;border-radius:0 0 6px 6px;border:1px solid var(--border);border-top:none}
+  .tk-new-task-row:hover{background:var(--hover);color:var(--text)}
+  .tk-status-dot{display:inline-flex;align-items:center;gap:4px;font-size:12px}
+  .prop-status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+  .prop-select-tag{display:inline-block;font-size:11px;border-radius:10px;padding:1px 7px;font-weight:500}
+  .prop-add-col{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:15px;width:24px;height:24px;border-radius:4px;line-height:1}
+  .prop-add-col:hover{color:var(--text);background:var(--hover)}
+
+  /* Property picker popup */
+  .prop-picker{position:fixed;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-md);z-index:2500;width:230px;padding:6px 0;max-height:320px;overflow-y:auto}
+  .prop-picker input{width:calc(100% - 16px);margin:0 8px 6px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);outline:none;display:block}
+  .prop-picker-item{display:flex;align-items:center;gap:10px;padding:7px 14px;cursor:pointer;font-size:13px;color:var(--text)}
+  .prop-picker-item:hover{background:var(--hover)}
+  .prop-picker-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0}
+  .prop-picker-section{font-size:10px;font-weight:700;color:var(--muted);padding:8px 14px 3px;letter-spacing:.06em;text-transform:uppercase}
+
+  /* Sub-task rows inside drawer */
+  .sub-task-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;cursor:pointer}
+  .sub-task-row:hover{background:var(--hover)}
+  .sub-task-row.done .sub-task-title{text-decoration:line-through;color:var(--muted)}
+  .sub-task-title{font-size:13px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sub-add-row{display:flex;gap:6px;margin-top:6px}
+  .sub-add-row input{flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--white);color:var(--text);outline:none}
+  .sub-add-row input:focus{border-color:var(--text-2)}
+
+  /* Sub-task peek panel */
+  #subtask-drawer{position:fixed;inset:0;z-index:1050}
+  .sub-panel{position:absolute;top:0;right:0;bottom:0;width:min(480px,100%);background:var(--bg);border-left:1px solid var(--border);box-shadow:var(--shadow-md);padding:14px 22px 32px;overflow-y:auto}
+
+  /* Image section */
+  .img-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .img-wrap{position:relative;width:80px;height:80px;flex-shrink:0}
+  .img-thumb{width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer;display:block}
+  .img-del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;padding:0;line-height:1}
+  .img-wrap:hover .img-del{display:flex}
+  .img-upload-btn{width:80px;height:80px;border:2px dashed var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:11px;gap:3px;background:none;font-family:inherit;flex-shrink:0}
+  .img-upload-btn:hover{border-color:var(--text-2);color:var(--text)}
+
   /* ===== Notifications ===== */
   .nf-badge { background: #EF4444 !important; color: #fff !important; }
   .nf-row { display:flex; align-items:flex-start; gap:10px; padding:12px 10px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:6px; }
@@ -1844,6 +1893,7 @@ async function startApp() {
   await loadSprintCompletions()
   await loadSprintAssignments()
   await loadSprintCustomTasks()
+  await loadTaskExtras()
   subscribeNotifications()
   document.getElementById('loading-overlay').classList.add('hidden')
   document.getElementById('app').style.display = 'block'
@@ -9201,6 +9251,13 @@ document.getElementById('app').style.display = 'none';
 let team = [];            // team_members rows
 let me = null;            // the signed-in member
 let allTasks = [];        // order_tasks rows (general + order tasks)
+let allSubtasks = [];     // task_subtasks rows
+let taskProperties = [];  // task_properties rows (custom columns per workspace)
+let taskPropertyValues = {}; // {taskId: {propId: value}}
+let taskImages = {};      // {taskId: [{id,url,filename}]}
+let subtaskImages = {};   // {subtaskId: [{id,url,filename}]}
+let subtaskComments = {}; // {subtaskId: [{...}]}
+let subtaskDrawerId = null;
 let taskTab = 'mine';     // mine | created | all
 let taskLayout = (() => { try { return localStorage.getItem('pcw-task-layout') || 'list'; } catch (e) { return 'list'; } })();
 let taskShowDone = false;
@@ -9253,6 +9310,31 @@ async function loadSprintAssignments() {
     const { data, error } = await sb.from('sprint_task_assignments').select('*').eq('is_test', testF);
     if (!error) sprintAssignments = data || [];
   } catch(e) { console.warn('loadSprintAssignments:', e); }
+}
+async function loadTaskExtras() {
+  if (isDemoMode) return;
+  try {
+    const [subRes, propRes, pvRes, imgRes] = await Promise.all([
+      sb.from('task_subtasks').select('*').order('position').order('created_at'),
+      sb.from('task_properties').select('*').order('position').order('created_at'),
+      sb.from('task_property_values').select('*'),
+      sb.from('task_images').select('*').order('created_at'),
+    ]);
+    allSubtasks = subRes.data || [];
+    taskProperties = propRes.data || [];
+    const vals = {};
+    (pvRes.data || []).forEach(v => {
+      if (!vals[v.task_id]) vals[v.task_id] = {};
+      vals[v.task_id][v.property_id] = v.value;
+    });
+    taskPropertyValues = vals;
+    const tImgs = {}, sImgs = {};
+    (imgRes.data || []).forEach(img => {
+      if (img.subtask_id) { if (!sImgs[img.subtask_id]) sImgs[img.subtask_id] = []; sImgs[img.subtask_id].push(img); }
+      else { if (!tImgs[img.task_id]) tImgs[img.task_id] = []; tImgs[img.task_id].push(img); }
+    });
+    taskImages = tImgs; subtaskImages = sImgs;
+  } catch(e) { console.warn('loadTaskExtras:', e); }
 }
 
 // ─── Sprint task assignee helpers ───
@@ -9474,7 +9556,43 @@ function renderTasksView() {
   const tab = (k, label) => `<button class="tk-tab${taskTab === k ? ' active' : ''}" onclick="taskTab='${k}';renderTasksView()">${label}</button>`;
   const lay = (k, label) => `<button class="tk-seg${taskLayout === k ? ' active' : ''}" onclick="setTaskLayout('${k}')">${label}</button>`;
   let body = '';
-  if (taskLayout === 'person') {
+  if (taskLayout === 'dept') {
+    if (!window.__deptCollapsed) window.__deptCollapsed = {};
+    const open = list.filter(t => t.status !== 'done');
+    const done = list.filter(t => t.status === 'done');
+    const allDepts = DEPT_OPTIONS.concat(['General']);
+    const grouped = {};
+    allDepts.forEach(d => grouped[d] = []);
+    open.forEach(t => { const d = t.department || 'General'; if (!grouped[d]) grouped[d] = []; grouped[d].push(t); });
+    const usedDepts = allDepts.filter(d => grouped[d].length > 0);
+    const colBase = '20px 1fr 110px 90px 90px 80px';
+    body = (usedDepts.length ? usedDepts.map(dept => {
+      const tasks = grouped[dept];
+      const deptProps = taskProperties.filter(p => p.workspace === dept);
+      const isCollapsed = window.__deptCollapsed[dept];
+      const doneCnt = tasks.filter(t => t.status === 'done').length;
+      const customColsHdr = deptProps.map(p => `90px`).join(' ');
+      const gridCols = `${colBase}${customColsHdr?' '+customColsHdr:''} 30px`;
+      const headerRow = `<div class="tk-col-headers" style="grid-template-columns:${gridCols}">
+        <div></div><div>Title</div><div>Status</div><div>Assignee</div><div>Due</div><div>Priority</div>
+        ${deptProps.map(p => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(p.name)}">${escHtml(p.name)}</div>`).join('')}
+        <div style="display:flex;justify-content:center"><span class="prop-add-col" title="Add column" onclick="event.stopPropagation();openAddPropertyMenu('${dept}',this)">+</span></div>
+      </div>`;
+      const taskRows = tasks.map(t => linearTaskRow(t, gridCols, deptProps)).join('');
+      const newRow = `<div class="tk-new-task-row" onclick="openNewTask({department:'${escHtml(dept)}'})" style="grid-template-columns:${gridCols}"><span>+</span> New task</div>`;
+      return `<div class="tk-dept-section">
+        <div class="tk-dept-hdr" onclick="toggleDeptCollapse('${dept}')">
+          <span class="dk-chevron">${isCollapsed?'▸':'▾'}</span>
+          <span>${escHtml(dept)}</span>
+          <span class="tk-dept-count">${tasks.length} task${tasks.length!==1?'s':''}${doneCnt?' · '+doneCnt+' done':''}</span>
+        </div>
+        ${isCollapsed?'':(headerRow+taskRows+newRow)}
+      </div>`;
+    }).join('') : `<div class="tk-empty">No open tasks.</div>`)
+    + (done.length ? `<div class="tk-group"><div class="tk-group-h clickable" onclick="taskShowDone=!taskShowDone;renderTasksView()">${taskShowDone?'▾':'▸'} Completed <span>${done.length}</span></div>
+      ${taskShowDone?done.map(t=>taskRowHtml(t)).join(''):''}
+    </div>` : '');
+  } else if (taskLayout === 'person') {
     const open = list.filter(t => t.status !== 'done');
     const grouped = {};
     open.forEach(t => {
@@ -9542,7 +9660,7 @@ function renderTasksView() {
     </div>
     <div class="tk-bar">
       <div class="tk-tabs">${tab('mine', 'Assigned to me')}${tab('created', 'Created by me')}${tab('all', 'All tasks')}</div>
-      <div class="tk-segs">${lay('list', '☰ List')}${lay('board', '▦ Board')}${lay('person', '👤 By Person')}</div>
+      <div class="tk-segs">${lay('dept','⬛ By Dept')}${lay('list', '☰ List')}${lay('board', '▦ Board')}${lay('person', '👤 By Person')}</div>
     </div>
     ${!me ? `<div class="tk-warn">Your login email isn't linked to a team member yet. Ask an admin to add it in Settings → Team.</div>` : ''}
     ${body}`;
@@ -9553,7 +9671,7 @@ function setTaskLayout(k) { taskLayout = k; try { localStorage.setItem('pcw-task
 let taskDrawerId = null;
 function openNewTask(preset = {}) {
   taskDrawerId = '__new__';
-  window.__newTaskPreset = { assignee_id: preset.assignee_id ?? (me?.id || null), status: preset.status || 'todo', order_id: preset.order_id || null };
+  window.__newTaskPreset = { assignee_id: preset.assignee_id ?? (me?.id || null), status: preset.status || 'todo', order_id: preset.order_id || null, department: preset.department || null };
   renderTaskDrawer();
 }
 async function openTaskDrawer(id) { taskDrawerId = id; renderTaskDrawer(); await loadTaskComments(id); renderTaskDrawer(); }
@@ -9579,16 +9697,30 @@ function mentionBody(text) {
 function renderTaskDrawer() {
   if (!taskDrawerId) return;
   const isNew = taskDrawerId === '__new__';
-  const t = isNew ? { title: '', description: '', status: 'todo', priority: 'normal', due_date: '', ...window.__newTaskPreset } : allTasks.find(x => x.id === taskDrawerId);
+  const t = isNew ? { title: '', description: '', status: 'todo', priority: 'normal', due_date: '', start_date: '', deadline: '', notes: '', tags: [], department: null, ...window.__newTaskPreset } : allTasks.find(x => x.id === taskDrawerId);
   if (!t) return closeTaskDrawer();
   let el = document.getElementById('task-drawer');
   if (!el) { el = document.createElement('div'); el.id = 'task-drawer'; document.body.appendChild(el); }
   const sel = (f, opts) => `<select id="td-${f}" class="td-in">${opts}</select>`;
   const comments = taskComments[t.id] || [];
+  const mySubtasks = isNew ? [] : allSubtasks.filter(s => s.task_id === t.id);
+  const imgs = isNew ? [] : (taskImages[t.id] || []);
+  const subtasksHtml = mySubtasks.map(s => {
+    const sm = s.assignee_id ? memberById(s.assignee_id) : null;
+    const sAv = sm ? `<span style="width:18px;height:18px;border-radius:50%;background:${sm.color||'#6366F1'};display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0">${sm.name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>` : '';
+    const sDue = s.deadline||s.start_date ? `<span style="font-size:11px;color:var(--muted)">${formatDate(s.deadline||s.start_date)}</span>` : '';
+    return `<div class="sub-task-row${s.is_done?' done':''}" onclick="openSubtaskDrawer('${s.id}')">
+      <input type="checkbox" class="sub-check" ${s.is_done?'checked':''} onclick="event.stopPropagation()" onchange="toggleSubtask('${s.id}',this.checked)">
+      <span class="sub-task-title">${escHtml(s.title)}</span>
+      ${sAv}${sDue}
+    </div>`;
+  }).join('');
+  const imgsHtml = imgs.map(img => `<div class="img-wrap"><img class="img-thumb" src="${escHtml(img.url)}" onclick="window.open('${escHtml(img.url)}','_blank')" alt="${escHtml(img.filename||'')}"><button class="img-del" onclick="deleteTaskImage('${img.id}','task')">✕</button></div>`).join('');
+  const deptSel = `<select id="td-dept" class="td-in"><option value="">— No department —</option>${DEPT_OPTIONS.map(d => `<option value="${d}"${t.department===d?' selected':''}>${d}</option>`).join('')}</select>`;
   el.innerHTML = `<div class="td-backdrop" onclick="closeTaskDrawer()"></div>
   <div class="td-panel">
     <div class="td-top">
-      <span class="td-crumb">${isNew ? 'New task' : (t.order_id ? escHtml(orderLabel(t.order_id)) : 'Task')}</span>
+      <span class="td-crumb">${isNew ? 'New task' : (t.order_id ? escHtml(orderLabel(t.order_id)) : (t.department||'Task'))}</span>
       <span style="display:flex;gap:6px">
         ${!isNew && t.order_id ? `<button class="td-btn" onclick="closeTaskDrawer();openPanel(${customerIdOfOrder(t.order_id)})">Open order ↗</button>` : ''}
         ${!isNew ? `<button class="td-btn" onclick="deleteTask('${t.id}')">🗑</button>` : ''}
@@ -9599,15 +9731,35 @@ function renderTaskDrawer() {
     <div class="td-props">
       <label>Status</label>${sel('status', [['todo','To do'],['in_progress','In progress'],['done','Done']].map(([v,l]) => `<option value="${v}"${t.status===v?' selected':''}>${l}</option>`).join(''))}
       <label>Assignee</label>${sel('assignee', memberOptionsHtml(t.assignee_id))}
-      <label>Due date</label><input id="td-due" type="date" class="td-in" min="2020-01-01" max="2035-12-31" value="${t.due_date || ''}">
+      <label>Department</label>${deptSel}
+      <label>Start date</label><input id="td-start-date" type="date" class="td-in" value="${t.start_date||''}">
+      <label>Deadline</label><input id="td-deadline" type="date" class="td-in" value="${t.deadline||''}">
+      <label>Due date</label><input id="td-due" type="date" class="td-in" value="${t.due_date||''}">
       <label>Priority</label>${sel('priority', [['low','Low'],['normal','Normal'],['high','High']].map(([v,l]) => `<option value="${v}"${t.priority===v?' selected':''}>${l}</option>`).join(''))}
       <label>Order</label>${sel('order', orderOptionsHtml(t.order_id))}
       ${!isNew ? `<label>Created by</label><div class="td-static">${escHtml(memberName(t.created_by) || '—')}</div>` : ''}
     </div>
-    <textarea id="td-desc" class="td-desc" rows="4" placeholder="Add a description…">${escHtml(t.description || '')}</textarea>
-    <button class="sb-new" style="margin:4px 0 0;width:100%;text-align:center" onclick="saveTaskDrawer()">${isNew ? 'Create task' : 'Save changes'}</button>
+    <div class="td-sec">Description</div>
+    <textarea id="td-desc" class="td-desc" rows="3" placeholder="Add a description…">${escHtml(t.description || '')}</textarea>
+    <div class="td-sec">Notes</div>
+    <textarea id="td-notes" class="td-desc" rows="3" placeholder="Add notes…">${escHtml(t.notes || '')}</textarea>
+    <button class="sb-new" style="margin:12px 0 0;width:100%;text-align:center" onclick="saveTaskDrawer()">${isNew ? 'Create task' : 'Save changes'}</button>
     ${isNew ? '' : `
-    <div class="td-sec">Comments</div>
+    <div class="td-sec">Images <span style="font-weight:400;font-size:11px;color:var(--muted)">(${imgs.length})</span></div>
+    <div class="img-grid" id="td-images">
+      ${imgsHtml}
+      <label class="img-upload-btn" title="Upload image">
+        <span style="font-size:22px">＋</span><span>Image</span>
+        <input type="file" accept="image/*" multiple style="display:none" onchange="uploadTaskImages('${t.id}',this.files)">
+      </label>
+    </div>
+    <div class="td-sec">Sub-tasks <span style="font-weight:400;font-size:11px;color:var(--muted)">(${mySubtasks.length})</span></div>
+    <div id="td-subtasks">${subtasksHtml||'<div class="tk-empty" style="padding:4px 0">No sub-tasks yet.</div>'}</div>
+    <div class="sub-add-row">
+      <input id="sub-new-title" placeholder="Add sub-task…" onkeydown="if(event.key==='Enter')quickAddSubtask('${t.id}')">
+      <button class="td-btn" onclick="quickAddSubtask('${t.id}')">Add</button>
+    </div>
+    <div class="td-sec">Comments <span style="font-weight:400;font-size:11px;color:var(--muted)">(${comments.length})</span></div>
     <div class="td-comments">${comments.length ? comments.map(c => `<div class="td-c">
         ${avatarHtml(c.author_id, 24)}
         <div style="flex:1;min-width:0"><div class="td-c-h"><b>${escHtml(memberName(c.author_id) || 'Unknown')}</b>
@@ -9628,8 +9780,9 @@ function insertMention(name) {
 }
 async function saveTaskDrawer() {
   const v = id => document.getElementById(id)?.value ?? '';
-  const fields = { title: v('td-title').trim(), description: v('td-desc'), status: v('td-status'), priority: v('td-priority'),
-    assignee_id: v('td-assignee') || null, due_date: v('td-due') || null, order_id: v('td-order') || null };
+  const fields = { title: v('td-title').trim(), description: v('td-desc'), notes: v('td-notes'), status: v('td-status'), priority: v('td-priority'),
+    assignee_id: v('td-assignee') || null, due_date: v('td-due') || null, start_date: v('td-start-date') || null,
+    deadline: v('td-deadline') || null, order_id: v('td-order') || null, department: v('td-dept') || null };
   if (!fields.title) { showToast('⚠️ Task name is required'); return; }
   if (taskDrawerId === '__new__') {
     const t = await createTask(fields);
@@ -9651,6 +9804,254 @@ async function addTaskComment(taskId) {
   const others = [t?.assignee_id, t?.created_by].filter(id => id && !mentions.includes(id));
   for (const id of [...new Set(others)]) await notify(id, 'comment', t, `${me?.name || 'Someone'} commented on: ${t?.title || 'a task'}`, body.slice(0, 200));
   renderTaskDrawer();
+}
+
+// ─── Linear layout helpers ───
+function linearTaskRow(t, gridCols, deptProps) {
+  const statusLabel = t.status==='done'?'Done':t.status==='in_progress'?'In progress':'To do';
+  const statusColor = t.status==='done'?'#10B981':t.status==='in_progress'?'#6366F1':'#94A3B8';
+  const prioColor = t.priority==='high'?'#EF4444':t.priority==='low'?'#94A3B8':'#F59E0B';
+  const prioLabel = t.priority==='high'?'High':t.priority==='low'?'Low':'Normal';
+  const m = t.assignee_id ? memberById(t.assignee_id) : null;
+  const assigneeHtml = m ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px"><span style="width:18px;height:18px;border-radius:50%;background:${m.color||'#6366F1'};display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff">${m.name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>${escHtml(m.name.split(' ')[0])}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>';
+  const due = t.deadline || t.due_date || '';
+  const dueLabel = due ? formatDate(due) : '—';
+  const isOverdue = due && due < todayStr() && t.status!=='done';
+  const customCells = deptProps.map(p => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">${renderPropertyCell(p,(taskPropertyValues[t.id]||{})[p.id],t.id)}</div>`).join('');
+  return `<div class="tk-linear-row${t.status==='done'?' done':''}" style="grid-template-columns:${gridCols}" onclick="openTaskDrawer('${t.id}')">
+    <input type="checkbox" class="t-check" ${t.status==='done'?'checked':''} onclick="event.stopPropagation()" onchange="updateTask('${t.id}',{status:this.checked?'done':'todo'})">
+    <div class="tk-row-title" style="min-width:0">${escHtml(t.title)}</div>
+    <div><span class="tk-status-dot"><span class="prop-status-dot" style="background:${statusColor}"></span><span style="font-size:11px;color:var(--text-2)">${statusLabel}</span></span></div>
+    <div>${assigneeHtml}</div>
+    <div style="font-size:11px;color:${isOverdue?'#EF4444':'var(--text-2)'}">${dueLabel}</div>
+    <div style="font-size:11px;color:${prioColor};font-weight:500">${prioLabel}</div>
+    ${customCells}
+    <div></div>
+  </div>`;
+}
+function toggleDeptCollapse(dept) {
+  if (!window.__deptCollapsed) window.__deptCollapsed = {};
+  window.__deptCollapsed[dept] = !window.__deptCollapsed[dept];
+  renderTasksView();
+}
+function formatDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+
+// ─── Custom properties ───
+const PROP_TYPES = [
+  {type:'text',icon:'T',label:'Text'},{type:'number',icon:'#',label:'Number'},
+  {type:'select',icon:'◉',label:'Select'},{type:'multi_select',icon:'⊞',label:'Multi-select'},
+  {type:'status',icon:'●',label:'Status'},{type:'date',icon:'📅',label:'Date'},
+  {type:'person',icon:'👤',label:'Person'},{type:'checkbox',icon:'☑',label:'Checkbox'},
+  {type:'url',icon:'🔗',label:'URL'},{type:'phone',icon:'📞',label:'Phone'},
+  {type:'email',icon:'@',label:'Email'},{type:'images',icon:'🖼',label:'Images'},
+];
+let __propPickerWorkspace = null;
+function openAddPropertyMenu(workspace, anchor) {
+  document.getElementById('prop-picker')?.remove();
+  __propPickerWorkspace = workspace;
+  const rect = anchor.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.id = 'prop-picker'; el.className = 'prop-picker';
+  el.style.top = (rect.bottom + 4) + 'px';
+  el.style.left = Math.max(4, rect.left - 100) + 'px';
+  el.innerHTML = `<div class="prop-picker-section">Add property to ${escHtml(workspace)}</div>
+    ${PROP_TYPES.map(pt => `<div class="prop-picker-item" onclick="addTaskProperty('${workspace}','${pt.type}','${escHtml(pt.label)}')">
+      <span class="prop-picker-icon">${pt.icon}</span>${pt.label}
+    </div>`).join('')}`;
+  document.body.appendChild(el);
+  setTimeout(() => document.addEventListener('click', function h(e){ if(!el.contains(e.target)){el.remove();document.removeEventListener('click',h);} }), 100);
+}
+async function addTaskProperty(workspace, type, defaultName) {
+  document.getElementById('prop-picker')?.remove();
+  const name = prompt(`Column name (${defaultName}):`, defaultName);
+  if (!name) return;
+  const { data, error } = await sb.from('task_properties').insert({ workspace, name, prop_type: type, options: [], position: taskProperties.filter(p=>p.workspace===workspace).length }).select().single();
+  if (error) { showToast('❌ ' + error.message); return; }
+  taskProperties.push(data);
+  if (currentView === 'tasks') renderTasksView();
+  showToast('✅ Column added');
+}
+function renderPropertyCell(prop, value, taskId) {
+  if (!value && prop.prop_type !== 'checkbox') return '<span style="color:var(--muted);font-size:11px">—</span>';
+  switch (prop.prop_type) {
+    case 'text': case 'url': case 'phone': case 'email': return `<span style="font-size:11px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(value||'')}</span>`;
+    case 'number': return `<span style="font-size:11px;font-weight:500;color:var(--text)">${escHtml(value||'')}</span>`;
+    case 'date': return `<span style="font-size:11px;color:var(--text-2)">${value?formatDate(value):'—'}</span>`;
+    case 'checkbox': return `<input type="checkbox" class="prop-checkbox-cell" ${value==='true'?'checked':''} onclick="event.stopPropagation();setPropValue('${taskId}','${prop.id}',this.checked?'true':'false')">`;
+    case 'person': { const m = value ? memberById(value) : null; return m ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px"><span style="width:16px;height:16px;border-radius:50%;background:${m.color||'#6366F1'};display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff">${m.name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>${escHtml(m.name.split(' ')[0])}</span>` : '—'; }
+    case 'select': { const opts = prop.options||[]; const o = opts.find(x=>x.value===value); return o ? `<span class="prop-select-tag" style="background:${o.color||'#E5E7EB'};color:${o.textColor||'#374151'}">${escHtml(o.label||value)}</span>` : `<span style="font-size:11px">${escHtml(value)}</span>`; }
+    case 'multi_select': { const tags = (value||'').split(',').filter(Boolean); return tags.map(v => { const opts=prop.options||[],o=opts.find(x=>x.value===v); return `<span class="prop-select-tag" style="background:${o?.color||'#E5E7EB'};color:${o?.textColor||'#374151'};margin-right:2px">${escHtml(o?.label||v)}</span>`; }).join(''); }
+    case 'status': { const opts=prop.options||[]; const o=opts.find(x=>x.value===value); const col=o?.color||'#94A3B8'; return `<span class="tk-status-dot"><span class="prop-status-dot" style="background:${col}"></span><span style="font-size:11px;color:var(--text-2)">${escHtml(o?.label||value)}</span></span>`; }
+    case 'images': return value ? `<span style="font-size:11px;color:var(--muted)">📷 ${value}</span>` : '—';
+    default: return `<span style="font-size:11px">${escHtml(value||'')}</span>`;
+  }
+}
+async function setPropValue(taskId, propId, value) {
+  if (!taskPropertyValues[taskId]) taskPropertyValues[taskId] = {};
+  taskPropertyValues[taskId][propId] = value;
+  await sb.from('task_property_values').upsert({ task_id: taskId, property_id: propId, value }, { onConflict: 'task_id,property_id' });
+}
+
+// ─── Sub-tasks ───
+async function quickAddSubtask(taskId) {
+  const inp = document.getElementById('sub-new-title');
+  const title = inp?.value.trim(); if (!title) return;
+  const { data, error } = await sb.from('task_subtasks').insert({ task_id: taskId, title, created_by: me?.id||null, status: 'todo' }).select().single();
+  if (error) { showToast('❌ ' + error.message); return; }
+  allSubtasks.push(data);
+  inp.value = '';
+  renderTaskDrawer();
+  showToast('✅ Sub-task added');
+}
+async function toggleSubtask(subId, isDone) {
+  const s = allSubtasks.find(x => x.id === subId); if (!s) return;
+  s.is_done = isDone; s.status = isDone ? 'done' : 'todo';
+  await sb.from('task_subtasks').update({ is_done: isDone, status: isDone?'done':'todo' }).eq('id', subId);
+  renderTaskDrawer();
+  if (subtaskDrawerId === subId) renderSubtaskDrawer();
+}
+async function deleteSubtask(subId) {
+  if (!confirm('Delete this sub-task?')) return;
+  await sb.from('task_subtasks').delete().eq('id', subId);
+  allSubtasks = allSubtasks.filter(s => s.id !== subId);
+  if (subtaskDrawerId === subId) closeSubtaskDrawer();
+  renderTaskDrawer();
+  showToast('🗑 Sub-task deleted');
+}
+
+// ─── Sub-task peek drawer ───
+function openSubtaskDrawer(subId) {
+  subtaskDrawerId = subId;
+  renderSubtaskDrawer();
+  if (!subtaskComments[subId]) loadSubtaskComments(subId).then(() => renderSubtaskDrawer());
+}
+function closeSubtaskDrawer() {
+  subtaskDrawerId = null;
+  document.getElementById('subtask-drawer')?.remove();
+}
+async function loadSubtaskComments(subId) {
+  const { data } = await sb.from('task_comments').select('*').eq('subtask_id', subId).order('created_at');
+  subtaskComments[subId] = data || [];
+}
+function renderSubtaskDrawer() {
+  if (!subtaskDrawerId) return;
+  const s = allSubtasks.find(x => x.id === subtaskDrawerId); if (!s) return closeSubtaskDrawer();
+  let el = document.getElementById('subtask-drawer');
+  if (!el) { el = document.createElement('div'); el.id = 'subtask-drawer'; document.body.appendChild(el); }
+  const comments = subtaskComments[s.id] || [];
+  const imgs = subtaskImages[s.id] || [];
+  const imgsHtml = imgs.map(img => `<div class="img-wrap"><img class="img-thumb" src="${escHtml(img.url)}" onclick="window.open('${escHtml(img.url)}','_blank')"><button class="img-del" onclick="deleteTaskImage('${img.id}','subtask')">✕</button></div>`).join('');
+  const parentTask = allTasks.find(t => t.id === s.task_id);
+  const sel = (f, opts, val) => `<select id="sub-${f}" class="td-in">${opts}</select>`;
+  el.innerHTML = `<div class="td-backdrop" onclick="closeSubtaskDrawer()"></div>
+  <div class="sub-panel">
+    <div class="td-top">
+      <span class="td-crumb">${parentTask ? escHtml(parentTask.title) : 'Sub-task'}</span>
+      <span style="display:flex;gap:6px">
+        <button class="td-btn" onclick="deleteSubtask('${s.id}')">🗑</button>
+        <button class="td-btn" onclick="closeSubtaskDrawer()">✕</button>
+      </span>
+    </div>
+    <input id="sub-title" class="td-title" placeholder="Sub-task name" value="${escHtml(s.title)}" style="font-size:22px">
+    <div class="td-props">
+      <label>Status</label><select id="sub-status" class="td-in">${[['todo','To do'],['in_progress','In progress'],['done','Done']].map(([v,l])=>`<option value="${v}"${s.status===v?' selected':''}>${l}</option>`).join('')}</select>
+      <label>Assignee</label><select id="sub-assignee" class="td-in">${memberOptionsHtml(s.assignee_id)}</select>
+      <label>Start date</label><input id="sub-start-date" type="date" class="td-in" value="${s.start_date||''}">
+      <label>Deadline</label><input id="sub-deadline" type="date" class="td-in" value="${s.deadline||''}">
+    </div>
+    <div class="td-sec">Description</div>
+    <textarea id="sub-desc" class="td-desc" rows="3" placeholder="Add a description…">${escHtml(s.description||'')}</textarea>
+    <div class="td-sec">Notes</div>
+    <textarea id="sub-notes" class="td-desc" rows="3" placeholder="Add notes…">${escHtml(s.notes||'')}</textarea>
+    <button class="sb-new" style="margin:10px 0;width:100%;text-align:center" onclick="saveSubtaskDrawer()">Save changes</button>
+    <div class="td-sec">Images <span style="font-weight:400;font-size:11px;color:var(--muted)">(${imgs.length})</span></div>
+    <div class="img-grid" id="sub-images">
+      ${imgsHtml}
+      <label class="img-upload-btn">
+        <span style="font-size:22px">＋</span><span>Image</span>
+        <input type="file" accept="image/*" multiple style="display:none" onchange="uploadSubtaskImages('${s.id}',this.files)">
+      </label>
+    </div>
+    <div class="td-sec">Comments <span style="font-weight:400;font-size:11px;color:var(--muted)">(${comments.length})</span></div>
+    <div class="td-comments">${comments.length?comments.map(c=>`<div class="td-c">${avatarHtml(c.author_id,24)}<div style="flex:1;min-width:0"><div class="td-c-h"><b>${escHtml(memberName(c.author_id)||'Unknown')}</b><span>${new Date(c.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><div class="td-c-b">${mentionBody(c.body)}</div></div></div>`).join(''):'<div class="tk-empty" style="padding:8px 0">No comments yet.</div>'}</div>
+    <textarea id="sub-comment" class="td-desc" rows="2" placeholder="Write a comment…"></textarea>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+      <button class="sb-new" style="margin:0 0 0 auto" onclick="addSubtaskComment('${s.id}')">Comment</button>
+    </div>
+  </div>`;
+}
+async function saveSubtaskDrawer() {
+  const v = id => document.getElementById(id)?.value ?? '';
+  const fields = { title: v('sub-title').trim(), description: v('sub-desc'), notes: v('sub-notes'), status: v('sub-status'),
+    assignee_id: v('sub-assignee')||null, start_date: v('sub-start-date')||null, deadline: v('sub-deadline')||null,
+    is_done: v('sub-status')==='done' };
+  if (!fields.title) { showToast('⚠️ Title required'); return; }
+  const { error } = await sb.from('task_subtasks').update(fields).eq('id', subtaskDrawerId);
+  if (error) { showToast('❌ ' + error.message); return; }
+  const s = allSubtasks.find(x => x.id === subtaskDrawerId);
+  if (s) Object.assign(s, fields);
+  showToast('✅ Saved');
+  renderTaskDrawer();
+}
+async function addSubtaskComment(subId) {
+  const ta = document.getElementById('sub-comment');
+  const body = ta?.value.trim(); if (!body) return;
+  const { data, error } = await sb.from('task_comments').insert({ subtask_id: subId, author_id: me?.id||null, body, mentions: [] }).select().single();
+  if (error) { showToast('❌ ' + error.message); return; }
+  (subtaskComments[subId] = subtaskComments[subId]||[]).push(data);
+  renderSubtaskDrawer();
+}
+
+// ─── Image upload ───
+async function uploadTaskImages(taskId, files) {
+  const arr = Array.from(files); if (!arr.length) return;
+  for (const f of arr) {
+    const ext = f.name.split('.').pop();
+    const path = `task-images/${taskId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { data: uploadData, error: upErr } = await sb.storage.from('crm-assets').upload(path, f, { upsert: false });
+    if (upErr) { showToast('❌ Upload failed: ' + upErr.message); continue; }
+    const { data: urlData } = sb.storage.from('crm-assets').getPublicUrl(path);
+    const url = urlData?.publicUrl;
+    if (!url) continue;
+    const { data: img, error: dbErr } = await sb.from('task_images').insert({ task_id: taskId, url, filename: f.name }).select().single();
+    if (dbErr) { showToast('❌ ' + dbErr.message); continue; }
+    if (!taskImages[taskId]) taskImages[taskId] = [];
+    taskImages[taskId].push(img);
+  }
+  renderTaskDrawer();
+  showToast('✅ Image(s) uploaded');
+}
+async function uploadSubtaskImages(subId, files) {
+  const arr = Array.from(files); if (!arr.length) return;
+  for (const f of arr) {
+    const ext = f.name.split('.').pop();
+    const path = `subtask-images/${subId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { data: uploadData, error: upErr } = await sb.storage.from('crm-assets').upload(path, f, { upsert: false });
+    if (upErr) { showToast('❌ Upload failed: ' + upErr.message); continue; }
+    const { data: urlData } = sb.storage.from('crm-assets').getPublicUrl(path);
+    const url = urlData?.publicUrl;
+    if (!url) continue;
+    const { data: img, error: dbErr } = await sb.from('task_images').insert({ subtask_id: subId, url, filename: f.name }).select().single();
+    if (dbErr) continue;
+    if (!subtaskImages[subId]) subtaskImages[subId] = [];
+    subtaskImages[subId].push(img);
+  }
+  renderSubtaskDrawer();
+  showToast('✅ Image(s) uploaded');
+}
+async function deleteTaskImage(imgId, kind) {
+  await sb.from('task_images').delete().eq('id', imgId);
+  if (kind === 'subtask') {
+    for (const key of Object.keys(subtaskImages)) subtaskImages[key] = subtaskImages[key].filter(x => x.id !== imgId);
+    renderSubtaskDrawer();
+  } else {
+    for (const key of Object.keys(taskImages)) taskImages[key] = taskImages[key].filter(x => x.id !== imgId);
+    renderTaskDrawer();
+  }
 }
 
 // ─── Tasks inside an order ───
