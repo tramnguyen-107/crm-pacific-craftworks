@@ -2431,6 +2431,8 @@ let sprintAssignments = []; // from sprint_task_assignments table
 let viewingSprintNo = null;
 let sprintPeekTaskId = null;
 let sprintPeekSprintNo = null;
+let sprintTaskDetails = {};  // {taskId: {description, notes, start_date, deadline}}
+let sprintSubtasks = {};     // {taskId: [{id, title, is_done, assignee_id, ...}]}
 
 let activeCustomerId = null;
 let activeFocusedOrderId = null;
@@ -9337,12 +9339,18 @@ async function loadSprintAssignments() {
 async function loadTaskExtras() {
   if (isDemoMode) return;
   try {
-    const [subRes, propRes, pvRes, imgRes] = await Promise.all([
+    const [subRes, propRes, pvRes, imgRes, sdetailRes, ssubRes] = await Promise.all([
       sb.from('task_subtasks').select('*').order('position').order('created_at'),
       sb.from('task_properties').select('*').order('position').order('created_at'),
       sb.from('task_property_values').select('*'),
       sb.from('task_images').select('*').order('created_at'),
+      sb.from('sprint_task_details').select('*'),
+      sb.from('sprint_subtasks').select('*').order('position').order('created_at'),
     ]);
+    // pre-populate sprint task details
+    (sdetailRes.data||[]).forEach(d => { sprintTaskDetails[d.task_id] = d; });
+    // pre-populate sprint subtasks
+    (ssubRes.data||[]).forEach(s => { if (!sprintSubtasks[s.sprint_task_id]) sprintSubtasks[s.sprint_task_id]=[]; sprintSubtasks[s.sprint_task_id].push(s); });
     allSubtasks = subRes.data || [];
     taskProperties = propRes.data || [];
     const vals = {};
@@ -9411,14 +9419,18 @@ async function setSprintTaskAssignee(taskId, memberId, menuEl) {
 }
 
 // ─── Sprint task side peek ───
-function openSprintTaskPeek(taskId, sprintNo) {
+async function openSprintTaskPeek(taskId, sprintNo) {
   sprintPeekTaskId = taskId;
   sprintPeekSprintNo = sprintNo;
   renderSprintTaskPeek();
   document.getElementById('sprint-peek-bg').style.display = 'block';
   const panel = document.getElementById('sprint-peek-panel');
-  panel.offsetHeight; // force reflow
+  panel.offsetHeight;
   panel.classList.add('open');
+  // load details + subtasks if not cached
+  if (!sprintTaskDetails[taskId]) await loadSprintTaskDetails(taskId);
+  if (!sprintSubtasks[taskId]) await loadSprintSubtasksFor(taskId);
+  renderSprintTaskPeek();
 }
 function closeSprintTaskPeek() {
   sprintPeekTaskId = null;
@@ -9438,6 +9450,22 @@ function renderSprintTaskPeek() {
   const testF = isTestMode ? true : false;
   const assignment = sprintAssignments.find(a => a.task_id === sprintPeekTaskId && a.is_test === testF);
   const assignedMember = assignment?.member_id ? memberById(assignment.member_id) : null;
+  const details = sprintTaskDetails[task.id] || {};
+  const subs = sprintSubtasks[task.id] || [];
+  const imgs = taskImages['sprint_'+task.id] || [];
+
+  const subsHtml = subs.map(s => {
+    const sm = s.assignee_id ? memberById(s.assignee_id) : null;
+    const av = sm ? `<span style="width:17px;height:17px;border-radius:50%;background:${sm.color||'#6366F1'};display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;flex-shrink:0">${sm.name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>` : '';
+    const due = s.deadline||s.start_date ? `<span style="font-size:10px;color:var(--muted)">${formatDate(s.deadline||s.start_date)}</span>` : '';
+    return `<div class="sub-task-row${s.is_done?' done':''}" onclick="openSprintSubtaskPeek('${s.id}')">
+      <input type="checkbox" class="sub-check" ${s.is_done?'checked':''} onclick="event.stopPropagation()" onchange="toggleSprintSubtask('${s.id}',this.checked)">
+      <span class="sub-task-title">${escHtml(s.title)}</span>
+      ${av}${due}
+    </div>`;
+  }).join('');
+  const imgsHtml = imgs.map(img => `<div class="img-wrap"><img class="img-thumb" src="${escHtml(img.url)}" onclick="window.open('${escHtml(img.url)}','_blank')"><button class="img-del" onclick="deleteSprintTaskImage('${img.id}','${task.id}')">✕</button></div>`).join('');
+
   el.innerHTML = `
     <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--white);z-index:1">
       <div style="display:flex;align-items:center;gap:10px">
@@ -9447,48 +9475,59 @@ function renderSprintTaskPeek() {
       <button onclick="closeSprintTaskPeek()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--muted);padding:4px;line-height:1">✕</button>
     </div>
     <div style="padding:20px 22px">
-      <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1.55;margin-bottom:22px${done?';text-decoration:line-through;color:var(--muted)':''}">${escHtml(task.desc)}</div>
-      <div>
-        <div class="sp-prop-row"><span class="sp-prop-label">Status</span>
-          <span style="font-size:13px;font-weight:700;color:${done?'#16A34A':'#D97706'}">${done?'✅ Done':'⏳ Open'}</span></div>
-        <div class="sp-prop-row"><span class="sp-prop-label">Assignee</span>
-          <div id="sp-assignee-cell">
-            ${assignedMember
-              ? `<span style="display:inline-flex;align-items:center;gap:7px">
-                  ${avatarHtml(assignedMember.id,22)}
-                  <span style="font-size:13px">${escHtml(assignedMember.name)}</span>
-                  <button class="sa-assign-btn" onclick="openSprintAssignMenu('${task.id}',this)">Change</button>
-                </span>`
-              : `<button class="sa-assign-btn" onclick="openSprintAssignMenu('${task.id}',this)">+ Assign someone</button>`}
-          </div>
-        </div>
-        <div class="sp-prop-row"><span class="sp-prop-label">Sprint</span>
-          <span style="font-size:13px">Sprint ${sprintNo}${sprint?` · ${sprint.phase}`:''}</span></div>
-        <div class="sp-prop-row"><span class="sp-prop-label">Department</span>
-          <span style="font-size:13px">${escHtml(task.area)}</span></div>
-        ${sprint?`<div class="sp-prop-row"><span class="sp-prop-label">Timeline</span>
-          <span style="font-size:13px;color:var(--muted)">${sprint.s} → ${sprint.e}</span></div>`:''}
-        ${done&&comp?`<div class="sp-prop-row"><span class="sp-prop-label">Done by</span>
-          <span style="font-size:13px">${escHtml(comp.done_by||'Team')}</span></div>`:''}
-      </div>
-      ${task.dw?`<div style="margin-top:18px;padding:13px 15px;background:var(--surface);border-radius:9px;border-left:3px solid var(--brand)">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Done When</div>
+      <div style="font-size:18px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:18px${done?';text-decoration:line-through;color:var(--muted)':''}">${escHtml(task.desc)}</div>
+
+      <div class="sp-prop-row"><span class="sp-prop-label">Status</span>
+        <span style="font-size:13px;font-weight:700;color:${done?'#16A34A':'#D97706'}">${done?'✅ Done':'⏳ Open'}</span></div>
+      <div class="sp-prop-row"><span class="sp-prop-label">Assignee</span>
+        <div id="sp-assignee-cell">
+          ${assignedMember
+            ? `<span style="display:inline-flex;align-items:center;gap:7px">${avatarHtml(assignedMember.id,22)}<span style="font-size:13px">${escHtml(assignedMember.name)}</span><button class="sa-assign-btn" onclick="openSprintAssignMenu('${task.id}',this)">Change</button></span>`
+            : `<button class="sa-assign-btn" onclick="openSprintAssignMenu('${task.id}',this)">+ Assign someone</button>`}
+        </div></div>
+      <div class="sp-prop-row"><span class="sp-prop-label">Start date</span>
+        <input type="date" class="td-in" style="padding:3px 6px;font-size:12px;width:auto" value="${details.start_date||''}" onchange="saveSprintTaskDetail('${task.id}','start_date',this.value)"></div>
+      <div class="sp-prop-row"><span class="sp-prop-label">Deadline</span>
+        <input type="date" class="td-in" style="padding:3px 6px;font-size:12px;width:auto" value="${details.deadline||''}" onchange="saveSprintTaskDetail('${task.id}','deadline',this.value)"></div>
+      <div class="sp-prop-row"><span class="sp-prop-label">Sprint</span>
+        <span style="font-size:13px">Sprint ${sprintNo}${sprint?` · ${sprint.phase}`:''}</span></div>
+      <div class="sp-prop-row"><span class="sp-prop-label">Department</span>
+        <span style="font-size:13px">${escHtml(task.area)}</span></div>
+      ${sprint?`<div class="sp-prop-row"><span class="sp-prop-label">Timeline</span>
+        <span style="font-size:13px;color:var(--muted)">${sprint.s} → ${sprint.e}</span></div>`:''}
+      ${done&&comp?`<div class="sp-prop-row"><span class="sp-prop-label">Done by</span>
+        <span style="font-size:13px">${escHtml(comp.done_by||'Team')}</span></div>`:''}
+
+      ${task.dw?`<div style="margin-top:16px;padding:12px 14px;background:var(--surface);border-radius:8px;border-left:3px solid var(--brand)">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Done When</div>
         <div style="font-size:13px;color:var(--text);line-height:1.5">${escHtml(task.dw)}</div>
       </div>`:''}
-      <div style="margin-top:22px">
+
+      <div class="td-sec">Description</div>
+      <textarea id="sp-desc" class="td-desc" rows="3" placeholder="Add description…" onblur="saveSprintTaskDetail('${task.id}','description',this.value)">${escHtml(details.description||'')}</textarea>
+
+      <div class="td-sec">Notes</div>
+      <textarea id="sp-notes" class="td-desc" rows="3" placeholder="Add notes…" onblur="saveSprintTaskDetail('${task.id}','notes',this.value)">${escHtml(details.notes||'')}</textarea>
+
+      <div style="margin-top:16px">
         <button onclick="toggleSprintTask('${task.id}',${sprintNo})" style="width:100%;padding:12px;border-radius:9px;border:none;background:${done?'var(--surface)':'var(--brand)'};color:${done?'var(--text)':'white'};font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;border:1px solid ${done?'var(--border)':'var(--brand)'}">
           ${done?'↩ Mark as Not Done':'✓ Mark as Done'}
         </button>
       </div>
-      <div style="margin-top:22px">
-        <div style="font-size:12px;font-weight:600;color:var(--muted);border-top:1px solid var(--border);padding-top:14px;margin-bottom:8px">Images</div>
-        <div class="sp-images-grid" id="sp-images-grid">
-          ${(taskImages['sprint_'+task.id]||[]).map(img => `<div class="img-wrap"><img class="img-thumb" src="${escHtml(img.url)}" onclick="window.open('${escHtml(img.url)}','_blank')"><button class="img-del" onclick="deleteSprintTaskImage('${img.id}','${task.id}')">✕</button></div>`).join('')}
-          <label class="img-upload-btn">
-            <span style="font-size:18px">＋</span><span>Image</span>
-            <input type="file" accept="image/*" multiple style="display:none" onchange="uploadSprintTaskImages('${task.id}',this.files)">
-          </label>
-        </div>
+
+      <div class="td-sec">Images <span style="font-weight:400;font-size:11px;color:var(--muted)">(${imgs.length})</span></div>
+      <div class="img-grid" id="sp-images-grid">
+        ${imgsHtml}
+        <label class="img-upload-btn"><span style="font-size:18px">＋</span><span>Image</span>
+          <input type="file" accept="image/*" multiple style="display:none" onchange="uploadSprintTaskImages('${task.id}',this.files)">
+        </label>
+      </div>
+
+      <div class="td-sec">Sub-tasks <span style="font-weight:400;font-size:11px;color:var(--muted)">(${subs.length})</span></div>
+      <div id="sp-subtasks">${subsHtml||'<div class="tk-empty" style="padding:4px 0">No sub-tasks yet.</div>'}</div>
+      <div class="sub-add-row">
+        <input id="sp-sub-title" placeholder="Add sub-task…" onkeydown="if(event.key==='Enter')quickAddSprintSubtask('${task.id}',this)">
+        <button class="td-btn" onclick="quickAddSprintSubtask('${task.id}',document.getElementById('sp-sub-title'))">Add</button>
       </div>
     </div>`;
 }
@@ -10122,6 +10161,105 @@ async function deleteSprintTaskImage(imgId, sprintTaskId) {
   await sb.from('task_images').delete().eq('id', imgId);
   const k = 'sprint_' + sprintTaskId;
   if (taskImages[k]) taskImages[k] = taskImages[k].filter(x => x.id !== imgId);
+  renderSprintTaskPeek();
+}
+
+// ─── Sprint task details (description, notes, start_date, deadline) ───
+async function loadSprintTaskDetails(taskId) {
+  try {
+    const { data } = await sb.from('sprint_task_details').select('*').eq('task_id', taskId).maybeSingle();
+    sprintTaskDetails[taskId] = data || {};
+  } catch(e) { sprintTaskDetails[taskId] = {}; }
+}
+async function loadSprintSubtasksFor(taskId) {
+  try {
+    const { data } = await sb.from('sprint_subtasks').select('*').eq('sprint_task_id', taskId).order('position').order('created_at');
+    sprintSubtasks[taskId] = data || [];
+  } catch(e) { sprintSubtasks[taskId] = []; }
+}
+async function saveSprintTaskDetail(taskId, field, value) {
+  if (!sprintTaskDetails[taskId]) sprintTaskDetails[taskId] = {};
+  sprintTaskDetails[taskId][field] = value;
+  const testF = isTestMode ? true : false;
+  await sb.from('sprint_task_details').upsert({ task_id: taskId, [field]: value || null, is_test: testF, updated_at: new Date().toISOString() }, { onConflict: 'task_id' });
+}
+async function quickAddSprintSubtask(sprintTaskId, input) {
+  const title = input?.value?.trim(); if (!title) return;
+  const { data, error } = await sb.from('sprint_subtasks').insert({ sprint_task_id: sprintTaskId, title, created_by: me?.id||null }).select().single();
+  if (error) { showToast('❌ ' + error.message); return; }
+  if (!sprintSubtasks[sprintTaskId]) sprintSubtasks[sprintTaskId] = [];
+  sprintSubtasks[sprintTaskId].push(data);
+  input.value = '';
+  renderSprintTaskPeek();
+}
+async function toggleSprintSubtask(subId, isDone) {
+  for (const key of Object.keys(sprintSubtasks)) {
+    const s = sprintSubtasks[key]?.find(x => x.id === subId); if (!s) continue;
+    s.is_done = isDone; break;
+  }
+  await sb.from('sprint_subtasks').update({ is_done: isDone }).eq('id', subId);
+  renderSprintTaskPeek();
+  if (window.__sprintSubPeekId === subId) renderSprintSubtaskPeek();
+}
+
+// ─── Sprint subtask peek ───
+let __sprintSubPeekId = null;
+function openSprintSubtaskPeek(subId) {
+  window.__sprintSubPeekId = subId;
+  renderSprintSubtaskPeek();
+}
+function closeSprintSubtaskPeek() {
+  window.__sprintSubPeekId = null;
+  document.getElementById('sprint-subpk')?.remove();
+}
+function renderSprintSubtaskPeek() {
+  const subId = window.__sprintSubPeekId; if (!subId) return;
+  let sub = null;
+  for (const key of Object.keys(sprintSubtasks)) { sub = sprintSubtasks[key]?.find(x => x.id === subId); if (sub) break; }
+  if (!sub) return;
+  let el = document.getElementById('sprint-subpk');
+  if (!el) { el = document.createElement('div'); el.id = 'sprint-subpk'; el.style.cssText='position:fixed;inset:0;z-index:1200'; document.body.appendChild(el); }
+  el.innerHTML = `<div class="td-backdrop" onclick="closeSprintSubtaskPeek()"></div>
+  <div class="sub-panel" style="width:min(420px,100%)">
+    <div class="td-top">
+      <span class="td-crumb">Sprint sub-task</span>
+      <span style="display:flex;gap:6px">
+        <button class="td-btn" onclick="deleteSprintSubtask('${sub.id}')">🗑</button>
+        <button class="td-btn" onclick="closeSprintSubtaskPeek()">✕</button>
+      </span>
+    </div>
+    <input id="spk-title" class="td-title" style="font-size:20px" value="${escHtml(sub.title)}" placeholder="Sub-task name">
+    <div class="td-props">
+      <label>Status</label><select id="spk-status" class="td-in"><option value="todo"${!sub.is_done?' selected':''}>To do</option><option value="done"${sub.is_done?' selected':''}>Done</option></select>
+      <label>Assignee</label><select id="spk-assignee" class="td-in">${memberOptionsHtml(sub.assignee_id)}</select>
+      <label>Start date</label><input id="spk-start" type="date" class="td-in" value="${sub.start_date||''}">
+      <label>Deadline</label><input id="spk-deadline" type="date" class="td-in" value="${sub.deadline||''}">
+    </div>
+    <div class="td-sec">Description</div>
+    <textarea id="spk-desc" class="td-desc" rows="3" placeholder="Add description…">${escHtml(sub.description||'')}</textarea>
+    <div class="td-sec">Notes</div>
+    <textarea id="spk-notes" class="td-desc" rows="3" placeholder="Add notes…">${escHtml(sub.notes||'')}</textarea>
+    <button class="sb-new" style="margin:12px 0;width:100%;text-align:center" onclick="saveSprintSubtaskPeek('${sub.id}')">Save changes</button>
+  </div>`;
+}
+async function saveSprintSubtaskPeek(subId) {
+  const v = id => document.getElementById(id)?.value??'';
+  const fields = { title: v('spk-title').trim(), description: v('spk-desc'), notes: v('spk-notes'),
+    assignee_id: v('spk-assignee')||null, start_date: v('spk-start')||null, deadline: v('spk-deadline')||null,
+    is_done: v('spk-status')==='done' };
+  if (!fields.title) { showToast('⚠️ Title required'); return; }
+  await sb.from('sprint_subtasks').update(fields).eq('id', subId);
+  for (const key of Object.keys(sprintSubtasks)) {
+    const s = sprintSubtasks[key]?.find(x => x.id === subId); if (s) { Object.assign(s, fields); break; }
+  }
+  showToast('✅ Saved');
+  renderSprintTaskPeek();
+}
+async function deleteSprintSubtask(subId) {
+  if (!confirm('Delete this sub-task?')) return;
+  await sb.from('sprint_subtasks').delete().eq('id', subId);
+  for (const key of Object.keys(sprintSubtasks)) sprintSubtasks[key] = (sprintSubtasks[key]||[]).filter(x=>x.id!==subId);
+  closeSprintSubtaskPeek();
   renderSprintTaskPeek();
 }
 
