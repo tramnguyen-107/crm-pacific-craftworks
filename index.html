@@ -986,25 +986,30 @@
   .sprint-alert.red{background:#FEF2F2;border:1px solid #FCA5A5;color:#DC2626}
   .sprint-alert.yellow{background:#FFFBEB;border:1px solid #FCD34D;color:#D97706}
   .sprint-alert.green{background:#F0FDF4;border:1px solid #86EFAC;color:#16A34A}
-  .sprint-board{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
-  @media(max-width:900px){.sprint-board{grid-template-columns:1fr}}
-  .sprint-col{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-  .sprint-col-hdr{padding:11px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-  .sprint-col-title{font-size:13px;font-weight:700}
-  .sprint-col-count{font-size:11px;font-weight:600;background:var(--border);color:var(--muted);padding:2px 7px;border-radius:20px}
-  .sprint-task{padding:9px 12px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:9px;transition:background .1s;cursor:pointer}
-  .sprint-task:last-child{border-bottom:none}
-  .sprint-task:hover{background:var(--surface)}
-  .sprint-task.done{opacity:.55}
-  .sprint-check{width:17px;height:17px;border:2px solid var(--border);border-radius:4px;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all .15s;user-select:none}
-  .sprint-check.checked{background:var(--brand);border-color:var(--brand);color:white}
-  .sprint-task-body{flex:1;min-width:0}
-  .sprint-task-desc{font-size:12px;font-weight:600;color:var(--text);line-height:1.4}
-  .sprint-task.done .sprint-task-desc{text-decoration:line-through;color:var(--muted)}
-  .sprint-task-when{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.3}
-  .sprint-task-foot{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
+  .sp-board-wrap{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+  .sp-linear-section{background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .sp-linear-hdr{padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;transition:background .12s}
+  .sp-linear-hdr:hover{background:var(--surface)}
+  .sp-linear-section.collapsed .sp-linear-hdr{border-bottom:none}
+  .sp-sec-toggle{font-size:11px;color:var(--muted);width:14px;flex-shrink:0;text-align:center}
+  .sp-sec-title{font-size:13px;font-weight:700}
+  .sp-sec-count{font-size:11px;font-weight:600;background:var(--border);color:var(--muted);padding:2px 7px;border-radius:20px}
+  .sp-col-headers{display:grid;grid-template-columns:28px 1fr 140px 90px 1fr;padding:5px 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .sp-col-headers>div{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:2px 0}
+  .sp-linear-row{display:grid;grid-template-columns:28px 1fr 140px 90px 1fr;padding:9px 14px;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:background .1s}
+  .sp-linear-row:last-child{border-bottom:none}
+  .sp-linear-row:hover{background:var(--surface)}
+  .sp-linear-row.done{opacity:.6}
+  .sp-row-check{width:17px;height:17px;border:2px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all .15s;user-select:none;cursor:pointer;flex-shrink:0}
+  .sp-row-check.checked{background:var(--brand);border-color:var(--brand);color:white}
+  .sp-row-task{font-size:12px;font-weight:600;color:var(--text);line-height:1.4;padding-right:10px;min-width:0}
+  .sp-linear-row.done .sp-row-task{text-decoration:line-through;color:var(--muted)}
+  .sp-row-assignee{font-size:12px;min-width:0}
+  .sp-row-status{font-size:11px;font-weight:600}
+  .sp-row-when{font-size:11px;color:var(--muted);padding-left:4px}
   .sprint-assignee{font-size:10px;font-weight:700;color:white;padding:2px 7px;border-radius:20px;white-space:nowrap}
   .sprint-done-by{font-size:10px;color:var(--muted)}
+  .sa-assign-btn{font-size:10px;color:var(--brand);border:1px dashed var(--brand);background:transparent;border-radius:20px;padding:2px 8px;cursor:pointer;white-space:nowrap}
   .sprint-stats{background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
   .sprint-stats-hdr{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700}
   .sprint-stats-table{width:100%;border-collapse:collapse}
@@ -6109,60 +6114,50 @@ function renderSprintView() {
         <div class="sprint-kpi-bar"><div class="sprint-kpi-fill" style="width:${Math.min(100,clientPct)}%;background:${barCol(clientPct)}"></div></div>
       </div>
     </div>
-    <div class="sprint-board">
+    <div class="sp-board-wrap">
       ${areas.map(area => {
         const at = tasksByArea[area]; const dc = at.filter(t=>completedIds.has(t.id)).length;
         const icon = area==='Sales'?'💰':area==='Marketing'?'📣':'⚙️';
-        // Department sub-goal KPI
-        let deptKpi = '';
+        const collapsed = !!(window.__sprintSecCollapsed && window.__sprintSecCollapsed[area]);
+        // Compact KPI chip for section header
+        let kpiChip = '';
         if (area === 'Sales') {
-          const sp = signedPct; const bc = barCol(sp);
-          deptKpi = `<div class="dept-kpi">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:700;color:${bc}">$${(sprintSigned/1000).toFixed(1)}k signed</span>
-              <span style="font-size:10px;color:var(--muted)">target $${(sprint.ts/1000).toFixed(0)}k</span>
-            </div>
-            <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:4px;width:${Math.min(100,sp)}%;background:${bc};border-radius:2px"></div></div>
-            <div style="font-size:10px;color:${bc};font-weight:700;margin-top:2px">${sp}% of sprint target</div>
-          </div>`;
+          const bc = barCol(signedPct);
+          kpiChip = `<span style="font-size:11px;font-weight:700;color:${bc};background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;margin-left:4px">$${(sprintSigned/1000).toFixed(1)}k / $${(sprint.ts/1000).toFixed(0)}k &nbsp;·&nbsp; ${signedPct}%</span>`;
         } else if (area === 'Marketing') {
           const lp = sprint.tc ? Math.min(100,Math.round(newLeadsThisSprint/sprint.tc*100)) : 0; const bc = barCol(lp);
-          deptKpi = `<div class="dept-kpi">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:700;color:${bc}">${newLeadsThisSprint} new leads</span>
-              <span style="font-size:10px;color:var(--muted)">target ${sprint.tc} clients</span>
-            </div>
-            <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:4px;width:${lp}%;background:${bc};border-radius:2px"></div></div>
-            <div style="font-size:10px;color:${bc};font-weight:700;margin-top:2px">${lp}% pipeline toward target</div>
-          </div>`;
+          kpiChip = `<span style="font-size:11px;font-weight:700;color:${bc};background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;margin-left:4px">${newLeadsThisSprint} leads &nbsp;·&nbsp; ${lp}%</span>`;
         } else {
           const bc = sprintInstalls.length>0?'#16A34A':'var(--muted)';
-          deptKpi = `<div class="dept-kpi">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:700;color:${bc}">${sprintInstalls.length} installs</span>
-              <span style="font-size:10px;color:var(--muted)">${installRevenue>0?'$'+(installRevenue/1000).toFixed(0)+'k delivered':''}</span>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:2px">${sprintInstalls.length>0?'Revenue recognized this sprint':'No installs scheduled this sprint'}</div>
-          </div>`;
+          kpiChip = `<span style="font-size:11px;color:${bc};background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;margin-left:4px">${sprintInstalls.length} installs</span>`;
         }
-        return `<div class="sprint-col">
-          <div class="sprint-col-hdr"><span class="sprint-col-title">${icon} ${area}</span><span class="sprint-col-count">${dc}/${at.length}</span></div>
-          ${deptKpi}
-          ${at.map(t => {
+        return `<div class="sp-linear-section${collapsed?' collapsed':''}">
+          <div class="sp-linear-hdr" onclick="toggleSprintSection('${area}')">
+            <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+              <span class="sp-sec-toggle">${collapsed?'▸':'▾'}</span>
+              <span style="font-size:15px">${icon}</span>
+              <span class="sp-sec-title">${area}</span>
+              <span class="sp-sec-count">${dc}/${at.length}</span>
+              ${kpiChip}
+            </div>
+          </div>
+          ${!collapsed?`<div class="sp-col-headers">
+            <div></div>
+            <div>Task</div>
+            <div>Assignee</div>
+            <div>Status</div>
+            <div>Done When</div>
+          </div>
+          <div>${at.map(t => {
             const done = completedIds.has(t.id);
-            const comp = sprintCompletions.find(c=>c.task_id===t.id);
-            return `<div class="sprint-task ${done?'done':''}">
-              <div class="sprint-check ${done?'checked':''}" onclick="toggleSprintTask('${t.id}',${sprintNo})">${done?'✓':''}</div>
-              <div class="sprint-task-body" onclick="openSprintTaskPeek('${t.id}',${sprintNo})">
-                <div class="sprint-task-desc">${escHtml(t.desc)}</div>
-                ${t.dw?`<div class="sprint-task-when">✔ ${escHtml(t.dw)}</div>`:''}
-                <div class="sprint-task-foot">
-                  ${sprintAssigneeHtml(t.id)}
-                  ${done&&comp?`<span class="sprint-done-by">Done by ${escHtml(comp.done_by||'team')}</span>`:''}
-                </div>
-              </div>
+            return `<div class="sp-linear-row ${done?'done':''}" onclick="openSprintTaskPeek('${t.id}',${sprintNo})">
+              <div class="sp-row-check ${done?'checked':''}" onclick="event.stopPropagation();toggleSprintTask('${t.id}',${sprintNo})">${done?'✓':''}</div>
+              <div class="sp-row-task">${escHtml(t.desc)}</div>
+              <div class="sp-row-assignee">${sprintAssigneeHtml(t.id)}</div>
+              <div class="sp-row-status">${done?'<span style="color:#16A34A;font-size:11px;font-weight:700">✓ Done</span>':'<span style="color:var(--muted);font-size:11px">Pending</span>'}</div>
+              <div class="sp-row-when">${t.dw?escHtml(t.dw):''}</div>
             </div>`;
-          }).join('')}
+          }).join('')}</div>`:''}
         </div>`;
       }).join('')}
     </div>
@@ -6212,6 +6207,11 @@ async function toggleSprintTask(taskId, sprintNo) {
       launchFireworks(`🎉 Sprint ${sprintNo} Complete!`, `Amazing work, team! All ${tasks.length} tasks done.`);
     }
   }
+}
+function toggleSprintSection(area) {
+  if (!window.__sprintSecCollapsed) window.__sprintSecCollapsed = {};
+  window.__sprintSecCollapsed[area] = !window.__sprintSecCollapsed[area];
+  renderSprintView();
 }
 function viewSprint(no) { viewingSprintNo=no; closeSprintTaskPeek(); renderSprintView(); window.scrollTo(0,0); }
 function changeSprintView(delta) { const n=(viewingSprintNo||getCurrentSprintNo())+delta; if(n>=1&&n<=31){viewingSprintNo=n;closeSprintTaskPeek();renderSprintView();} }
