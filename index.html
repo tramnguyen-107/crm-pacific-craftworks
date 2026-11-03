@@ -994,9 +994,9 @@
   .sp-sec-toggle{font-size:11px;color:var(--muted);width:14px;flex-shrink:0;text-align:center}
   .sp-sec-title{font-size:13px;font-weight:700}
   .sp-sec-count{font-size:11px;font-weight:600;background:var(--border);color:var(--muted);padding:2px 7px;border-radius:20px}
-  .sp-col-headers{display:grid;grid-template-columns:28px 1fr 140px 90px 1fr;padding:5px 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .sp-col-headers{display:grid;grid-template-columns:28px 1fr 110px 130px 88px 88px;padding:5px 14px;background:var(--surface);border-bottom:1px solid var(--border)}
   .sp-col-headers>div{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:2px 0}
-  .sp-linear-row{display:grid;grid-template-columns:28px 1fr 140px 90px 1fr;padding:9px 14px;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:background .1s}
+  .sp-linear-row{display:grid;grid-template-columns:28px 1fr 110px 130px 88px 88px;padding:9px 14px;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:background .1s}
   .sp-linear-row:last-child{border-bottom:none}
   .sp-linear-row:hover{background:var(--surface)}
   .sp-linear-row.done{opacity:.6}
@@ -6143,19 +6143,25 @@ function renderSprintView() {
           </div>
           ${!collapsed?`<div class="sp-col-headers">
             <div></div>
-            <div>Task</div>
-            <div>Assignee</div>
+            <div>Title</div>
             <div>Status</div>
-            <div>Done When</div>
+            <div>Assignee</div>
+            <div>Due</div>
+            <div>Priority</div>
           </div>
           <div>${at.map(t => {
             const done = completedIds.has(t.id);
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const dueD = new Date(sprint.e); const dueStr = months[dueD.getMonth()]+' '+dueD.getDate();
+            const today = new Date().toISOString().split('T')[0];
+            const isOverdue = !done && sprint.e < today;
             return `<div class="sp-linear-row ${done?'done':''}" onclick="openSprintTaskPeek('${t.id}',${sprintNo})">
               <div class="sp-row-check ${done?'checked':''}" onclick="event.stopPropagation();toggleSprintTask('${t.id}',${sprintNo})">${done?'✓':''}</div>
               <div class="sp-row-task">${escHtml(t.desc)}</div>
+              <div class="sp-row-status">${done?'<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#16A34A"><span style="width:7px;height:7px;border-radius:50%;background:#16A34A;flex-shrink:0"></span>Done</span>':'<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#6366F1"><span style="width:7px;height:7px;border-radius:50%;background:#6366F1;flex-shrink:0"></span>To do</span>'}</div>
               <div class="sp-row-assignee">${sprintAssigneeHtml(t.id)}</div>
-              <div class="sp-row-status">${done?'<span style="color:#16A34A;font-size:11px;font-weight:700">✓ Done</span>':'<span style="color:var(--muted);font-size:11px">Pending</span>'}</div>
-              <div class="sp-row-when">${t.dw?escHtml(t.dw):''}</div>
+              <div class="sp-row-when" style="color:${isOverdue?'#DC2626':'var(--muted)'};font-size:12px;font-weight:${isOverdue?'700':'400'}">${dueStr}</div>
+              <div style="font-size:11px;color:var(--muted)">${t.dw?'<span style="font-size:10px;color:#6B7280;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px">Normal</span>':'<span style="font-size:10px;color:#6B7280;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px">Normal</span>'}</div>
             </div>`;
           }).join('')}</div>`:''}
         </div>`;
