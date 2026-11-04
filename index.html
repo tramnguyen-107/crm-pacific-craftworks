@@ -1007,6 +1007,16 @@
   .sp-row-assignee{font-size:12px;min-width:0}
   .sp-row-status{font-size:11px;font-weight:600}
   .sp-row-when{font-size:11px;color:var(--muted);padding-left:4px}
+  .sp-status-btn,.sp-prio-btn{background:none;border:none;cursor:pointer;font-family:inherit;padding:0;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600}
+  .sp-status-btn:hover{opacity:.75}
+  .sp-inline-menu{position:fixed;background:var(--white);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:3000;min-width:140px;padding:4px 0}
+  .sp-inline-menu-item{padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s}
+  .sp-inline-menu-item:hover{background:var(--surface)}
+  .sp-prio-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;border:1px solid;cursor:pointer;display:inline-block}
+  .sp-prio-badge.normal{color:#6B7280;border-color:var(--border);background:var(--surface)}
+  .sp-prio-badge.high{color:#D97706;border-color:#FCD34D;background:#FFFBEB}
+  .sp-prio-badge.urgent{color:#DC2626;border-color:#FCA5A5;background:#FEF2F2}
+  .sp-prio-badge:hover{opacity:.75}
   .sprint-assignee{font-size:10px;font-weight:700;color:white;padding:2px 7px;border-radius:20px;white-space:nowrap}
   .sprint-done-by{font-size:10px;color:var(--muted)}
   .sa-assign-btn{font-size:10px;color:var(--brand);border:1px dashed var(--brand);background:transparent;border-radius:20px;padding:2px 8px;cursor:pointer;white-space:nowrap}
@@ -6158,10 +6168,10 @@ function renderSprintView() {
             return `<div class="sp-linear-row ${done?'done':''}" onclick="openSprintTaskPeek('${t.id}',${sprintNo})">
               <div class="sp-row-check ${done?'checked':''}" onclick="event.stopPropagation();toggleSprintTask('${t.id}',${sprintNo})">${done?'✓':''}</div>
               <div class="sp-row-task">${escHtml(t.desc)}</div>
-              <div class="sp-row-status">${done?'<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#16A34A"><span style="width:7px;height:7px;border-radius:50%;background:#16A34A;flex-shrink:0"></span>Done</span>':'<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#6366F1"><span style="width:7px;height:7px;border-radius:50%;background:#6366F1;flex-shrink:0"></span>To do</span>'}</div>
+              <div class="sp-row-status" onclick="event.stopPropagation()">${sprintStatusHtml(t.id,sprintNo)}</div>
               <div class="sp-row-assignee">${sprintAssigneeHtml(t.id)}</div>
               <div class="sp-row-when" style="color:${isOverdue?'#DC2626':'var(--muted)'};font-size:12px;font-weight:${isOverdue?'700':'400'}">${dueStr}</div>
-              <div style="font-size:11px;color:var(--muted)">${t.dw?'<span style="font-size:10px;color:#6B7280;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px">Normal</span>':'<span style="font-size:10px;color:#6B7280;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px">Normal</span>'}</div>
+              <div onclick="event.stopPropagation()">${sprintPrioHtml(t.id)}</div>
             </div>`;
           }).join('')}</div>`:''}
         </div>`;
@@ -6218,6 +6228,75 @@ function toggleSprintSection(area) {
   if (!window.__sprintSecCollapsed) window.__sprintSecCollapsed = {};
   window.__sprintSecCollapsed[area] = !window.__sprintSecCollapsed[area];
   renderSprintView();
+}
+
+if (!window.__sprintInProgress) window.__sprintInProgress = new Set();
+if (!window.__sprintPriority) window.__sprintPriority = {};
+
+function sprintTaskStatus(taskId, sprintNo) {
+  const done = sprintCompletedIds(sprintNo).has(taskId);
+  if (done) return 'done';
+  if (window.__sprintInProgress.has(taskId)) return 'inprogress';
+  return 'todo';
+}
+function sprintStatusHtml(taskId, sprintNo) {
+  const s = sprintTaskStatus(taskId, sprintNo);
+  const opts = {todo:{color:'#6366F1',label:'To do'},inprogress:{color:'#F59E0B',label:'In Progress'},done:{color:'#16A34A',label:'Done'}};
+  const o = opts[s];
+  return `<button class="sp-status-btn" onclick="openSprintStatusMenu('${taskId}',${sprintNo},this)"><span style="width:7px;height:7px;border-radius:50%;background:${o.color};flex-shrink:0;display:inline-block"></span><span style="color:${o.color}">${o.label}</span></button>`;
+}
+function sprintPrioHtml(taskId) {
+  const p = window.__sprintPriority[taskId] || 'normal';
+  const cls = p==='urgent'?'urgent':p==='high'?'high':'normal';
+  const label = cls.charAt(0).toUpperCase()+cls.slice(1);
+  return `<span class="sp-prio-badge ${cls}" onclick="openSprintPriorityMenu('${taskId}',this)">${label}</span>`;
+}
+function closeAllInlineMenus() { document.querySelectorAll('.sp-inline-menu').forEach(m=>m.remove()); }
+function openSprintStatusMenu(taskId, sprintNo, el) {
+  closeAllInlineMenus();
+  const rect = el.getBoundingClientRect();
+  const opts = [{s:'todo',color:'#6366F1',label:'To do'},{s:'inprogress',color:'#F59E0B',label:'In Progress'},{s:'done',color:'#16A34A',label:'Done'}];
+  const m = document.createElement('div'); m.className='sp-inline-menu';
+  m.style.top=(rect.bottom+4)+'px'; m.style.left=rect.left+'px';
+  opts.forEach(o=>{
+    const item=document.createElement('div'); item.className='sp-inline-menu-item';
+    item.innerHTML=`<span style="width:8px;height:8px;border-radius:50%;background:${o.color};flex-shrink:0;display:inline-block"></span><span style="color:${o.color}">${o.label}</span>`;
+    item.onclick=()=>{ setSprintStatus(taskId,sprintNo,o.s); m.remove(); };
+    m.appendChild(item);
+  });
+  document.body.appendChild(m);
+  setTimeout(()=>document.addEventListener('click',closeAllInlineMenus,{once:true}),10);
+}
+async function setSprintStatus(taskId, sprintNo, status) {
+  const wasDone = sprintCompletedIds(sprintNo).has(taskId);
+  if (status==='done') {
+    window.__sprintInProgress.delete(taskId);
+    if (!wasDone) await toggleSprintTask(taskId,sprintNo);
+    else renderSprintView();
+  } else if (status==='todo') {
+    window.__sprintInProgress.delete(taskId);
+    if (wasDone) await toggleSprintTask(taskId,sprintNo);
+    else renderSprintView();
+  } else {
+    if (wasDone) await toggleSprintTask(taskId,sprintNo);
+    window.__sprintInProgress.add(taskId);
+    renderSprintView();
+  }
+}
+function openSprintPriorityMenu(taskId, el) {
+  closeAllInlineMenus();
+  const rect = el.getBoundingClientRect();
+  const opts = [{p:'normal',color:'#6B7280',label:'Normal'},{p:'high',color:'#D97706',label:'High'},{p:'urgent',color:'#DC2626',label:'Urgent'}];
+  const m = document.createElement('div'); m.className='sp-inline-menu';
+  m.style.top=(rect.bottom+4)+'px'; m.style.left=rect.left+'px';
+  opts.forEach(o=>{
+    const item=document.createElement('div'); item.className='sp-inline-menu-item';
+    item.innerHTML=`<span class="sp-prio-badge ${o.p}" style="pointer-events:none">${o.label}</span>`;
+    item.onclick=()=>{ window.__sprintPriority[taskId]=o.p; m.remove(); renderSprintView(); };
+    m.appendChild(item);
+  });
+  document.body.appendChild(m);
+  setTimeout(()=>document.addEventListener('click',closeAllInlineMenus,{once:true}),10);
 }
 function viewSprint(no) { viewingSprintNo=no; closeSprintTaskPeek(); renderSprintView(); window.scrollTo(0,0); }
 function changeSprintView(delta) { const n=(viewingSprintNo||getCurrentSprintNo())+delta; if(n>=1&&n<=31){viewingSprintNo=n;closeSprintTaskPeek();renderSprintView();} }
