@@ -6129,51 +6129,33 @@ function renderSprintView() {
         const at = tasksByArea[area]; const dc = at.filter(t=>completedIds.has(t.id)).length;
         const icon = area==='Sales'?'💰':area==='Marketing'?'📣':'⚙️';
         const collapsed = !!(window.__sprintSecCollapsed && window.__sprintSecCollapsed[area]);
-        // Compact KPI chip for section header
         let kpiChip = '';
         if (area === 'Sales') {
           const bc = barCol(signedPct);
-          kpiChip = `<span style="font-size:11px;font-weight:700;color:${bc};background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;margin-left:4px">$${(sprintSigned/1000).toFixed(1)}k / $${(sprint.ts/1000).toFixed(0)}k &nbsp;·&nbsp; ${signedPct}%</span>`;
+          kpiChip = `<span style="font-size:11px;font-weight:700;color:${bc};background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;margin-left:4px">$${(sprintSigned/1000).toFixed(1)}k / $${(sprint.ts/1000).toFixed(0)}k · ${signedPct}%</span>`;
         } else if (area === 'Marketing') {
           const lp = sprint.tc ? Math.min(100,Math.round(newLeadsThisSprint/sprint.tc*100)) : 0; const bc = barCol(lp);
-          kpiChip = `<span style="font-size:11px;font-weight:700;color:${bc};background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;margin-left:4px">${newLeadsThisSprint} leads &nbsp;·&nbsp; ${lp}%</span>`;
+          kpiChip = `<span style="font-size:11px;font-weight:700;color:${bc};background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;margin-left:4px">${newLeadsThisSprint} leads · ${lp}%</span>`;
         } else {
           const bc = sprintInstalls.length>0?'#16A34A':'var(--muted)';
           kpiChip = `<span style="font-size:11px;color:${bc};background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;margin-left:4px">${sprintInstalls.length} installs</span>`;
         }
-        return `<div class="sp-linear-section${collapsed?' collapsed':''}">
-          <div class="sp-linear-hdr" onclick="toggleSprintSection('${area}')">
-            <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-              <span class="sp-sec-toggle">${collapsed?'▸':'▾'}</span>
-              <span style="font-size:15px">${icon}</span>
-              <span class="sp-sec-title">${area}</span>
-              <span class="sp-sec-count">${dc}/${at.length}</span>
-              ${kpiChip}
-            </div>
+        const gridCols = '20px 1fr 110px 90px 90px 80px 30px';
+        return `<div class="tk-dept-section">
+          <div class="tk-dept-hdr" onclick="toggleSprintSection('${area}')">
+            <span class="dk-chevron">${collapsed?'▸':'▾'}</span>
+            <span style="font-size:14px">${icon}</span>
+            <span style="font-weight:700;font-size:13px">${area}</span>
+            <span class="tk-dept-count">${at.length} task${at.length!==1?'s':''}${dc?' · '+dc+' done':''}</span>
+            ${kpiChip}
           </div>
-          ${!collapsed?`<div class="sp-col-headers">
-            <div></div>
-            <div>Title</div>
-            <div>Status</div>
-            <div>Assignee</div>
-            <div>Due</div>
-            <div>Priority</div>
+          ${!collapsed?`
+          <div class="tk-col-headers" style="grid-template-columns:${gridCols}">
+            <div></div><div>Title</div><div>Status</div><div>Assignee</div><div>Due</div><div>Priority</div><div></div>
           </div>
-          <div>${at.map(t => {
-            const done = completedIds.has(t.id);
-            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            const dueD = new Date(sprint.e); const dueStr = months[dueD.getMonth()]+' '+dueD.getDate();
-            const today = new Date().toISOString().split('T')[0];
-            const isOverdue = !done && sprint.e < today;
-            return `<div class="sp-linear-row ${done?'done':''}" onclick="openSprintTaskPeek('${t.id}',${sprintNo})">
-              <div class="sp-row-check ${done?'checked':''}" onclick="event.stopPropagation();toggleSprintTask('${t.id}',${sprintNo})">${done?'✓':''}</div>
-              <div class="sp-row-task">${escHtml(t.desc)}</div>
-              <div class="sp-row-status" onclick="event.stopPropagation()">${sprintStatusHtml(t.id,sprintNo)}</div>
-              <div class="sp-row-assignee">${sprintAssigneeHtml(t.id)}</div>
-              <div class="sp-row-when" style="color:${isOverdue?'#DC2626':'var(--muted)'};font-size:12px;font-weight:${isOverdue?'700':'400'}">${dueStr}</div>
-              <div onclick="event.stopPropagation()">${sprintPrioHtml(t.id)}</div>
-            </div>`;
-          }).join('')}</div>`:''}
+          ${at.map(t=>sprintLinearRow(t,sprintNo,completedIds,sprint,gridCols)).join('')}
+          <div class="tk-new-task-row" onclick="openSprintNewTask(${sprintNo},'${area}')"><span>+</span> New task</div>
+          `:''}
         </div>`;
       }).join('')}
     </div>
@@ -6228,6 +6210,113 @@ function toggleSprintSection(area) {
   if (!window.__sprintSecCollapsed) window.__sprintSecCollapsed = {};
   window.__sprintSecCollapsed[area] = !window.__sprintSecCollapsed[area];
   renderSprintView();
+}
+function openSprintNewTask(sprintNo, area) {
+  openAddSprintTaskModal(sprintNo);
+  const areaEl = document.getElementById('new-task-area');
+  if (areaEl && area) areaEl.value = area;
+}
+function sprintLinearRow(t, sprintNo, completedIds, sprint, gridCols) {
+  const done = completedIds.has(t.id);
+  const inProg = (window.__sprintInProgress||new Set()).has(t.id);
+  const status = done?'done':inProg?'inprogress':'todo';
+  const sc = status==='done'?'#16A34A':status==='inprogress'?'#F59E0B':'#6366F1';
+  const sl = status==='done'?'Done':status==='inprogress'?'In Progress':'To do';
+  const testF = isTestMode?true:false;
+  const a = sprintAssignments.find(x=>x.task_id===t.id&&x.is_test===testF);
+  const m = a?memberById(a.member_id):null;
+  const ini = m?m.name.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase():'';
+  const assigneeHtml = m
+    ?`<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px"><span style="width:18px;height:18px;border-radius:50%;background:${m.color||'#6366F1'};display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff">${ini}</span>${escHtml(m.name.split(' ')[0])}</span>`
+    :'<span style="color:var(--muted);font-size:12px">—</span>';
+  const dueStr = sprint?formatDate(sprint.e):'—';
+  const isOverdue = !done&&sprint&&sprint.e<todayStr();
+  const prio = (window.__sprintPriority||{})[t.id]||'normal';
+  const pc = prio==='urgent'?'#EF4444':prio==='high'?'#F59E0B':'var(--text-2)';
+  const pl = prio.charAt(0).toUpperCase()+prio.slice(1);
+  return `<div class="tk-linear-row${done?' done':''}" style="grid-template-columns:${gridCols}" onclick="openSprintTaskDrawer('${t.id}',${sprintNo})">
+    <input type="checkbox" class="t-check" ${done?'checked':''} onclick="event.stopPropagation()" onchange="toggleSprintTask('${t.id}',${sprintNo})">
+    <div class="tk-row-title" style="min-width:0">${escHtml(t.desc)}</div>
+    <div><span class="tk-status-dot"><span class="prop-status-dot" style="background:${sc}"></span><span style="font-size:11px;color:var(--text-2)">${sl}</span></span></div>
+    <div>${assigneeHtml}</div>
+    <div style="font-size:11px;color:${isOverdue?'#EF4444':'var(--text-2)'}">${dueStr}</div>
+    <div style="font-size:11px;color:${pc};font-weight:500">${pl}</div>
+    <div></div>
+  </div>`;
+}
+function openSprintTaskDrawer(taskId, sprintNo) {
+  window.__sprintDrawerTaskId = taskId;
+  window.__sprintDrawerSprintNo = sprintNo;
+  renderSprintTaskDrawer();
+}
+function closeSprintTaskDrawer() {
+  window.__sprintDrawerTaskId = null;
+  document.getElementById('sprint-task-drawer')?.remove();
+}
+function renderSprintTaskDrawer() {
+  const taskId = window.__sprintDrawerTaskId;
+  const sprintNo = window.__sprintDrawerSprintNo;
+  if (!taskId) return;
+  const task = [...SPRINT_TASK_DEFS,...sprintCustomTasks].find(t=>t.id===taskId);
+  if (!task) return closeSprintTaskDrawer();
+  const sprint = SPRINTS.find(s=>s.no===sprintNo);
+  const testF = isTestMode?true:false;
+  const done = sprintCompletedIds(sprintNo).has(taskId);
+  const inProg = (window.__sprintInProgress||new Set()).has(taskId);
+  const curStatus = done?'done':inProg?'inprogress':'todo';
+  const a = sprintAssignments.find(x=>x.task_id===taskId&&x.is_test===testF);
+  const assigneeId = a?a.member_id:'';
+  const prio = (window.__sprintPriority||{})[taskId]||'normal';
+  const desc = (window.__sprintDesc||{})[taskId]||'';
+  const notes = (window.__sprintNotes||{})[taskId]||'';
+  let el = document.getElementById('sprint-task-drawer');
+  if (!el){el=document.createElement('div');el.id='sprint-task-drawer';document.body.appendChild(el);}
+  const selOpts = (opts,cur) => opts.map(([v,l])=>`<option value="${v}"${v===cur?' selected':''}>${l}</option>`).join('');
+  el.innerHTML=`<div class="td-backdrop" onclick="closeSprintTaskDrawer()"></div>
+  <div class="td-panel">
+    <div class="td-top">
+      <span class="td-crumb">Sprint ${sprintNo} · ${task.area||'Task'}</span>
+      <button class="td-btn" onclick="closeSprintTaskDrawer()">✕</button>
+    </div>
+    <div style="font-size:17px;font-weight:800;line-height:1.4;margin:10px 0 18px;color:var(--text)">${escHtml(task.desc)}</div>
+    <div class="td-props">
+      <label>Status</label><select id="sptd-status" class="td-in">${selOpts([['todo','To do'],['inprogress','In Progress'],['done','Done']],curStatus)}</select>
+      <label>Assignee</label><select id="sptd-assignee" class="td-in"><option value="">— Unassigned —</option>${team.map(m=>`<option value="${m.id}"${m.id===assigneeId?' selected':''}>${escHtml(m.name)}</option>`).join('')}</select>
+      <label>Due date</label><div class="td-static">${sprint?formatDate(sprint.e):'—'}</div>
+      <label>Priority</label><select id="sptd-prio" class="td-in">${selOpts([['normal','Normal'],['high','High'],['urgent','Urgent']],prio)}</select>
+    </div>
+    <div class="td-sec">Description</div>
+    <textarea id="sptd-desc" class="td-desc" rows="3" placeholder="Add a description…">${escHtml(desc)}</textarea>
+    <div class="td-sec">Notes</div>
+    <textarea id="sptd-notes" class="td-desc" rows="3" placeholder="Add notes…">${escHtml(notes)}</textarea>
+    <button class="sb-new" style="margin:14px 0 0;width:100%;text-align:center" onclick="saveSprintTaskDrawer('${taskId}',${sprintNo})">Save changes</button>
+  </div>`;
+}
+async function saveSprintTaskDrawer(taskId, sprintNo) {
+  const status = document.getElementById('sptd-status').value;
+  const assigneeId = document.getElementById('sptd-assignee').value;
+  const prio = document.getElementById('sptd-prio').value;
+  const desc = document.getElementById('sptd-desc').value;
+  const notes = document.getElementById('sptd-notes').value;
+  if (!window.__sprintDesc) window.__sprintDesc={};
+  if (!window.__sprintNotes) window.__sprintNotes={};
+  if (!window.__sprintPriority) window.__sprintPriority={};
+  window.__sprintDesc[taskId]=desc;
+  window.__sprintNotes[taskId]=notes;
+  window.__sprintPriority[taskId]=prio;
+  await setSprintStatus(taskId,sprintNo,status);
+  const testF=isTestMode?true:false;
+  if (assigneeId) {
+    const rec={task_id:taskId,member_id:assigneeId,sprint_no:sprintNo,is_test:testF};
+    const idx=sprintAssignments.findIndex(a=>a.task_id===taskId&&a.is_test===testF);
+    if(idx>=0)sprintAssignments[idx]={...sprintAssignments[idx],...rec};else sprintAssignments.push(rec);
+    if(!isDemoMode)await sb.from('sprint_task_assignments').upsert(rec,{onConflict:'task_id,is_test'}).catch(()=>{});
+  } else {
+    sprintAssignments=sprintAssignments.filter(a=>!(a.task_id===taskId&&a.is_test===testF));
+    if(!isDemoMode)await sb.from('sprint_task_assignments').delete().eq('task_id',taskId).eq('is_test',testF).catch(()=>{});
+  }
+  closeSprintTaskDrawer();
+  showToast('✓ Saved');
 }
 
 if (!window.__sprintInProgress) window.__sprintInProgress = new Set();
