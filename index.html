@@ -6315,6 +6315,7 @@ function renderSprintTaskDrawer() {
     <div class="td-sec">Notes</div>
     <textarea id="sptd-notes" class="td-desc" rows="3" placeholder="Add notes…">${escHtml(details.notes||'')}</textarea>
     <button class="sb-new" style="margin:12px 0 0;width:100%;text-align:center" onclick="saveSprintTaskDrawer('${taskId}',${sprintNo})">Save changes</button>
+    ${(()=>{const ap=taskProperties.filter(p=>p.workspace===`Sprint ${task.area||''}`);return ap.length?`<div class="td-sec">Custom Properties</div><div class="td-props" id="sptd-custom-props">${ap.map(p=>`<label style="display:flex;align-items:center;gap:4px">${escHtml(p.name)}${['select','multi_select','status'].includes(p.prop_type)?`<button class="td-btn" style="padding:1px 5px;font-size:10px" onclick="openOptionEditor('${p.id}',this)">⚙</button>`:''}</label>${renderPropertyInput(p,(taskPropertyValues[taskId]||{})[p.id],taskId)}`).join('')}</div>`:'';})()}
     <div class="td-sec">Images <span style="font-weight:400;font-size:11px;color:var(--muted)">(${imgs.length})</span></div>
     <div class="img-grid" id="sptd-images">
       ${imgsHtml}
