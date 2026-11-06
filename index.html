@@ -6237,7 +6237,7 @@ function sprintLinearRow(t, sprintNo, completedIds, sprint, gridCols, areaProps)
   const prio = (window.__sprintPriority||{})[t.id]||'normal';
   const pc = prio==='urgent'?'#EF4444':prio==='high'?'#EF4444':'#F59E0B';
   const pl = prio==='urgent'?'Urgent':prio==='high'?'High':'Normal';
-  const customCells = (areaProps||[]).map(p=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">${renderPropertyCell(p,(taskPropertyValues[t.id]||{})[p.id],t.id)}</div>`).join('');
+  const customCells = (areaProps||[]).map(p=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;cursor:pointer" onclick="event.stopPropagation();openSprintCellEditor('${t.id}','${p.id}','${p.prop_type}',this)">${renderPropertyCell(p,(taskPropertyValues[t.id]||{})[p.id],t.id)}</div>`).join('');
   return `<div class="tk-linear-row${done?' done':''}" style="grid-template-columns:${gridCols}" onclick="openSprintTaskDrawer('${t.id}',${sprintNo})">
     <input type="checkbox" class="t-check" ${done?'checked':''} onclick="event.stopPropagation()" onchange="toggleSprintTask('${t.id}',${sprintNo})">
     <div class="tk-row-title" style="min-width:0">${escHtml(t.desc)}</div>
@@ -6260,6 +6260,19 @@ async function openSprintTaskDrawer(taskId, sprintNo) {
 function closeSprintTaskDrawer() {
   window.__sprintDrawerTaskId = null;
   document.getElementById('sprint-task-drawer')?.remove();
+}
+function openSprintCellEditor(taskId, propId, propType, cellEl) {
+  document.getElementById('sprint-cell-popup')?.remove();
+  const prop = taskProperties.find(p => p.id === propId); if (!prop) return;
+  const curVal = (taskPropertyValues[taskId]||{})[propId] || '';
+  const rect = cellEl.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.id = 'sprint-cell-popup';
+  pop.style.cssText = `position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);min-width:200px;top:${rect.bottom+4}px;left:${Math.max(4,rect.left)}px`;
+  pop.innerHTML = renderPropertyInput(prop, curVal, taskId);
+  document.body.appendChild(pop);
+  pop.querySelector('input,select,textarea')?.focus();
+  setTimeout(() => document.addEventListener('click', function h(e){ if(!pop.contains(e.target)&&e.target!==cellEl){pop.remove();document.removeEventListener('click',h);renderSprintView();} }), 100);
 }
 function renderSprintTaskDrawer() {
   const taskId = window.__sprintDrawerTaskId;
@@ -10172,7 +10185,7 @@ async function addTaskProperty(workspace, type, defaultName) {
   if (error) { showToast('❌ ' + error.message); return; }
   taskProperties.push(data);
   if (currentView === 'tasks') renderTasksView();
-  if (currentView === 'sprint') renderSprintView();
+  if (document.getElementById('sprint-content')) renderSprintView();
   showToast('✅ Column added');
 }
 function renderPropertyCell(prop, value, taskId) {
