@@ -6150,7 +6150,7 @@ function renderSprintView() {
           </div>
           ${!collapsed?`
           <div class="tk-col-headers" style="grid-template-columns:${gridCols}">
-            <div></div><div>Title</div><div>Status</div><div>Assignee</div><div>Due</div><div>Priority</div><div style="display:flex;align-items:center;justify-content:center"><span style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1" title="Column options">+</span></div>
+            <div></div><div>Title</div><div>Status</div><div>Assignee</div><div>Due</div><div>Priority</div><div style="display:flex;justify-content:center"><span class="prop-add-col" title="Add column" onclick="event.stopPropagation();openAddPropertyMenu('Sprint ${area}',this)">+</span></div>
           </div>
           ${at.map(t=>sprintLinearRow(t,sprintNo,completedIds,sprint,gridCols)).join('')}
           <div class="tk-new-task-row" onclick="openSprintNewTask(${sprintNo},'${area}')"><span>+</span> New task</div>
