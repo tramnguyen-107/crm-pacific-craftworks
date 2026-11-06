@@ -6362,7 +6362,7 @@ function sprintTaskStatus(taskId, sprintNo) {
 }
 function sprintStatusHtml(taskId, sprintNo) {
   const s = sprintTaskStatus(taskId, sprintNo);
-  const opts = {todo:{color:'#6366F1',label:'To do'},inprogress:{color:'#F59E0B',label:'In Progress'},done:{color:'#16A34A',label:'Done'}};
+  const opts = {todo:{color:'#94A3B8',label:'To do'},inprogress:{color:'#6366F1',label:'In progress'},done:{color:'#10B981',label:'Done'}};
   const o = opts[s];
   return `<button class="sp-status-btn" onclick="openSprintStatusMenu('${taskId}',${sprintNo},this)"><span style="width:7px;height:7px;border-radius:50%;background:${o.color};flex-shrink:0;display:inline-block"></span><span style="color:${o.color}">${o.label}</span></button>`;
 }
