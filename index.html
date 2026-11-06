@@ -6150,7 +6150,7 @@ function renderSprintView() {
           </div>
           ${!collapsed?`
           <div class="tk-col-headers" style="grid-template-columns:${gridCols}">
-            <div></div><div>Title</div><div>Status</div><div>Assignee</div><div>Due</div><div>Priority</div><div></div>
+            <div></div><div>Title</div><div>Status</div><div>Assignee</div><div>Due</div><div>Priority</div><div style="display:flex;align-items:center;justify-content:center"><span style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1" title="Column options">+</span></div>
           </div>
           ${at.map(t=>sprintLinearRow(t,sprintNo,completedIds,sprint,gridCols)).join('')}
           <div class="tk-new-task-row" onclick="openSprintNewTask(${sprintNo},'${area}')"><span>+</span> New task</div>
@@ -6301,6 +6301,8 @@ function renderSprintTaskDrawer() {
       <label>Deadline</label><input id="sptd-deadline" type="date" class="td-in" value="${details.deadline||''}">
       <label>Due date</label><div class="td-static">${sprint?formatDate(sprint.e):'—'}</div>
       <label>Priority</label><select id="sptd-prio" class="td-in">${selOpts([['normal','Normal'],['high','High'],['urgent','Urgent']],prio)}</select>
+      <label>Tags</label><div class="td-static" style="color:var(--muted)">+ tag</div>
+      <label>Created by</label><div class="td-static">${escHtml(task.created_by||'—')}</div>
     </div>
     <div class="td-sec">Description</div>
     <textarea id="sptd-desc" class="td-desc" rows="3" placeholder="Add a description…">${escHtml(details.description||'')}</textarea>
