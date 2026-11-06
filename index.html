@@ -10171,7 +10171,7 @@ async function addTaskProperty(workspace, type, defaultName) {
   if (error) { showToast('❌ ' + error.message); return; }
   taskProperties.push(data);
   if (currentView === 'tasks') renderTasksView();
-  if (currentView === 'sprints') renderSprintView();
+  if (currentView === 'sprint') renderSprintView();
   showToast('✅ Column added');
 }
 function renderPropertyCell(prop, value, taskId) {
