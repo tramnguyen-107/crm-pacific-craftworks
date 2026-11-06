@@ -6140,7 +6140,9 @@ function renderSprintView() {
           const bc = sprintInstalls.length>0?'#16A34A':'var(--muted)';
           kpiChip = `<span style="font-size:11px;color:${bc};background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;margin-left:4px">${sprintInstalls.length} installs</span>`;
         }
-        const gridCols = '20px 1fr 110px 90px 90px 80px 30px';
+        const areaProps = taskProperties.filter(p => p.workspace === `Sprint ${area}`);
+        const customColsHdr = areaProps.map(() => '90px').join(' ');
+        const gridCols = `20px 1fr 110px 90px 90px 80px${customColsHdr ? ' ' + customColsHdr : ''} 30px`;
         return `<div class="tk-dept-section">
           <div class="tk-dept-hdr" onclick="toggleSprintSection('${area}')">
             <span class="dk-chevron">${collapsed?'▸':'▾'}</span>
@@ -6150,9 +6152,11 @@ function renderSprintView() {
           </div>
           ${!collapsed?`
           <div class="tk-col-headers" style="grid-template-columns:${gridCols}">
-            <div></div><div>Title</div><div>Status</div><div>Assignee</div><div>Due</div><div>Priority</div><div style="display:flex;justify-content:center"><span class="prop-add-col" title="Add column" onclick="event.stopPropagation();openAddPropertyMenu('Sprint ${area}',this)">+</span></div>
+            <div></div><div>Title</div><div>Status</div><div>Assignee</div><div>Due</div><div>Priority</div>
+            ${areaProps.map(p=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(p.name)}">${escHtml(p.name)}</div>`).join('')}
+            <div style="display:flex;justify-content:center"><span class="prop-add-col" title="Add column" onclick="event.stopPropagation();openAddPropertyMenu('Sprint ${area}',this)">+</span></div>
           </div>
-          ${at.map(t=>sprintLinearRow(t,sprintNo,completedIds,sprint,gridCols)).join('')}
+          ${at.map(t=>sprintLinearRow(t,sprintNo,completedIds,sprint,gridCols,areaProps)).join('')}
           <div class="tk-new-task-row" onclick="openSprintNewTask(${sprintNo},'${area}')"><span>+</span> New task</div>
           `:''}
         </div>`;
@@ -6215,7 +6219,7 @@ function openSprintNewTask(sprintNo, area) {
   const areaEl = document.getElementById('new-task-area');
   if (areaEl && area) areaEl.value = area;
 }
-function sprintLinearRow(t, sprintNo, completedIds, sprint, gridCols) {
+function sprintLinearRow(t, sprintNo, completedIds, sprint, gridCols, areaProps) {
   const done = completedIds.has(t.id);
   const inProg = (window.__sprintInProgress||new Set()).has(t.id);
   const status = done?'done':inProg?'inprogress':'todo';
@@ -6233,6 +6237,7 @@ function sprintLinearRow(t, sprintNo, completedIds, sprint, gridCols) {
   const prio = (window.__sprintPriority||{})[t.id]||'normal';
   const pc = prio==='urgent'?'#EF4444':prio==='high'?'#EF4444':'#F59E0B';
   const pl = prio==='urgent'?'Urgent':prio==='high'?'High':'Normal';
+  const customCells = (areaProps||[]).map(p=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">${renderPropertyCell(p,(taskPropertyValues[t.id]||{})[p.id],t.id)}</div>`).join('');
   return `<div class="tk-linear-row${done?' done':''}" style="grid-template-columns:${gridCols}" onclick="openSprintTaskDrawer('${t.id}',${sprintNo})">
     <input type="checkbox" class="t-check" ${done?'checked':''} onclick="event.stopPropagation()" onchange="toggleSprintTask('${t.id}',${sprintNo})">
     <div class="tk-row-title" style="min-width:0">${escHtml(t.desc)}</div>
@@ -6240,6 +6245,7 @@ function sprintLinearRow(t, sprintNo, completedIds, sprint, gridCols) {
     <div>${assigneeHtml}</div>
     <div style="font-size:11px;color:${isOverdue?'#EF4444':'var(--text-2)'}">${dueStr}</div>
     <div style="font-size:11px;color:${pc};font-weight:500">${pl}</div>
+    ${customCells}
     <div></div>
   </div>`;
 }
@@ -10165,6 +10171,7 @@ async function addTaskProperty(workspace, type, defaultName) {
   if (error) { showToast('❌ ' + error.message); return; }
   taskProperties.push(data);
   if (currentView === 'tasks') renderTasksView();
+  if (currentView === 'sprints') renderSprintView();
   showToast('✅ Column added');
 }
 function renderPropertyCell(prop, value, taskId) {
