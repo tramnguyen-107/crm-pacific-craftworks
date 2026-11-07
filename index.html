@@ -785,7 +785,7 @@
   .tk-card-f { display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
   .tk-add { width:100%; background:none; border:none; color:var(--muted); text-align:left; padding:6px; font-size:13px; cursor:pointer; border-radius:4px; font-family:inherit; }
   .tk-add:hover { background:var(--hover); }
-  #task-drawer, #pw-modal { position:fixed; inset:0; z-index:1000; }
+  #task-drawer, #sprint-task-drawer, #pw-modal { position:fixed; inset:0; z-index:1000; }
   .td-backdrop { position:absolute; inset:0; background:rgba(0,0,0,0.25); }
   .td-panel { position:absolute; top:0; right:0; bottom:0; width:min(560px, 100%); background:var(--bg); border-left:1px solid var(--border); box-shadow:var(--shadow-md); padding:16px 24px 32px; overflow-y:auto; }
   .td-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
@@ -6153,7 +6153,7 @@ function renderSprintView() {
           ${!collapsed?`
           <div class="tk-col-headers" style="grid-template-columns:${gridCols}">
             <div></div><div>Title</div><div>Status</div><div>Assignee</div><div>Due</div><div>Priority</div>
-            ${areaProps.map(p=>`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(p.name)}">${escHtml(p.name)}</div>`).join('')}
+            ${areaProps.map(p=>`<div style="display:flex;align-items:center;gap:4px;overflow:hidden" title="${escHtml(p.name)}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(p.name)}</span><span style="cursor:pointer;color:var(--muted);font-size:11px;flex-shrink:0" onclick="event.stopPropagation();openSprintColMenu('${p.id}',this)" title="Column options">⚙</span></div>`).join('')}
             <div style="display:flex;justify-content:center"><span class="prop-add-col" title="Add column" onclick="event.stopPropagation();openAddPropertyMenu('Sprint ${area}',this)">+</span></div>
           </div>
           ${at.map(t=>sprintLinearRow(t,sprintNo,completedIds,sprint,gridCols,areaProps)).join('')}
@@ -6260,6 +6260,28 @@ async function openSprintTaskDrawer(taskId, sprintNo) {
 function closeSprintTaskDrawer() {
   window.__sprintDrawerTaskId = null;
   document.getElementById('sprint-task-drawer')?.remove();
+}
+function openSprintColMenu(propId, anchor) {
+  document.getElementById('sprint-col-menu')?.remove();
+  const prop = taskProperties.find(p => p.id === propId); if (!prop) return;
+  const rect = anchor.getBoundingClientRect();
+  const m = document.createElement('div');
+  m.id = 'sprint-col-menu';
+  m.style.cssText = `position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;box-shadow:0 4px 20px rgba(0,0,0,.18);min-width:160px;top:${rect.bottom+4}px;left:${Math.max(4,rect.left-80)}px`;
+  m.innerHTML = `<div style="padding:4px 10px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">${escHtml(prop.name)}</div>
+    ${['select','multi_select','status'].includes(prop.prop_type)?`<div class="prop-picker-item" onclick="openOptionEditor('${propId}',this);document.getElementById('sprint-col-menu')?.remove()">⚙ Edit options</div>`:''}
+    <div class="prop-picker-item" style="color:#EF4444" onclick="deleteSprintColumn('${propId}')">🗑 Delete column</div>`;
+  document.body.appendChild(m);
+  setTimeout(() => document.addEventListener('click', function h(e){ if(!m.contains(e.target)){m.remove();document.removeEventListener('click',h);} }), 100);
+}
+async function deleteSprintColumn(propId) {
+  document.getElementById('sprint-col-menu')?.remove();
+  if (!confirm('Delete this column? All values in this column will be lost.')) return;
+  const { error } = await sb.from('task_properties').delete().eq('id', propId);
+  if (error) { showToast('❌ ' + error.message); return; }
+  taskProperties = taskProperties.filter(p => p.id !== propId);
+  if (document.getElementById('sprint-content')) renderSprintView();
+  showToast('✅ Column deleted');
 }
 function openSprintCellEditor(taskId, propId, propType, cellEl) {
   document.getElementById('sprint-cell-popup')?.remove();
